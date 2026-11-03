@@ -14,6 +14,7 @@ import tempfile
 import numpy as np
 
 
+# Separa selección y calibración dentro de validación; declara explícitamente cuando deben compartir datos.
 def calibration_split(targets, groups, validation, path, fingerprints=None):
     """Return original indices ``(selection, calibration, info)``.
 
@@ -49,11 +50,13 @@ def calibration_split(targets, groups, validation, path, fingerprints=None):
     if stored.get('version') != 1 or any(role not in ('selection', 'calibration') for role in [*assignments.values(), *sample_roles.values()]):
         raise ValueError('Registro de selección/calibración inválido.')
 
+    # Cuenta ejemplos y grupos por clase para describir la independencia de la reserva.
     def describe(part):
         return {'samples': len(part), 'groups': len(set(g[part])),
                 'by_class': [{'class_index': int(c), 'samples': int(np.sum(y[part] == c)),
                               'groups': len(set(g[part][y[part] == c]))} for c in classes]}
 
+    # Devuelve validación compartida con su motivo cuando no hay datos para dos reservas distintas.
     def fallback(reason):
         return indices.copy(), indices.copy(), {
             'mode': 'shared_validation', 'independent': False, 'reason': reason,
@@ -63,6 +66,7 @@ def calibration_split(targets, groups, validation, path, fingerprints=None):
 
     # A copied recording never supplies an additional independent group.
     parent = {group: group for group in selected_groups}
+    # Agrupa copias de una secuencia para impedir que entren en roles distintos.
     def root(group):
         while parent[group] != group:
             parent[group] = parent[parent[group]]
@@ -132,6 +136,7 @@ def calibration_split(targets, groups, validation, path, fingerprints=None):
         'note': 'Selección y calibración usan grupos distintos; la independencia entre personas depende de la procedencia del dataset.'}
 
 
+# Calcula un intervalo orientativo de incertidumbre para un conteo de éxitos sobre observaciones.
 def wilson_interval(successes, total, z=1.959963984540054):
     """95% Wilson interval for a binary event; no observation gives no estimate."""
     if total < 0 or successes < 0 or successes > total:
@@ -146,6 +151,7 @@ def wilson_interval(successes, total, z=1.959963984540054):
             'successes': int(successes), 'total': int(total)}
 
 
+# Describe soporte e incertidumbre por muestras y grupos sin afirmar independencia entre personas.
 def validation_support(targets, groups, labels, predicted=None, accepted=None):
     """Report counts and uncertainty, by true class for coverage and predicted
     class for accepted precision. Intervals over recordings are nominal IID
@@ -166,6 +172,7 @@ def validation_support(targets, groups, labels, predicted=None, accepted=None):
         if pred.shape != y.shape or mask.shape != y.shape:
             raise ValueError('Dimensiones de decisiones incompatibles.')
 
+    # Calcula soporte, cobertura e intervalos de una clase o del total evaluado.
     def row(truth, chosen):
         true_groups = set(g[truth])
         result = {'samples': int(truth.sum()), 'groups': len(true_groups),

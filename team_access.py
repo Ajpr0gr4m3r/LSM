@@ -8,9 +8,10 @@ from web_dataset import draft_dir, sequence_metadata, validate_identifier
 
 ADMIN_ROUTES = {'/api/train', '/api/alphabet', '/api/dataset/import', '/api/dataset/delete',
                 '/api/dataset/move', '/api/models/activate', '/api/admin/delete-recordings'}
-CAMERA_ROUTES = {'/api/close', '/api/reset', '/api/capture', '/api/frame'}
+CAMERA_ROUTES = {'/api/snapshot', '/api/close', '/api/reset', '/api/capture', '/api/frame'}
 
 
+# Lee de forma segura el token opaco de la cookie de sesión.
 def cookie_token(handler):
     try:
         cookie = SimpleCookie(handler.headers.get('Cookie', ''))
@@ -19,11 +20,13 @@ def cookie_token(handler):
         return None
 
 
+# Configura la cookie HttpOnly y SameSite con marca Secure en el despliegue HTTPS autenticado.
 def set_session(handler, token):
     secure = bool(getattr(handler.server, 'public_origin', None))
     handler.session_cookie = f'{COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200' + ('; Secure' if secure else '')
 
 
+# Proporciona una identidad local cuando las cuentas están desactivadas y la conexión es de loopback.
 def local_session(handler):
     if (getattr(handler.server, 'local_mode', False)
             and not getattr(handler.server, 'public_origin', None)
@@ -33,6 +36,7 @@ def local_session(handler):
     return None
 
 
+# Devuelve el estado de acceso local o una sesión de cuenta para la pantalla de entrada.
 def status(handler, accounts):
     local = local_session(handler)
     if local:
@@ -47,6 +51,7 @@ def status(handler, accounts):
             'shared': True, 'registration': 'invitation'}
 
 
+# Cierra los detectores y elimina todas las sesiones de cámara de un usuario.
 def close_user_cameras(runtime, identifier):
     with runtime.lock:
         for key, item in list(runtime.sessions.items()):
@@ -55,6 +60,7 @@ def close_user_cameras(runtime, identifier):
                 del runtime.sessions[key]
 
 
+# Resuelve la identidad local o valida la sesión de cuenta requerida por la ruta.
 def authenticate(handler, accounts, require_user=True):
     local = local_session(handler)
     if local:
@@ -65,10 +71,12 @@ def authenticate(handler, accounts, require_user=True):
     return session
 
 
+# Compara el token de mutación con el CSRF de la sesión mediante comparación constante.
 def csrf_valid(handler, session):
     return session and hmac.compare_digest(handler.headers.get('X-LSM-Token', ''), session['csrf'])
 
 
+# Procesa registro, acceso e invitaciones del modo autenticado; los rechaza en modo local.
 def auth_post(handler, route, payload, accounts, runtime, session):
     if local_session(handler):
         raise PermissionError('Las cuentas están desactivadas en modo local.')
@@ -117,11 +125,13 @@ def auth_post(handler, route, payload, accounts, runtime, session):
     raise ValueError('Opción de cuenta no encontrada.')
 
 
+# Devuelve la identidad y el CSRF nuevos después de cambiar de sesión.
 def status_after_login(accounts, token):
     session = accounts.session(token)
     return {'user': session['user'], 'csrf': session['csrf'], 'setup_required': not accounts.configured(), 'shared': True}
 
 
+# Consulta la procedencia de una toma pendiente o su recibo para verificar su propietario.
 def draft_owner(language, identifier):
     validate_identifier(identifier)
     root = draft_dir(language)
@@ -134,6 +144,7 @@ def draft_owner(language, identifier):
     raise ValueError('No existe esa toma pendiente.')
 
 
+# Comprueba roles, consentimiento y propiedad de cámara o toma antes de una operación.
 def authorize(runtime, user, route, payload):
     if route in ADMIN_ROUTES and user['role'] != 'admin':
         raise PermissionError('Esta opción es solo para administradores.')
@@ -145,12 +156,13 @@ def authorize(runtime, user, route, payload):
         owner = draft_owner(payload.get('language'), payload.get('draft_id'))
         if owner != user['id'] and user['role'] != 'admin':
             raise PermissionError('Esta toma pendiente pertenece a otra cuenta.')
-    if route == '/api/session' and any(s.owner_id == user['id'] and time.monotonic()-s.touched < 600 for s in runtime.sessions.values()):
-        raise ValueError('Ya tienes una cámara activa. Detén esa cámara antes de abrir otra.')
+    if route == '/api/session' and any(s.owner_id == user['id'] and time.monotonic()-s.touched < 15 for s in runtime.sessions.values()):
+        raise ValueError('Hay otra sesión de cámara enviando imágenes. Apágala en la otra pestaña; si ya la cerraste, espera 15 segundos y vuelve a activar la cámara.')
     if route == '/api/session' and payload.get('shared_consent') is not True:
         raise ValueError('Acepta el procesamiento en el servidor antes de activar la cámara.')
 
 
+# Añade identidad y CSRF al estado y filtra tomas ajenas cuando el usuario no es administrador.
 def shared_state(runtime, user, csrf):
     state = runtime.state()
     for p in state['profiles']:

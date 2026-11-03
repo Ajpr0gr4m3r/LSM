@@ -26,3 +26,21 @@ assert.equal(batch.complete('stale-take', second), null, 'Una respuesta antigua 
 assert.equal(batch.count, 0);
 assert.equal(batch.current(third), true);
 console.log('Grabación consecutiva: límites, repetidos, finalización y cancelación comprobados.');
+
+const pausable = new ContinuousCapture();
+const beforePause = pausable.start(5);
+pausable.complete('one', beforePause);
+pausable.pause();
+assert.equal(pausable.current(beforePause), false);
+assert.equal(pausable.count, 1);
+assert.equal(pausable.active, true);
+const pausedSerial = pausable.serial;
+pausable.complete('in-flight-take', pausedSerial);
+assert.equal(pausable.count, 2, 'La toma que ya estaba grabando se conserva al terminar.');
+const resumed = pausable.resume();
+assert.equal(pausable.current(resumed), true);
+assert.equal(pausable.current(beforePause), false, 'La cuenta atrás anterior no se reanuda accidentalmente.');
+assert.equal(pausable.limit, 5);
+assert.equal(pausable.complete('in-flight-take', resumed), null);
+pausable.stop();
+assert.equal(pausable.paused, false);

@@ -7,14 +7,18 @@ import sign_languages as langs
 import alphabets
 import web_dataset as data
 
+# Ayudante de prueba para AlphabetTests.
 class AlphabetTests(unittest.TestCase):
+    # Prepara el estado temporal aislado que necesita cada prueba.
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.patch = patch.object(langs, 'WEB_DATA', Path(self.folder.name))
         self.patch.start()
+    # Elimina los recursos temporales creados durante la prueba.
     def tearDown(self):
         self.patch.stop()
         self.folder.cleanup()
+    # Prueba automatizada: verifica catalogs are distinct and cover required symbols.
     def test_catalogs_are_distinct_and_cover_required_symbols(self):
         self.assertEqual(len(alphabets.alphabet_for('lsm')['symbols']), 27)
         self.assertIn('Ñ', alphabets.alphabet_for('lsm')['symbols'])
@@ -26,6 +30,7 @@ class AlphabetTests(unittest.TestCase):
             catalog = alphabets.alphabet_for(language['id'])
             values = catalog['symbols'] + catalog['extras']
             self.assertEqual(len(values), len(set(values)))
+    # Prueba automatizada: verifica add all is persistent idempotent and does not claim models.
     def test_add_all_is_persistent_idempotent_and_does_not_claim_models(self):
         result = alphabets.add_all_alphabets()
         self.assertEqual(len(result), 7)
@@ -37,6 +42,7 @@ class AlphabetTests(unittest.TestCase):
             status = alphabets.alphabet_status(item['id'], rows, None)
             self.assertTrue(all(letter['label_id'] for letter in status['symbols']))
             self.assertTrue(all(letter['samples'] == 0 and not letter['trained'] for letter in status['symbols']))
+    # Prueba automatizada: verifica existing letter and samples are preserved.
     def test_existing_letter_and_samples_are_preserved(self):
         original = langs.register_label('lsm', 'a')
         points = np.ones((data.SEQUENCE_LENGTH, data.FEATURE_DIM), dtype=np.float32)
@@ -48,6 +54,7 @@ class AlphabetTests(unittest.TestCase):
         self.assertEqual(row['samples'], 1)
         self.assertTrue(row['trained'])
         self.assertEqual(langs.custom_labels('asl'), [])
+    # Prueba automatizada: verifica sharp s does not merge with ss and optional variants work.
     def test_sharp_s_does_not_merge_with_ss_and_optional_variants_work(self):
         original = langs.register_label('dgs', 'SS')
         alphabets.add_alphabet('dgs')
@@ -56,6 +63,7 @@ class AlphabetTests(unittest.TestCase):
         alphabets.add_alphabet('jsl', extras=True)
         self.assertIsNotNone(alphabets.find_symbol_label(langs.labels_for('jsl'), 'が'))
         self.assertIsNone(alphabets.find_symbol_label(langs.labels_for('jsl'), 'あ'))
+    # Prueba automatizada: verifica adding empty letters does not block training collected classes.
     def test_adding_empty_letters_does_not_block_training_collected_classes(self):
         alphabets.add_alphabet('asl')
         points = np.ones((data.SEQUENCE_LENGTH, data.FEATURE_DIM), dtype=np.float32)

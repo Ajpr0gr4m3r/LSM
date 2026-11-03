@@ -9,6 +9,7 @@ FINGER_PREPROCESSING = 'stable-finger-geometry-v4'
 DISCRIMINATIVE_PREPROCESSING = 'articulation-motion-v5'
 
 
+# Devuelve el número de canales esperado por cada versión y rechaza versiones desconocidas.
 def feature_dimension(preprocessing):
     if preprocessing == DISCRIMINATIVE_PREPROCESSING:
         return FEATURE_DIM + 244
@@ -21,6 +22,7 @@ def feature_dimension(preprocessing):
     raise ValueError('Preprocesamiento de modelo desconocido.')
 
 
+# Expresa la forma de cada mano respecto a muñeca y palma sin intercambiar lados ni eliminar orientación.
 def local_hands(points):
     """Forma relativa a la muñeca, escalada por la palma, sin reflejar ni rotar."""
     local, visible = [], []
@@ -35,11 +37,15 @@ def local_hands(points):
     return np.concatenate(local + visible, axis=-1)
 
 
+# Aplica exactamente el preprocesamiento indicado por los metadatos del modelo.
 def prepare_sequence(points, preprocessing=HAND_PREPROCESSING):
     feature_dimension(preprocessing)
     if preprocessing == DISCRIMINATIVE_PREPROCESSING:
         stable = smooth_landmarks(points)
-        return np.concatenate([prepare_sequence(points, FINGER_PREPROCESSING), articulation_motion(stable)], axis=-1)
+        body = normalize_sequence(stable)
+        normalize_face(body)
+        fingers = np.concatenate([body, local_hands(stable), finger_geometry(stable)], axis=-1)
+        return np.concatenate([fingers, articulation_motion(stable)], axis=-1)
     if preprocessing is None:
         return np.asarray(points, dtype=np.float32)
     if preprocessing in (STABLE_PREPROCESSING, FINGER_PREPROCESSING):
@@ -54,22 +60,34 @@ def prepare_sequence(points, preprocessing=HAND_PREPROCESSING):
     return body
 
 
-def hand_descriptor(points, contrastive=False):
+# Resume la forma de manos y, según la versión, la flexión y orientación de sus articulaciones.
+def hand_descriptor(points, contrastive=False, descriptor_version=None):
+    if descriptor_version not in (None, 'finger-articulation-v3'):
+        raise ValueError('Descriptor de mano desconocido.')
+    if descriptor_version == 'finger-articulation-v3':
+        points = smooth_landmarks(points)
     hands = local_hands(points)
     if contrastive:
         hands = np.concatenate([hands, 2 * finger_geometry(points)], axis=-1)
+    if descriptor_version == 'finger-articulation-v3':
+        articulated = articulation_motion(points)
+        # Static joint angles and palm orientation; velocity belongs to the
+        # temporal guard. Both hands keep their own coordinate channels.
+        hands = np.concatenate([hands, articulated[:, :29], articulated[:, 41:70]], axis=-1)
     return np.concatenate([np.median(hands, axis=0), np.std(hands, axis=0)])
 
 
+# Promedia las distancias a las referencias más próximas para reducir el efecto de una sola muestra.
 def nearest_distance(descriptor, references):
     distances = np.sqrt(np.mean((np.asarray(references) - descriptor) ** 2, axis=1))
     return float(np.mean(np.sort(distances)[:min(3, len(distances))]))
 
 
-def fit_hand_guard(train_points, train_targets, val_points, val_targets, contrastive=False):
+# Aprende referencias con entrenamiento y calibra el rechazo de forma con validación.
+def fit_hand_guard(train_points, train_targets, val_points, val_targets, contrastive=False, descriptor_version=None):
     """Referencias solo de entrenamiento; tolerancia comprobada con validación."""
-    train_desc = np.stack([hand_descriptor(p, contrastive) for p in train_points])
-    val_desc = np.stack([hand_descriptor(p, contrastive) for p in val_points])
+    train_desc = np.stack([hand_descriptor(p, contrastive, descriptor_version) for p in train_points])
+    val_desc = np.stack([hand_descriptor(p, contrastive, descriptor_version) for p in val_points])
     classes = []
     for label in sorted(np.unique(train_targets)):
         refs = representative_references(train_desc[train_targets == label])
@@ -78,6 +96,8 @@ def fit_hand_guard(train_points, train_targets, val_points, val_targets, contras
         threshold = max(.035, float(np.quantile(distances, .95)), max(val_distances, default=0)) * 1.25
         classes.append({'references': refs.tolist(), 'max_distance': threshold})
     guard = {'version': 'finger-contrast-v2' if contrastive else 'local-hand-shape-v1', 'classes': classes}
+    if descriptor_version:
+        guard['descriptor_version'] = descriptor_version
     if contrastive:
         # Validation chooses rejection only; references never include validation/test.
         distances = np.array([[nearest_distance(d, c['references']) for c in classes] for d in val_desc])
@@ -93,12 +113,13 @@ def fit_hand_guard(train_points, train_targets, val_points, val_targets, contras
     return guard
 
 
+# Comprueba distancia absoluta y separación de formas rivales con el descriptor guardado.
 def hand_guard_accept(points, predicted, guard):
     if not guard:
         return True
     item = guard['classes'][int(predicted)]
     contrastive = guard.get('version') == 'finger-contrast-v2'
-    descriptor = hand_descriptor(points, contrastive)
+    descriptor = hand_descriptor(points, contrastive, guard.get('descriptor_version'))
     own = nearest_distance(descriptor, item['references'])
     if own > item['max_distance']:
         return False
@@ -109,6 +130,7 @@ def hand_guard_accept(points, predicted, guard):
     return True
 
 
+# Presenta los canales planos como vistas de pose, rostro, mano izquierda y mano derecha.
 def regions(points):
     face_dim = FACE_FULL_DIM if USE_FULL_FACE else FACE_KEY_DIM
     return [points[..., :POSE_DIM].reshape(*points.shape[:-1], 33, 4),
@@ -117,6 +139,7 @@ def regions(points):
             points[..., -63:].reshape(*points.shape[:-1], 21, 3)]
 
 
+# Centra y escala con hombros visibles conservando movimiento y puntos ausentes.
 def normalize_sequence(points):
     """Ancla XY al torso y escala por hombros; conserva movimiento y ausencias."""
     result = np.asarray(points, dtype=np.float32).copy()
@@ -139,6 +162,7 @@ def normalize_sequence(points):
     return result
 
 
+# Simula pequeñas variaciones constantes de cámara por secuencia, sin reflejar manos.
 def augment_viewpoints(points, targets, seed=42):
     """Variaciones XY leves de cámara sobre datos crudos, solo para entrenar.
 
@@ -167,6 +191,7 @@ def augment_viewpoints(points, targets, seed=42):
     return np.concatenate(output), np.concatenate([targets] * 3, axis=0)
 
 
+# Crea las variantes de ruido y escala del entrenamiento de referencia histórico.
 def augment_training(points, targets, seed=42):
     """Originales + dos variaciones leves. No refleja, invierte ni cambia clases."""
     rng = np.random.default_rng(seed)
@@ -187,6 +212,7 @@ def augment_training(points, targets, seed=42):
     return np.concatenate(output), np.concatenate([targets, targets, targets], axis=0)
 
 
+# Calcula aceptación, cobertura y aciertos bajo un umbral y margen determinados.
 def decision_metrics(probabilities, targets, threshold=.85, margin=.15, allowed=None):
     probabilities = np.asarray(probabilities)
     order = np.sort(probabilities, axis=1)
@@ -199,6 +225,7 @@ def decision_metrics(probabilities, targets, threshold=.85, margin=.15, allowed=
             'accepted_accuracy': float(np.mean(correct[accepted])) if accepted.any() else None}
 
 
+# Elige un umbral con validación cuando existe soporte suficiente de predicciones aceptadas.
 def validation_threshold(probabilities, targets):
     # Ajustar solo con validación. El test queda reservado para el informe final.
     candidates = [decision_metrics(probabilities, targets, threshold) for threshold in [.85, .90, .95]]
@@ -206,6 +233,7 @@ def validation_threshold(probabilities, targets):
     return max(eligible, key=lambda m: m['coverage']) if eligible else candidates[-1]
 
 
+# Filtra de forma causal los puntos visibles sin rellenar manos ausentes ni mezclar tomas.
 def smooth_landmarks(points):
     """Filtro causal leve: sin interpolar manos ausentes ni mezclar tomas."""
     result = np.asarray(points, dtype=np.float32).copy()
@@ -218,6 +246,7 @@ def smooth_landmarks(points):
     return result
 
 
+# Normaliza el rostro con referencias oculares suficientes para preservar su expresión local.
 def normalize_face(body):
     from config import FACE_KEY_INDICES
     face = regions(body)[1]
@@ -230,6 +259,7 @@ def normalize_face(body):
             frame[:]=(frame-center)/scale
 
 
+# Extrae el resumen temporal correspondiente a la versión guardada en el filtro.
 def temporal_descriptor(points, preprocessing=STABLE_PREPROCESSING, descriptor_version=None):
     if descriptor_version == "trajectory-v2":
         from motion_features import trajectory_descriptor
@@ -248,6 +278,7 @@ def temporal_descriptor(points, preprocessing=STABLE_PREPROCESSING, descriptor_v
     return np.concatenate(chunks+[np.std(hands,axis=0),np.mean(np.abs(velocity),axis=0)])
 
 
+# Aprende referencias de trayectorias y ajusta límites con secuencias de validación.
 def fit_temporal_guard(points, targets, validation, val_targets, descriptor_version=None):
     train=np.stack([temporal_descriptor(p, descriptor_version=descriptor_version) for p in points])
     val=np.stack([temporal_descriptor(p, descriptor_version=descriptor_version) for p in validation])
@@ -281,6 +312,7 @@ def fit_temporal_guard(points, targets, validation, val_targets, descriptor_vers
     return guard
 
 
+# Compara la trayectoria con su clase y, si corresponde, con rivales de distinto movimiento.
 def temporal_guard_score(points,predicted,guard):
     if not guard: return 0.
     item=guard['classes'][int(predicted)]
@@ -293,10 +325,12 @@ def temporal_guard_score(points,predicted,guard):
     return score
 
 
+# Acepta la trayectoria solamente cuando su puntuación permanece dentro del límite calibrado.
 def temporal_guard_accept(points,predicted,guard):
     return temporal_guard_score(points,predicted,guard) <= 1.
 
 
+# Busca confianza y margen en validación respetando los filtros geométricos disponibles.
 def calibrate_decision(probabilities, targets, allowed=None):
     candidates=[]
     for threshold in (.85,.90,.95):
@@ -307,6 +341,7 @@ def calibrate_decision(probabilities, targets, allowed=None):
     return max(candidates,key=lambda m:(m['coverage'],m['accepted_accuracy'],m['margin'])) if candidates else decision_metrics(probabilities,targets,.95,.25,allowed)
 
 
+# Mide extensión de dedos y separación de puntas en unidades de palma.
 def finger_geometry(points):
     """30 scalars: extension of each finger and pairwise fingertip separation.
 
@@ -333,6 +368,7 @@ def finger_geometry(points):
     return np.concatenate(output, axis=-1).astype(np.float32)
 
 
+# Extrae ángulos, orientación, velocidades y relaciones entre manos preservando su lateralidad.
 def articulation_motion(points):
     """86 channels. Retain orientation and handedness; never align/reflect palms.
 
@@ -345,7 +381,9 @@ def articulation_motion(points):
     body=normalize_sequence(raw)
     raw_hands=regions(raw)[-2:];body_hands=regions(body)[-2:]
     output=[];presence=[]
+    # Normaliza vectores evitando divisiones por cero en puntos degenerados.
     def unit(v):return v/np.maximum(np.linalg.norm(v,axis=-1,keepdims=True),1e-5)
+    # Calcula diferencias temporales solo entre observaciones consecutivas donde la mano está presente.
     def velocity(v, present):
         delta=np.zeros_like(v)
         delta[1:]=np.where((present[1:]&present[:-1])[:,None],v[1:]-v[:-1],0)
@@ -372,6 +410,7 @@ def articulation_motion(points):
     return np.nan_to_num(np.concatenate(output,axis=-1)).astype(np.float32)
 
 
+# Añade perturbaciones pequeñas y correlacionadas en unidades de palma para simular ruido de seguimiento.
 def augment_articulation(points, targets, seed=42):
     """Small temporally correlated noise in palm units; preserve finger shape."""
     rng=np.random.default_rng(seed);output=[points.copy()]
@@ -388,6 +427,7 @@ def augment_articulation(points, targets, seed=42):
     return np.concatenate(output),np.concatenate([targets]*3)
 
 
+# Selecciona un conjunto acotado y reproducible de referencias representativas para limitar el coste en vivo.
 def representative_references(references, limit=64):
     """Bound guard inference cost; deterministic farthest-point coverage."""
     refs=np.asarray(references)
@@ -399,3 +439,36 @@ def representative_references(references, limit=64):
         distances[selected]=-1
         selected.append(int(np.argmax(distances)))
     return refs[selected]
+
+
+# Combina distancia, velocidad y ruido de seguimiento sobre puntos crudos sin aumentar el volumen habitual de variantes.
+def augment_robust(points, targets, seed=42):
+    """Three variants, same training volume as other strategies.
+
+    Warp time without reversal, scale the whole signer about the shoulders,
+    then add palm-scaled correlated tracking noise. Raw landmarks are the sole
+    source of all derived features. Never clip fingers or synthesize missing hands.
+    """
+    from motion_features import augment_timing
+    raw = np.asarray(points, dtype=np.float32)
+    varied, labels = augment_timing(raw, targets)
+    rng = np.random.default_rng(seed)
+    for sequence in varied[len(raw):]:
+        pose = regions(sequence)[0]
+        good = np.all(pose[:, [11, 12], 3] >= .4, axis=1)
+        center = np.median(pose[good][:, [11, 12], :2].mean(axis=1), axis=0) if good.any() else np.array([.5, .5])
+        scale = rng.uniform(.72, 1.12)
+        # If zoom would remove visible landmarks, keep the original scale.
+        for region in regions(sequence):
+            present = np.any(region[..., :3] != 0, axis=-1)
+            xy = (region[..., :2] - center) * scale + center
+            if np.any((xy[present] < 0) | (xy[present] > 1)):
+                scale = min(scale, 1.)
+        for region in regions(sequence):
+            present = np.any(region[..., :3] != 0, axis=-1)
+            region[..., :2] = np.where(present[..., None], (region[..., :2] - center) * scale + center, 0)
+            region[..., 2] = np.where(present, region[..., 2] * scale, 0)
+        # Use just one noisy copy per variation; do not multiply training size.
+        noisy, _ = augment_articulation(sequence[None], np.array([0]), seed=int(rng.integers(2**31)))
+        sequence[:] = noisy[1]
+    return varied, labels

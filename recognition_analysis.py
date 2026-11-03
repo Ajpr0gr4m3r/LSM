@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 
+# Aplica calibración por temperatura sin cambiar el orden de las clases predichas.
 def temperature_probabilities(probabilities, temperature=1.):
     logits = np.log(np.clip(probabilities, 1e-8, 1)) / float(temperature)
     logits -= logits.max(axis=-1, keepdims=True)
@@ -11,12 +12,14 @@ def temperature_probabilities(probabilities, temperature=1.):
     return result / result.sum(axis=-1, keepdims=True)
 
 
+# Busca una temperatura con la pérdida de validación, sin ajustar con la prueba reservada.
 def fit_temperature(probabilities, targets):
     values = (.5, .75, 1., 1.25, 1.5, 2., 3.)
     losses = [float(-np.log(np.clip(temperature_probabilities(probabilities, t)[np.arange(len(targets)), targets], 1e-8, 1)).mean()) for t in values]
     return float(values[int(np.argmin(losses))])
 
 
+# Combina confianza, margen y permisos por clase para decidir qué predicciones se aceptan.
 def accepted_mask(probabilities, policy, allowed=None, strict=False):
     p = np.atleast_2d(probabilities)
     predicted = p.argmax(axis=1)
@@ -29,6 +32,7 @@ def accepted_mask(probabilities, policy, allowed=None, strict=False):
     return accepted
 
 
+# Ajusta umbrales por clase con evidencia de validación y deja sin soporte las clases insuficientes.
 def calibrate_policy(probabilities, targets, allowed):
     """No viable class threshold means reject that class, never a forced guess."""
     p = np.asarray(probabilities); predicted = p.argmax(axis=1)
@@ -46,6 +50,7 @@ def calibrate_policy(probabilities, targets, allowed):
     return policy
 
 
+# Identifica pares y grupos de clases que se confunden a partir de la matriz de confusión.
 def confusion_analysis(matrix, labels):
     matrix = np.asarray(matrix, int); totals = matrix.sum(axis=1)
     pairs=[]; adjacency={i:set() for i in range(len(labels))}
@@ -70,6 +75,7 @@ def confusion_analysis(matrix, labels):
     return {'pairs':sorted(pairs,key=lambda r:(r['errors'],max(r['a_rate'],r['b_rate'])),reverse=True), 'groups':groups}
 
 
+# Calcula métricas globales, por clase y de rechazos sobre las probabilidades proporcionadas.
 def evaluate(probabilities, targets, labels, policy=None, allowed=None):
     p=np.asarray(probabilities);y=np.asarray(targets);pred=p.argmax(axis=1)
     accepted=accepted_mask(p,policy or {},allowed);correct=pred==y
@@ -90,6 +96,7 @@ def evaluate(probabilities, targets, labels, policy=None, allowed=None):
             'unknown_false_accept_rate':None,'unknown_note':'No se han evaluado señas desconocidas reales.'}
 
 
+# Asigna más peso a ejemplos difíciles conservando un peso total equilibrado por clase.
 def hard_weights(probabilities, targets):
     """Bounded emphasis on difficult training examples, equal total per class."""
     y=np.asarray(targets);p=np.asarray(probabilities)
@@ -101,6 +108,7 @@ def hard_weights(probabilities, targets):
     return result
 
 
+# Detecta deterioros por clase al comparar dos modelos en los mismos ejemplos independientes.
 def regression_check(candidate, previous, tolerance=.05):
     """Same evaluation examples required by caller. Check every retained class."""
     if previous is None:return {'comparable':False,'passed':False,'regressions':[]}
@@ -114,6 +122,7 @@ def regression_check(candidate, previous, tolerance=.05):
     return {'comparable':True,'passed':passed,'regressions':regressions,'tolerance':tolerance}
 
 
+# Resume soporte, grupos y desbalance de las clases seleccionadas para el entrenamiento.
 def dataset_summary(raw, y, labels, groups, provenance):
     from capture_quality import sequence_quality
     rows=[]
@@ -129,6 +138,7 @@ def dataset_summary(raw, y, labels, groups, provenance):
     return {'by_class':rows,'imbalance_ratio':float(counts.max()/counts.min()),'provenance':provenance}
 
 
+# Elimina secuencias idénticas y rechaza copias con etiquetas contradictorias.
 def deduplicate(raw,y):
     seen={};keep=[]
     for i,p in enumerate(raw):
@@ -139,6 +149,7 @@ def deduplicate(raw,y):
     return raw[keep],y[keep],len(raw)-len(keep)
 
 
+# Compara diagnósticos de características para detectar posibles problemas de representación.
 def preprocessing_probe(raw, targets, train, validation):
     """Same fixed nearest-neighbor classifier; validation only, diagnostic ablation."""
     from sklearn.neighbors import KNeighborsClassifier
@@ -156,6 +167,7 @@ def preprocessing_probe(raw, targets, train, validation):
             'results':output,'note':'Sondeo diagnóstico de representación; no mide la precisión del modelo neuronal ni prueba una causa única.'}
 
 
+# Prioriza ejemplos cuya predicción discrepa de su etiqueta para revisarlos, sin renombrarlos automáticamente.
 def label_review_candidates(raw, targets, labels, train):
     """Review suggestions, not relabeling. Uses only training neighbors."""
     from sklearn.neighbors import NearestNeighbors

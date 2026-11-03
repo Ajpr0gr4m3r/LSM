@@ -2,6 +2,7 @@
 import numpy as np
 
 
+# Extrae trayectorias de muñecas y puntas de dedos en coordenadas relativas al cuerpo.
 def tracks(points):
     from recognition_features import regions, normalize_sequence, smooth_landmarks
     raw = np.asarray(points, np.float32)
@@ -14,6 +15,7 @@ def tracks(points):
     return np.concatenate(output, axis=1), np.stack(visible, axis=1)
 
 
+# Resume desplazamiento, velocidad con signo y recorrido conservando orden y lateralidad.
 def trajectory_descriptor(points):
     """16 ordered samples of wrist + ALL tips, displacement and signed velocity.
 
@@ -39,6 +41,7 @@ def trajectory_descriptor(points):
     return np.concatenate(descriptors).astype(np.float32)
 
 
+# Mide amplitud y velocidad final para describir cuánto movimiento contiene una secuencia.
 def motion_summary(points):
     paths, visible = tracks(points)
     speeds, extents = [], []
@@ -54,6 +57,7 @@ def motion_summary(points):
     return {'extent': max(extents, default=0.), 'tail_speed': max(speeds, default=0.)}
 
 
+# Estima qué clases necesitan movimiento a partir de sus ejemplos de entrenamiento.
 def fit_motion_profile(points, targets):
     """Learn which classes move; no label names or letter-specific rules."""
     summaries = [motion_summary(p) for p in points]
@@ -69,6 +73,7 @@ def fit_motion_profile(points, targets):
             'note': 'Movimiento aprendido solo con entrenamiento; una postura inicial no permite anticipar un movimiento futuro.'}
 
 
+# Genera variantes de velocidad y breve postura final sin invertir el recorrido.
 def augment_timing(points, targets):
     """Ordered time warps preserve direction and endpoints, including a brief
     final hold. No reversal or mirroring and no additional training volume
@@ -93,6 +98,7 @@ def augment_timing(points, targets):
     return np.concatenate(outputs),np.concatenate([targets]*3)
 
 
+# Comprueba el filtro temporal con variantes congeladas, invertidas o recortadas; no mide precisión global.
 def motion_challenges(points, targets, profile, guard, labels):
     """Synthetic trajectory checks on held-out recordings, not unknown-sign FAR.
     The candidate class is deliberately fixed, so this does not measure the

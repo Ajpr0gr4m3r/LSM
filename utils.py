@@ -30,6 +30,7 @@ mp_drawing_styles = mp.solutions.drawing_styles
 # A.  MEDIAPIPE — DETECCIÓN Y DIBUJO
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Procesa un frame BGR con MediaPipe Holistic con mínima copia de memoria.
 def mediapipe_detection(image: np.ndarray, model) -> tuple[np.ndarray, object]:
     """
     Procesa un frame BGR con MediaPipe Holistic con mínima copia de memoria.
@@ -53,6 +54,7 @@ def mediapipe_detection(image: np.ndarray, model) -> tuple[np.ndarray, object]:
     return image, results
 
 
+# Dibuja todos los landmarks con estilos de color diferenciados por región.
 def draw_styled_landmarks(image: np.ndarray, results) -> None:
     """
     Dibuja todos los landmarks con estilos de color diferenciados por región.
@@ -108,6 +110,7 @@ def draw_styled_landmarks(image: np.ndarray, results) -> None:
 # B.  EXTRACCIÓN DE KEYPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Convierte una NormalizedLandmarkList a un vector NumPy float32.
 def _landmarks_to_array(landmark_list, zero_size: int,
                         indices: list[int] | None = None,
                         n_coords: int = 3) -> np.ndarray:
@@ -139,6 +142,7 @@ def _landmarks_to_array(landmark_list, zero_size: int,
     return arr.flatten()
 
 
+# Extrae y concatena todos los landmarks en un único vector 1-D por frame.
 def extract_keypoints(results) -> np.ndarray:
     """
     Extrae y concatena todos los landmarks en un único vector 1-D por frame.
@@ -197,6 +201,7 @@ def extract_keypoints(results) -> np.ndarray:
     return keypoints
 
 
+# Devuelve True si al menos una mano es visible en el frame actual.
 def hands_detected(results) -> bool:
     """Devuelve True si al menos una mano es visible en el frame actual."""
     return (
@@ -209,6 +214,7 @@ def hands_detected(results) -> bool:
 # C.  MANEJO DE IMÁGENES PNG CON TRANSPARENCIA
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Carga un logo PNG (con o sin canal alfa) y lo redimensiona
 def load_logo(path: str, target_height: int) -> np.ndarray | None:
     """
     Carga un logo PNG (con o sin canal alfa) y lo redimensiona
@@ -237,6 +243,7 @@ def load_logo(path: str, target_height: int) -> np.ndarray | None:
     return cv2.resize(logo, (new_w, target_height), interpolation=cv2.INTER_AREA)
 
 
+# Superpone una imagen BGRA sobre un fondo BGR usando el canal alfa.
 def overlay_png(background: np.ndarray, overlay: np.ndarray,
                 x: int, y: int) -> np.ndarray:
     """
@@ -279,6 +286,7 @@ def overlay_png(background: np.ndarray, overlay: np.ndarray,
 # D.  COMPONENTES GRÁFICOS DE LA UI
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Panel inferior semitransparente con:
 def draw_prediction_box(image: np.ndarray, text: str, confidence: float,
                         color: tuple[int, int, int] = (0, 230, 0)) -> None:
     """
@@ -320,6 +328,7 @@ def draw_prediction_box(image: np.ndarray, text: str, confidence: float,
                 cv2.FONT_HERSHEY_SIMPLEX, 0.48, (210, 210, 210), 1, cv2.LINE_AA)
 
 
+# Barra horizontal delgada que muestra el llenado del buffer de secuencia.
 def draw_buffer_indicator(image: np.ndarray,
                           current_len: int, max_len: int) -> None:
     """
@@ -337,6 +346,7 @@ def draw_buffer_indicator(image: np.ndarray,
     cv2.rectangle(image, (0, bar_y), (filled, bar_y + bar_h), color, -1)
 
 
+# Indicador de estabilidad: muestra cuántos frames consecutivos lleva
 def draw_stability_bar(image: np.ndarray,
                        stable_count: int, stability_frames: int) -> None:
     """
@@ -356,6 +366,7 @@ def draw_stability_bar(image: np.ndarray,
                 cv2.FONT_HERSHEY_SIMPLEX, 0.50, color, 1, cv2.LINE_AA)
 
 
+# Muestra las palabras confirmadas en la parte superior central del frame,
 def draw_sentence_builder(image: np.ndarray, words: list[str]) -> None:
     """
     Muestra las palabras confirmadas en la parte superior central del frame,

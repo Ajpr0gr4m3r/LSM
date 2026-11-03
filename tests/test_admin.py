@@ -15,6 +15,7 @@ import web_app
 from admin_auth import AdminGuard
 
 
+# Ayudante de prueba para configure.
 def configure(path):
     salt = bytes.fromhex('0123456789abcdef0123456789abcdef')
     digest = hashlib.pbkdf2_hmac('sha256', b'test-only-password', salt, 600000)
@@ -23,7 +24,9 @@ def configure(path):
                                 'salt':salt.hex(), 'digest':digest.hex()}))
 
 
+# Ayudante de prueba para AdminTests.
 class AdminTests(unittest.TestCase):
+    # Prepara el estado temporal aislado que necesita cada prueba.
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -39,11 +42,13 @@ class AdminTests(unittest.TestCase):
         data.save_sequence('asl', 'hola', self.points)
         self.payload = {'language':'lsm', 'label':'hola', 'password':'test-only-password', 'confirmed':True}
 
+    # Elimina los recursos temporales creados durante la prueba.
     def tearDown(self):
         for item in reversed(self.patches):
             item.stop()
         self.temp.cleanup()
 
+    # Prueba automatizada: verifica missing wrong or unconfigured password cannot delete.
     def test_missing_wrong_or_unconfigured_password_cannot_delete(self):
         for password in (None, '', 'wrong', ['test-only-password']):
             with self.assertRaises(PermissionError):
@@ -53,6 +58,7 @@ class AdminTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.runtime.delete_recordings(self.payload)
 
+    # Prueba automatizada: verifica rate limit and expiry.
     def test_rate_limit_and_expiry(self):
         guard = AdminGuard(self.auth)
         with patch('admin_auth.time.monotonic', return_value=1000):
@@ -64,6 +70,7 @@ class AdminTests(unittest.TestCase):
         with patch('admin_auth.time.monotonic', return_value=1301):
             guard.verify('test-only-password')
 
+    # Prueba automatizada: verifica confirmation training and capture block deletion.
     def test_confirmation_training_and_capture_block_deletion(self):
         for confirmation in (False, None, 'true'):
             with self.assertRaises(ValueError):
@@ -76,6 +83,7 @@ class AdminTests(unittest.TestCase):
             self.runtime.delete_recordings(self.payload)
         self.assertTrue((langs.dataset_dir('lsm') / 'hola' / self.file).is_file())
 
+    # Prueba automatizada: verifica deletion is recoverable scoped and updates inventory.
     def test_deletion_is_recoverable_scoped_and_updates_inventory(self):
         original = langs.dataset_dir('lsm') / 'hola' / self.file
         before = original.read_bytes()
@@ -93,6 +101,7 @@ class AdminTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.runtime.delete_recordings(self.payload)
 
+    # Prueba automatizada: verifica invalid label and archive write failure leave data intact.
     def test_invalid_label_and_archive_write_failure_leave_data_intact(self):
         with self.assertRaises(ValueError):
             self.runtime.delete_recordings({**self.payload, 'label':'../../outside'})
@@ -101,6 +110,7 @@ class AdminTests(unittest.TestCase):
                 self.runtime.delete_recordings(self.payload)
         self.assertEqual(data.inventory('lsm')[0]['samples'], 1)
 
+    # Prueba automatizada: verifica deleting a trained sign disables model and clears cached predictions.
     def test_deleting_a_trained_sign_disables_model_and_clears_cached_predictions(self):
         root = langs.model_dir('lsm')
         version = 'a' * 32
@@ -123,6 +133,7 @@ class AdminTests(unittest.TestCase):
         self.assertIsNone(profile['model'])
         self.assertIn('desactivado', profile['model_error'])
 
+    # Prueba automatizada: verifica selected training preserves incomplete unselected examples.
     def test_selected_training_preserves_incomplete_unselected_examples(self):
         for label in ('hola', 'gracias'):
             for _ in range(29):
@@ -137,7 +148,9 @@ class AdminTests(unittest.TestCase):
             data.read_dataset('lsm', 30, ['hola', 'unknown'])
         self.assertEqual(next(x for x in data.inventory('lsm') if x['id'] == 'adios')['samples'], 1)
 
+    # Prueba automatizada: verifica http route enforces both csrf and admin password.
     def test_http_route_enforces_both_csrf_and_admin_password(self):
+        # Ayudante de prueba para request.
         def request(payload, token):
             handler = web_app.Handler.__new__(web_app.Handler)
             body = json.dumps(payload).encode()

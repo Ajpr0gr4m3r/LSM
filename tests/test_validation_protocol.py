@@ -8,13 +8,16 @@ import numpy as np
 from validation_protocol import calibration_split, validation_support, wilson_interval
 
 
+# Ayudante de prueba para ValidationProtocolTests.
 class ValidationProtocolTests(unittest.TestCase):
+    # Ayudante de prueba para data.
     def data(self):
         # Eight independent validation sessions, each with both classes twice.
         y = np.tile([0, 0, 1, 1], 8)
         groups = np.repeat([f'group-{i}' for i in range(8)], 4)
         return y, groups, np.arange(len(y)), [f'hash-{i}' for i in range(len(y))]
 
+    # Prueba automatizada: verifica reserves whole groups and persists roles when classes grow.
     def test_reserves_whole_groups_and_persists_roles_when_classes_grow(self):
         y, g, validation, hashes = self.data()
         with tempfile.TemporaryDirectory() as folder:
@@ -31,6 +34,7 @@ class ValidationProtocolTests(unittest.TestCase):
             self.assertTrue(set(b) <= set(d))
             self.assertEqual(json.loads(path.read_text())['version'], 1)
 
+    # Prueba automatizada: verifica insufficient groups are explicit and do not create ledger.
     def test_insufficient_groups_are_explicit_and_do_not_create_ledger(self):
         y = np.tile([0, 1], 30)
         groups = np.repeat(['one', 'two', 'three'], 20)
@@ -42,6 +46,7 @@ class ValidationProtocolTests(unittest.TestCase):
             np.testing.assert_array_equal(a, b)
             self.assertFalse(path.exists())
 
+    # Prueba automatizada: verifica failed growth does not mutate historical roles.
     def test_failed_growth_does_not_mutate_historical_roles(self):
         y, g, validation, hashes = self.data()
         with tempfile.TemporaryDirectory() as folder:
@@ -54,6 +59,7 @@ class ValidationProtocolTests(unittest.TestCase):
             self.assertFalse(info['independent'])
             self.assertEqual(path.read_bytes(), before)
 
+    # Prueba automatizada: verifica regrouping cannot move reserved samples between roles.
     def test_regrouping_cannot_move_reserved_samples_between_roles(self):
         y, g, validation, hashes = self.data()
         with tempfile.TemporaryDirectory() as folder:
@@ -66,6 +72,7 @@ class ValidationProtocolTests(unittest.TestCase):
             self.assertEqual(info['reason'], 'historical_role_conflict')
             self.assertEqual(path.read_bytes(), before)
 
+    # Prueba automatizada: verifica outer train and test never enter subsplit.
     def test_outer_train_and_test_never_enter_subsplit(self):
         y, g, validation, hashes = self.data()
         yy = np.r_[[0, 1], y, [0, 1]]
@@ -78,6 +85,7 @@ class ValidationProtocolTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 calibration_split(yy, gg, validation + 2, path)
 
+    # Prueba automatizada: verifica duplicate recordings never inflate independent group count.
     def test_duplicate_recordings_never_inflate_independent_group_count(self):
         y, g, validation, hashes = self.data()
         # Every group's first recording is one copy. They form one unit.
@@ -87,12 +95,14 @@ class ValidationProtocolTests(unittest.TestCase):
             _, _, info = calibration_split(y, g, validation, Path(folder) / 'roles.json', hashes)
             self.assertFalse(info['independent'])
 
+    # Prueba automatizada: verifica small perfect sample does not claim high certainty.
     def test_small_perfect_sample_does_not_claim_high_certainty(self):
         interval = wilson_interval(3, 3)
         self.assertEqual(interval['estimate'], 1.)
         self.assertLess(interval['lower'], .5)
         self.assertIsNone(wilson_interval(0, 0)['estimate'])
 
+    # Prueba automatizada: verifica support counts sequences and groups not frames.
     def test_support_counts_sequences_and_groups_not_frames(self):
         y = np.array([0, 0, 1, 1])
         groups = np.array(['one', 'one', 'two', 'two'])

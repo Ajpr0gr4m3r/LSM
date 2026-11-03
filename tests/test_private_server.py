@@ -10,11 +10,14 @@ import private_server as server
 ORIGIN='https://sena.tail123.ts.net'
 
 
+# Ayudante de prueba para proxy.
 def proxy():
     return {'TCP':{'443':{'HTTPS':True}},'Web':{'sena.tail123.ts.net:443':{'Handlers':{'/':{'Proxy':server.TARGET}}}}}
 
 
+# Ayudante de prueba para PrivateServerTests.
 class PrivateServerTests(unittest.TestCase):
+    # Prueba automatizada: verifica rejects unknown public or other proxy configuration.
     def test_rejects_unknown_public_or_other_proxy_configuration(self):
         self.assertFalse(server.check_proxy({},ORIGIN))
         self.assertTrue(server.check_proxy(proxy(),ORIGIN))
@@ -22,13 +25,16 @@ class PrivateServerTests(unittest.TestCase):
                         dict(proxy(),TCP={'8443':{'HTTPS':True}}),{'Web':{'other':{}}},dict(proxy(),Extra='unknown')]:
             with self.assertRaises(server.SetupError):server.check_proxy(changed,ORIGIN)
 
+    # Prueba automatizada: verifica origin is obtained only from connected tailscale and valid hostname.
     def test_origin_is_obtained_only_from_connected_tailscale_and_valid_hostname(self):
+        # Ayudante de prueba para status.
         def status(name,online=True):return {'BackendState':'Running','Self':{'Online':online,'DNSName':name}}
         self.assertEqual(server.discover_origin(status('sena.tail123.ts.net.')),ORIGIN)
         for value in ['https://evil.example','evil.example','foo.ts.net/path','x.ts.net:443',';touch /tmp/a','-host.ts.net']:
             with self.assertRaises(server.SetupError):server.discover_origin(status(value))
         with self.assertRaises(server.SetupError):server.discover_origin(status('sena.tail123.ts.net',False))
 
+    # Prueba automatizada: verifica enable checks existing admin and preserves config when proxy fails.
     def test_enable_checks_existing_admin_and_preserves_config_when_proxy_fails(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(server,'CONFIG',Path(temp)/'server.json'):
             with patch.object(server,'training_active',return_value=True):
@@ -40,6 +46,7 @@ class PrivateServerTests(unittest.TestCase):
                 with self.assertRaises(server.SetupError):server.configure(True)
             self.assertIsNone(server.current_config()['origin'])
 
+    # Prueba automatizada: verifica success uses serve and loopback backend without funnel.
     def test_success_uses_serve_and_loopback_backend_without_funnel(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(server,'CONFIG',Path(temp)/'server.json'),patch.object(server,'training_active',return_value=False),patch.object(server,'configured_admin',return_value=True),patch.object(server,'cli_path',return_value='tailscale'),patch.object(server,'read_json_output',side_effect=[{'BackendState':'Running','Self':{'Online':True,'DNSName':'sena.tail123.ts.net'}},{},proxy()]),patch.object(server,'wait_for_backend'),patch.object(server,'command') as run,contextlib.redirect_stdout(io.StringIO()):
             server.configure(True)
@@ -48,17 +55,20 @@ class PrivateServerTests(unittest.TestCase):
             self.assertEqual(command,['tailscale','serve','--bg','--https=443','--yes',server.TARGET])
             self.assertNotIn('funnel',command)
 
+    # Prueba automatizada: verifica launch agent uses exact current python and one supervisor.
     def test_launch_agent_uses_exact_current_python_and_one_supervisor(self):
         agent=server.agent_definition()
         self.assertEqual(agent['WorkingDirectory'],str(server.ROOT))
         self.assertEqual(agent['ProgramArguments'][1:], [str(server.ROOT/'private_server.py'),'run'])
         self.assertTrue(agent['KeepAlive']);self.assertTrue(agent['RunAtLoad'])
 
+    # Prueba automatizada: verifica corrupted config is not passed to backend.
     def test_corrupted_config_is_not_passed_to_backend(self):
         with tempfile.TemporaryDirectory() as temp,patch.object(server,'CONFIG',Path(temp)/'server.json'):
             server.CONFIG.write_text(json.dumps({'origin':'https://evil.example/--options'}))
             with self.assertRaises(server.SetupError):server.current_config()
 
+    # Prueba automatizada: verifica supervisor restarts only its child and closes it on exit.
     def test_supervisor_restarts_only_its_child_and_closes_it_on_exit(self):
         import subprocess, sys, time, signal, shutil, os
         with tempfile.TemporaryDirectory() as folder:
@@ -66,6 +76,7 @@ class PrivateServerTests(unittest.TestCase):
             shutil.copy2(Path(server.__file__),root/'private_server.py')
             (root/'web_app.py').write_text("import os,sys,json,time\nfrom pathlib import Path\np=Path('started.jsonl')\nwith p.open('a') as f:f.write(json.dumps({'pid':os.getpid(),'args':sys.argv[1:]})+'\\n')\ntime.sleep(60)\n")
             manager=subprocess.Popen([sys.executable,str(root/'private_server.py'),'run'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            # Ayudante de prueba para starts.
             def starts(count):
                 deadline=time.monotonic()+6
                 while time.monotonic()<deadline:
@@ -88,13 +99,18 @@ class PrivateServerTests(unittest.TestCase):
                 except subprocess.TimeoutExpired:manager.kill();manager.wait()
             with self.assertRaises(ProcessLookupError):os.kill(second['pid'],0)
 
+    # Prueba automatizada: verifica https check requires valid tls and protected data.
     def test_https_check_requires_valid_tls_and_protected_data(self):
         import ssl
         from urllib.error import HTTPError, URLError
+        # Ayudante de prueba para Response.
         class Response:
             status = 200
+            # Ayudante de prueba para   enter  .
             def __enter__(self): return self
+            # Ayudante de prueba para   exit  .
             def __exit__(self, *args): pass
+            # Ayudante de prueba para read.
             def read(self, size): return b'<section id="account-gate">'
         with patch('urllib.request.urlopen', side_effect=[Response(), HTTPError(ORIGIN+'/api/state',401,'Unauthorized',{},None)]) as request:
             self.assertTrue(server.verify_private_https(ORIGIN))

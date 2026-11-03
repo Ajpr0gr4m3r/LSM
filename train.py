@@ -63,6 +63,7 @@ RANDOM_SEED          = 42
 # A.  CARGA DEL DATASET
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Recorre LSM_Dataset/ y carga todas las secuencias como arrays NumPy.
 def load_dataset() -> tuple[np.ndarray, np.ndarray, dict[int, str]]:
     """
     Recorre LSM_Dataset/ y carga todas las secuencias como arrays NumPy.
@@ -151,6 +152,7 @@ def load_dataset() -> tuple[np.ndarray, np.ndarray, dict[int, str]]:
 # B.  VISUALIZACIONES
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Gráfica de accuracy y loss para train/validación.
 def plot_training_history(history: tf.keras.callbacks.History,
                           save_dir: str = MODELS_DIR) -> None:
     """Gráfica de accuracy y loss para train/validación."""
@@ -183,6 +185,7 @@ def plot_training_history(history: tf.keras.callbacks.History,
     plt.show()
 
 
+# Matriz de confusión normalizada para el conjunto de test.
 def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray,
                           label_map: dict[int, str],
                           save_dir: str = MODELS_DIR) -> None:
@@ -208,9 +211,11 @@ def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray,
 # C.  CALLBACK PERSONALIZADO — LOG DE ÉPOCA
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Imprime un resumen compacto al final de cada época.
 class EpochLogger(Callback):
     """Imprime un resumen compacto al final de cada época."""
 
+    # Escribe el progreso de cada época del entrenamiento de escritorio en el registro.
     def on_epoch_end(self, epoch: int, logs: dict | None = None) -> None:
         logs = logs or {}
         tr_acc  = logs.get('accuracy',     0) * 100
@@ -230,6 +235,7 @@ class EpochLogger(Callback):
 # D.  PIPELINE DE ENTRENAMIENTO
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Pipeline completo: cargar datos → entrenar → evaluar → guardar.
 def train() -> None:
     """Pipeline completo: cargar datos → entrenar → evaluar → guardar."""
     os.makedirs(MODELS_DIR, exist_ok=True)

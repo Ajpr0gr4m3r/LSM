@@ -6,9 +6,13 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 import web_app
 
+# Ayudante de prueba para StaticAssetsTests.
 class StaticAssetsTests(unittest.TestCase):
+    # Prueba automatizada: verifica local page has no login gate and serves every script.
     def test_local_page_has_no_login_gate_and_serves_every_script(self):
+        # Ayudante de prueba para Quiet.
         class Quiet(web_app.Handler):
+            # Evita escribir los registros HTTP de las peticiones simuladas en las pruebas.
             def log_message(self, *args): pass
         server = ThreadingHTTPServer(('127.0.0.1', 0), Quiet)
         server.local_mode = True

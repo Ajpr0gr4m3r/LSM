@@ -13,7 +13,9 @@ import web_dataset as data
 import web_app
 
 
+# Ayudante de prueba para WebTests.
 class WebTests(unittest.TestCase):
+    # Prepara el estado temporal aislado que necesita cada prueba.
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
@@ -22,11 +24,13 @@ class WebTests(unittest.TestCase):
             item.start()
         self.points = np.ones((data.SEQUENCE_LENGTH, data.FEATURE_DIM), dtype=np.float32)
 
+    # Elimina los recursos temporales creados durante la prueba.
     def tearDown(self):
         for item in reversed(self.patches):
             item.stop()
         self.temp.cleanup()
 
+    # Prueba automatizada: verifica seven distinct profiles and non latin labels.
     def test_seven_distinct_profiles_and_non_latin_labels(self):
         self.assertEqual(len({x['id'] for x in langs.LANGUAGES}), 7)
         self.assertEqual(langs.labels_for('jsl')[0]['text'], 'こんにちは')
@@ -34,17 +38,20 @@ class WebTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             langs.dataset_dir('../lsm')
 
+    # Prueba automatizada: verifica samples do not cross languages.
     def test_samples_do_not_cross_languages(self):
         data.save_sequence('lsm', 'hola', self.points)
         self.assertEqual(data.inventory('lsm')[0]['samples'], 1)
         self.assertEqual(data.inventory('asl')[0]['samples'], 0)
 
+    # Prueba automatizada: verifica reject incomplete empty and nonfinite sequences.
     def test_reject_incomplete_empty_and_nonfinite_sequences(self):
         for points in (self.points[:2], np.zeros_like(self.points), np.full_like(self.points, np.nan)):
             with self.assertRaises(ValueError):
                 data.save_sequence('lsm', 'hola', points)
         self.assertEqual(data.inventory('lsm')[0]['samples'], 0)
 
+    # Prueba automatizada: verifica incompatible pipeline is not counted.
     def test_incompatible_pipeline_is_not_counted(self):
         path = langs.dataset_dir('dgs') / 'hola'
         path.mkdir(parents=True)
@@ -52,6 +59,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(data.inventory('dgs')[0]['invalid'], 1)
         self.assertEqual(data.inventory('dgs')[0]['samples'], 0)
 
+    # Prueba automatizada: verifica training requires two populated complete classes.
     def test_training_requires_two_populated_complete_classes(self):
         with patch.object(data, 'inventory', return_value=[{'samples':29, 'text':'A'}]):
             with self.assertRaisesRegex(ValueError, '30 ejemplos'):
@@ -71,6 +79,7 @@ class WebTests(unittest.TestCase):
         for part in (train, val, test):
             self.assertEqual(set(y[part]), {0, 1})
 
+    # Prueba automatizada: verifica split boundaries and existing dataset partition.
     def test_split_boundaries_and_existing_dataset_partition(self):
         for count, expected in ((4, None), (5, (6, 2, 2)), (6, (8, 2, 2)),
                                 (7, (6, 4, 4)), (30, (44, 8, 8)), (42, (60, 12, 12))):
@@ -86,6 +95,7 @@ class WebTests(unittest.TestCase):
                 for part in parts:
                     self.assertEqual(set(y[part]), {0, 1})
 
+    # Prueba automatizada: verifica model language and pipeline must match.
     def test_model_language_and_pipeline_must_match(self):
         version = 'a' * 32
         path = langs.model_dir('asl') / version
@@ -96,6 +106,7 @@ class WebTests(unittest.TestCase):
             web_app.model_metadata('asl')
         self.assertIsNone(web_app.model_metadata('jsl'))
 
+    # Prueba automatizada: verifica camera captures complete sequence in selected language.
     def test_camera_captures_complete_sequence_in_selected_language(self):
         runtime = web_app.Runtime()
         sid = runtime.new_session('libras')
@@ -118,6 +129,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(data.inventory('lsm')[0]['samples'], 0)
         self.assertIsNone(session.capture)
 
+    # Prueba automatizada: verifica name after recording creates persistent language specific label.
     def test_name_after_recording_creates_persistent_language_specific_label(self):
         identifier = data.save_draft('jsl', self.points)
         self.assertEqual(sum(x['samples'] for x in data.inventory('jsl')), 0)
@@ -135,6 +147,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(len(langs.custom_labels('jsl')), 1)
         self.assertEqual(data.inventory('jsl')[-1]['samples'], 2)
 
+    # Prueba automatizada: verifica existing names reuse default label.
     def test_existing_names_reuse_default_label(self):
         identifier = data.save_draft('lsm', self.points)
         result = data.commit_draft('lsm', identifier, '  HOLA  ')
@@ -142,6 +155,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(langs.custom_labels('lsm'), [])
         self.assertEqual(data.inventory('lsm')[0]['samples'], 1)
 
+    # Prueba automatizada: verifica invalid name keeps draft and other language cannot claim it.
     def test_invalid_name_keeps_draft_and_other_language_cannot_claim_it(self):
         identifier = data.save_draft('dgs', self.points)
         for name in ('', '   ', 'a' * 81, 'abc\nxyz', None):
@@ -157,6 +171,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(data.pending_drafts('dgs'), [])
         self.assertTrue((data.draft_dir('dgs') / 'discarded' / f'{identifier}.npz').exists())
 
+    # Prueba automatizada: verifica custom labels are automatically in training dataset.
     def test_custom_labels_are_automatically_in_training_dataset(self):
         for name in ('Wasser', 'Brot'):
             label = langs.register_label('dgs', name)
@@ -167,12 +182,14 @@ class WebTests(unittest.TestCase):
         self.assertEqual(len(X), 2 * langs.MIN_SAMPLES)
         self.assertEqual(set(y), {0, 1})
 
+    # Prueba automatizada: verifica no model means no prediction.
     def test_no_model_means_no_prediction(self):
         runtime = web_app.Runtime()
         self.assertIsNone(runtime.load_model('jsl'))
         with self.assertRaises(ValueError):
             runtime.start_training('jsl', 40)
 
+    # Prueba automatizada: verifica consecutive capture keeps multiple unnamed takes.
     def test_consecutive_capture_keeps_multiple_unnamed_takes(self):
         runtime = web_app.Runtime()
         sid = runtime.new_session('dgs')
@@ -193,6 +210,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(data.inventory('dgs')[-1]['samples'], 2)
         self.assertEqual(data.pending_drafts('lsm'), [])
 
+    # Prueba automatizada: verifica consecutive capture rejects invalid option and excess pending.
     def test_consecutive_capture_rejects_invalid_option_and_excess_pending(self):
         runtime = web_app.Runtime()
         sid = runtime.new_session('lsm')

@@ -10,6 +10,11 @@ const headings = {
     'De tus manos, a tus datos.',
     'Captura, entrena y reconoce señas. Con los ejemplos de tu equipo.',
   ],
+  conversation: [
+    'COMUNICACIÓN EN VIVO',
+    'Una conversación, dos formas de participar.',
+    'Comparte señas reconocidas o responde con un mensaje escrito.',
+  ],
   recognition: [
     'RECONOCIMIENTO EN VIVO',
     'Haz la seña. Espera la confirmación.',
@@ -34,16 +39,19 @@ const headings = {
 const labelsByView = {
   home: 'Inicio',
   recognition: 'Reconocimiento',
+  conversation: 'Conversación',
   dataset: 'Dataset',
   training: 'Entrenamiento',
   settings: 'Configuración',
 };
+// Crea un elemento de interfaz con texto seguro y clase opcional.
 function node(tag, text, className) {
   const item = document.createElement(tag);
   if (text !== undefined) item.textContent = text;
   if (className) item.className = className;
   return item;
 }
+// Construye un icono SVG desde el recurso Lucide local.
 function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'icon');
@@ -53,6 +61,7 @@ function icon(name) {
   svg.append(use);
   return svg;
 }
+// Filtra las etiquetas seleccionadas que tienen el mínimo de ejemplos requerido.
 function selectedTrainingClasses(p) {
   if (!p) return [];
   const selected = trainingChoices.get(p.id);
@@ -60,6 +69,7 @@ function selectedTrainingClasses(p) {
     (x) => x.samples >= state.minimum_samples && (!selected || selected.has(x.id)),
   );
 }
+// Deriva una huella corta del identificador de cámara en vez de guardar el identificador original.
 async function cameraFingerprint(id) {
   if (!crypto.subtle) return '';
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id));
@@ -68,9 +78,11 @@ async function cameraFingerprint(id) {
     .join('')
     .slice(0, 16);
 }
+// Describe la etapa provisional de estabilidad sin tratarla como una confirmación.
 function sessionConfirmedText(result) {
   return result.stability ? `Confirmando ${result.candidate.text}…` : 'Observando…';
 }
+// Muestra candidatos orientativos separados del resultado confirmado.
 function renderAlternatives(items) {
   const host = $('alternatives');
   host.replaceChildren();
@@ -82,6 +94,7 @@ function renderAlternatives(items) {
     host.append(row);
   }
 }
+// Cambia de vista y mueve el único espacio de cámara a Dataset o Reconocimiento.
 async function navigateStudio(view) {
   if (!headings[view]) view = 'home';
   if (currentView !== view) await stopCamera();
@@ -108,9 +121,11 @@ async function navigateStudio(view) {
   if (state) render();
   if (view === 'training' && state) await loadVersions();
 }
+// Actualiza el fragmento de URL para conservar la vista sin recargar la aplicación.
 function historyReplace(view) {
   window.history.replaceState(null, '', '#' + view);
 }
+// Aplica apariencia clara, oscura o del sistema y guarda la preferencia local.
 function applyTheme(value) {
   localStorage.setItem('sena-theme', value);
   const dark =
@@ -120,6 +135,7 @@ function applyTheme(value) {
   $('theme-toggle').replaceChildren(icon(dark ? 'sun' : 'moon'));
   $('theme-toggle').setAttribute('aria-label', dark ? 'Activar modo claro' : 'Activar modo oscuro');
 }
+// Compone estadísticas, perfiles, actividad, métricas y gráficos a partir del estado real.
 function renderStudio() {
   const p = profile();
   if (!p) return;
@@ -254,11 +270,13 @@ function renderStudio() {
       'Analiza las grabaciones de esta lengua para revisar su calidad.';
   }
 }
+// Oculta filas que no coinciden con el texto de búsqueda del vocabulario.
 function filterVocabulary() {
   const query = $('vocabulary-search').value.trim().toLocaleLowerCase();
   for (const row of $('sample-list').children)
     row.hidden = !row.firstChild.textContent.toLocaleLowerCase().includes(query);
 }
+// Dibuja entrenamiento y validación por época sin generar datos para modelos sin historia.
 function drawCurve(id, history, trainKey, valKey, rate) {
   const host = $(id);
   host.replaceChildren();
@@ -317,6 +335,7 @@ function drawCurve(id, history, trainKey, valKey, rate) {
     host.append(legend);
   }
 }
+// Muestra la matriz de confusión y las clases del modelo activo.
 function drawConfusion(model) {
   const host = $('confusion-matrix');
   host.replaceChildren();
@@ -341,6 +360,7 @@ function drawConfusion(model) {
   });
   host.append(table);
 }
+// Solicita la auditoría del perfil y presenta sus problemas de muestras y procedencia.
 async function auditDataset() {
   if (studioBusy) return;
   await stopCamera();
@@ -356,6 +376,7 @@ async function auditDataset() {
     $('audit-dataset').disabled = false;
   }
 }
+// Presenta grabaciones revisables, problemas de calidad y selección administrativa de archivos.
 function renderAudit() {
   if (!auditData) return;
   $('sample-confirm').checked = false;
@@ -427,6 +448,7 @@ function renderAudit() {
   );
   $('audit-select-all').checked = false;
 }
+// Solicita borrar o reasignar muestras confirmadas dentro de una misma lengua.
 async function modifySamples(action) {
   const ids = [...$('audit-rows').querySelectorAll('input:checked')].map((x) => x.value);
   const password = $('sample-password').value,
@@ -456,6 +478,7 @@ async function modifySamples(action) {
     studioBusy = false;
   }
 }
+// Consulta las versiones guardadas y sus métricas para el perfil activo.
 async function loadVersions() {
   try {
     const result = await api('/api/models/list', { language });
@@ -465,6 +488,7 @@ async function loadVersions() {
     notice(e.message, true);
   }
 }
+// Explica etapas de rechazo, soporte y separación de reservas de una versión.
 function renderRecognitionDiagnostics(version) {
   const protocol = version.validation_protocol;
   const diagnostics = version.recognition_diagnostics;
@@ -538,6 +562,7 @@ function renderRecognitionDiagnostics(version) {
   section.append(node('p', 'Cobertura es la proporción de tomas aceptadas; no es precisión. Las correctas descartadas son aciertos del clasificador que los filtros rechazan, acumulados hasta cada etapa. Estos resultados sobre tomas guardadas no miden la confirmación con la cámara en vivo.', 'help'));
   return section;
 }
+// Muestra modelos y comparaciones y ofrece activación administrativa cuando corresponde.
 function renderVersions() {
   const host = $('model-versions');
   host.replaceChildren();
@@ -682,6 +707,7 @@ function renderVersions() {
   if (!versionData.length)
     host.append(node('div', 'Todavía no hay versiones guardadas para esta lengua.', 'empty-state'));
 }
+// Solicita un ZIP del perfil activo y lo descarga sin mezclar lenguas.
 async function exportDataset() {
   if (studioBusy) return;
   await stopCamera();
@@ -698,6 +724,7 @@ async function exportDataset() {
     if (state) render();
   }
 }
+// Descarga un recurso generado en memoria y libera después su URL temporal.
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob),
     link = document.createElement('a');
@@ -706,6 +733,7 @@ function downloadBlob(blob, name) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+// Lee el ZIP elegido y solicita validarlo e incorporarlo al perfil seleccionado.
 async function importDataset(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -801,6 +829,7 @@ $('import-dataset').addEventListener('change', importDataset);
 applyTheme(localStorage.getItem('sena-theme') || 'system');
 navigateStudio(location.hash.slice(1) || 'home');
 
+// Abre el detalle de una toma con metadatos y curvas de movimiento y calidad.
 async function previewSample(id) {
   try {
     await stopCamera();

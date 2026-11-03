@@ -12,6 +12,7 @@
     <script defer src="/static/app.js"></script>
     <script defer src="/static/studio.js"></script>
     <script defer src="/static/accounts.js"></script>
+    <script defer src="/static/conversation.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Ir al contenido</a>
@@ -59,6 +60,9 @@
             <svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#scan"></use></svg
             ><span>Reconocimiento</span></button
+          ><button type="button" data-view="conversation" aria-label="Conversación" aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide.svg#circle-help"></use></svg>
+            <span>Conversación</span></button
           ><button type="button" data-view="dataset" aria-label="Dataset" aria-current="false">
             <svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#database"></use></svg
@@ -194,6 +198,7 @@
                           <use href="/static/vendor/lucide.svg#camera"></use>
                         </svg>
                       </button>
+                      <button class="ghost phone-camera-link" data-view="conversation" type="button">¿No tienes cámara? Usar teléfono</button>
                     </div>
                     <div class="camera-top">
                       <span class="camera-label"><i></i> VISTA EN ESPEJO</span>
@@ -225,6 +230,9 @@
                       ><span>3. Guarda y entrena</span>
                     </div>
                     <button id="record" class="primary wide" disabled>Grabar una seña</button>
+                    <label for="capture-countdown">Preparación antes de una toma
+                      <select id="capture-countdown"><option value="1">1 segundo · rápido</option><option value="3">3 segundos</option><option value="5">5 segundos</option></select>
+                    </label>
                     <details class="continuous-controls" open>
                       <summary>Grabar ejemplos consecutivos</summary>
                       <p class="help">
@@ -252,6 +260,7 @@
                       <div class="input-row">
                         <button id="start-batch" class="primary" type="button" disabled>
                           Iniciar grabación consecutiva</button
+                        ><button id="pause-batch" class="secondary" type="button" title="Pausar o continuar con la barra espaciadora" aria-keyshortcuts="Space" disabled>Pausar tanda</button
                         ><button id="stop-batch" class="secondary" type="button" disabled>
                           Detener tanda
                         </button>
@@ -260,6 +269,7 @@
                         Activa la cámara para iniciar. No necesitas pulsar “Grabar una seña” entre
                         tomas.
                       </p>
+                      <p class="help">Barra espaciadora: pausar o continuar la tanda. El atajo se desactiva mientras escribes.</p>
                     </details>
                     <p class="help">
                       Primero haz tu seña frente a la cámara. Al terminar te pediremos su nombre y
@@ -302,6 +312,11 @@
                     </form>
                   </div>
                   <div id="test-controls">
+                    <label class="check-row"><input id="snapshot-mode" type="checkbox"> Foto experimental · señas estáticas</label>
+                    <p class="help">Con este modo activo, haz la postura y pulsa Comparar una foto. Se compara la forma de la mano con referencias aprendidas; las señas con movimiento necesitan el modo temporal.</p>
+                    <button id="take-snapshot" class="secondary" type="button" disabled>Comparar una foto</button>
+                    <canvas id="snapshot-preview" class="snapshot-preview" hidden aria-label="Imagen analizada"></canvas>
+                    <p id="snapshot-result" class="help" role="status">La imagen se procesa en memoria y no se guarda.</p>
                     <label for="expected-label"
                       >Para comprobar el resultado, ¿qué seña vas a hacer?</label
                     ><select id="expected-label">
@@ -366,6 +381,35 @@
                 </svg>
                 La imagen se procesa en el servidor y no se almacena.</span
               ><span>Solo reconoce las señas de tu modelo activo.</span>
+            </div>
+          </section>
+          <section id="view-conversation" class="view" hidden>
+            <div class="conversation-layout">
+              <article class="card conversation-setup">
+                <span class="small-label">UNA CONVERSACIÓN A LA VEZ</span>
+                <h2>Hablen como les resulte más fácil.</h2>
+                <p>La otra persona puede abrir el enlace en su teléfono, usar la cámara para hacer señas o responder escribiendo. Los mensajes se muestran en ambas pantallas y se pueden escuchar.</p>
+                <label class="check-row conversation-consent"><input id="conversation-consent" type="checkbox" /> Acepto compartir en esta sala los mensajes y las señas que se reconozcan. La sala vence en una hora; no se guardan mensajes ni video.</label>
+                <div class="button-row">
+                  <button id="create-conversation" class="primary" type="button">Crear conversación</button>
+                  <button id="close-conversation" class="secondary" type="button" hidden>Terminar conversación</button>
+                </div>
+                <p id="conversation-link-status" class="help" role="status">La conversación por texto funciona en esta computadora. Para abrir la cámara del teléfono necesitas una conexión HTTPS privada.</p>
+                <div id="conversation-link-box" class="conversation-link-box" hidden>
+                  <div><strong>Enlace para el teléfono</strong><p id="conversation-expiry" class="help"></p><div class="input-row"><input id="conversation-link" type="url" readonly aria-label="Enlace temporal del teléfono"><button id="copy-conversation-link" class="secondary" type="button">Copiar enlace</button></div></div>
+                  <img id="conversation-qr" alt="Código QR temporal para abrir la conversación en el teléfono" hidden>
+                </div>
+              </article>
+              <article class="card conversation-chat">
+                <div class="card-heading"><div><span class="small-label">MENSAJES TEMPORALES</span><h2>Conversación</h2></div><span id="conversation-status" class="mini-badge">Sin iniciar</span></div>
+                <div id="conversation-messages" class="conversation-messages" aria-live="polite" aria-relevant="additions text"><p id="conversation-empty" class="help">Crea una sala y envía el primer mensaje.</p></div>
+                <form id="conversation-form" class="conversation-form">
+                  <label class="sr-only" for="conversation-input">Escribir un mensaje para la otra persona</label>
+                  <input id="conversation-input" type="text" maxlength="300" autocomplete="off" placeholder="Escribe una respuesta…" disabled>
+                  <button id="send-conversation-message" class="primary" type="submit" disabled>Enviar</button>
+                </form>
+                <p class="help">Las señas solo se reconocen si este perfil tiene un modelo entrenado. El enlace del teléfono permite usar la cámara sin iniciar sesión.</p>
+              </article>
             </div>
           </section>
           <section id="view-dataset" class="view" hidden>
@@ -569,6 +613,7 @@
                     <select id="training-strategy">
                       <option value="baseline">Referencia compatible</option>
                       <option value="discriminative">Articulaciones y ejemplos difíciles · experimental</option>
+                      <option value="robust">Distancia, dedos y movimiento · experimental</option>
                       <option value="trajectory">Trayectoria y velocidad · experimental</option>
                       <option value="contrastive">Contrastivo · experimental</option>
                     </select>

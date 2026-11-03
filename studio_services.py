@@ -11,6 +11,7 @@ from web_dataset import inventory, validate_identifier
 from dataset_tools import audit_dataset, export_dataset, import_dataset, sample_rows, inspect_sample
 
 
+# Lista versiones compatibles y sus diagnósticos sin enviar todas las referencias geométricas al navegador.
 def versions(language):
     root=model_dir(language)
     selected=json.loads((root/'current.json').read_text()) if (root/'current.json').is_file() else {}
@@ -32,6 +33,7 @@ def versions(language):
     return result
 
 
+# Valida vocabulario, archivos y dimensiones antes de cambiar atómicamente la versión activa.
 def activate_version(language, version):
     validate_identifier(version)
     root=model_dir(language)
@@ -59,6 +61,7 @@ def activate_version(language, version):
 _ACTIVITY_CACHE = (None, [])
 
 
+# Resume trabajos y operaciones recientes usando una caché basada en archivos modificados.
 def recent_activity():
     global _ACTIVITY_CACHE
     jobs=sorted((languages.WEB_DATA/'jobs').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:8]
@@ -81,6 +84,7 @@ def recent_activity():
     return result
 
 
+# Enruta auditoría, importación, exportación y cambios administrativos dentro de una sola lengua.
 def dataset_operation(runtime, route, payload):
     language=payload.get('language')
     language_info(language)

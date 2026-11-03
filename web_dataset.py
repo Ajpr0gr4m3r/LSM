@@ -9,6 +9,7 @@ import numpy as np
 from config import FEATURE_DIM, SEQUENCE_LENGTH
 from sign_languages import dataset_dir, labels_for, validate_label, pipeline_spec, register_label
 
+# Exige una secuencia finita de dimensiones compatibles y detecciones suficientes.
 def validate_sequence(points):
     points = np.asarray(points, dtype=np.float32)
     if points.shape != (SEQUENCE_LENGTH, FEATURE_DIM) or not np.isfinite(points).all():
@@ -17,6 +18,7 @@ def validate_sequence(points):
         raise ValueError('Faltan detecciones en demasiados fotogramas. Repite la captura.')
     return points
 
+# Guarda puntos, contrato de captura y procedencia en un NPZ mediante reemplazo atómico.
 def save_sequence(language, label, points, sample_id=None, metadata=None):
     validate_label(language, label)
     points = validate_sequence(points)
@@ -31,6 +33,7 @@ def save_sequence(language, label, points, sample_id=None, metadata=None):
     os.replace(temp, target)
     return target.name
 
+# Lee un NPZ sin pickle y verifica su contrato y dimensiones antes de usarlo.
 def load_sequence(path):
     with np.load(path, allow_pickle=False) as data:
         if json.loads(str(data['pipeline'].item())) != pipeline_spec():
@@ -40,6 +43,7 @@ def load_sequence(path):
 _INVENTORY_CACHE = {}
 
 
+# Cuenta ejemplos válidos e inválidos por etiqueta y reutiliza el resultado si los archivos no cambiaron.
 def inventory(language):
     # Leer los arrays solo si cambia algún archivo. Consultar el estado no debe
     # interrumpir el ritmo de captura al crecer los siete datasets.
@@ -64,6 +68,7 @@ def inventory(language):
     _INVENTORY_CACHE[key] = (fingerprint, result)
     return result
 
+# Traslada todos los ejemplos de una etiqueta a una carpeta recuperable con registro de la operación.
 def archive_label(language, label):
     """Retira de forma atómica una clase del dataset y conserva sus archivos."""
     validate_label(language, label)
@@ -86,6 +91,7 @@ def archive_label(language, label):
     return {'deleted': len(samples), 'archive_id': identifier}
 
 
+# Carga únicamente las clases seleccionadas y exige suficientes ejemplos antes de entrenar.
 def read_dataset(language, minimum, label_ids=None):
     if label_ids is not None:
         if not isinstance(label_ids, list) or len(label_ids) < 2 or any(not isinstance(label, str) for label in label_ids) or len(set(label_ids)) != len(label_ids):
@@ -112,6 +118,7 @@ def read_dataset(language, minimum, label_ids=None):
         raise ValueError(f'Graba al menos dos señas diferentes, con {minimum} ejemplos completos por seña.')
     return np.stack(arrays), np.asarray(targets, dtype=np.int32), labels
 
+# Proporciona la separación histórica por clase usada por compatibilidad y pruebas; no sustituye el reparto agrupado web.
 def split_per_class(y, seed=42):
     rng = np.random.default_rng(seed)
     train, validation, test = [], [], []
@@ -128,17 +135,20 @@ def split_per_class(y, seed=42):
     return tuple(np.array(part, dtype=int) for part in (train, validation, test))
 
 
+# Restringe los identificadores de muestras y versiones a 32 caracteres hexadecimales.
 def validate_identifier(identifier):
     if not isinstance(identifier, str) or len(identifier) != 32 or any(c not in '0123456789abcdef' for c in identifier):
         raise ValueError('Identificador de grabación inválido.')
     return identifier
 
 
+# Deriva la carpeta de tomas pendientes a partir de una lengua previamente validada.
 def draft_dir(language):
     # Derivar del directorio validado evita usar un idioma como ruta arbitraria.
     return dataset_dir(language).parent.parent / 'drafts' / language
 
 
+# Guarda una toma completa aún sin nombre con su procedencia y un identificador único.
 def save_draft(language, points, metadata=None):
     points = validate_sequence(points)
     folder = draft_dir(language)
@@ -152,11 +162,13 @@ def save_draft(language, points, metadata=None):
     return identifier
 
 
+# Lista tomas pendientes de la lengua en orden de creación.
 def pending_drafts(language):
     return [{'id': p.stem, 'created_at': p.stat().st_mtime} for p in sorted(
         draft_dir(language).glob('*.npz'), key=lambda p: p.stat().st_mtime)]
 
 
+# Asigna nombre, conserva procedencia e integra una toma de forma idempotente sin duplicarla al reintentar.
 def commit_draft(language, identifier, name):
     validate_identifier(identifier)
     folder = draft_dir(language)
@@ -179,6 +191,7 @@ def commit_draft(language, identifier, name):
     return result
 
 
+# Retira una toma pendiente hacia su subcarpeta recuperable de descartadas.
 def discard_draft(language, identifier):
     validate_identifier(identifier)
     path = draft_dir(language) / f'{identifier}.npz'
@@ -189,6 +202,7 @@ def discard_draft(language, identifier):
         os.replace(path, discarded / path.name)
 
 
+# Lee y valida el diccionario de procedencia almacenado en una secuencia.
 def sequence_metadata(path):
     with np.load(path, allow_pickle=False) as record:
         metadata = json.loads(str(record['metadata'].item())) if 'metadata' in record else {}

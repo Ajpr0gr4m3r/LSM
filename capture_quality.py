@@ -3,6 +3,7 @@ import numpy as np
 from recognition_features import regions
 
 
+# Comprueba manos completas, tamaño de palma, límites del encuadre y visibilidad del torso.
 def landmark_quality(points):
     pose, _, left, right = regions(np.asarray(points, dtype=np.float32))
     hands = [h for h in (left, right) if np.any(h != 0)]
@@ -30,6 +31,7 @@ def landmark_quality(points):
             'message': issues[0] if issues else 'Buen encuadre. Haz la seña completa.', 'issues': list(dict.fromkeys(issues))}
 
 
+# Mide brillo y variación del Laplaciano para advertir oscuridad, exceso de luz o poco enfoque.
 def image_quality(image):
     import cv2
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -45,6 +47,7 @@ def image_quality(image):
     return {'brightness': round(brightness,1), 'sharpness': round(sharpness,1), 'warnings': messages}
 
 
+# Resume la proporción de detecciones utilizables y advierte movimiento al final de una toma.
 def sequence_quality(points):
     reports = [landmark_quality(frame) for frame in points]
     ratio = float(np.mean([r['usable'] for r in reports]))
@@ -54,3 +57,30 @@ def sequence_quality(points):
     end_motion = float(np.mean(motion[-4:])) if len(motion) else 0
     return {'boundary_warning': end_motion > .03, 'end_motion': round(end_motion,4), 'usable_ratio': round(ratio,3), 'low_quality': ratio < .8,
             'message': 'Repite la toma con las manos completas y dentro del encuadre.' if ratio < .8 else 'Encuadre válido.'}
+
+
+# Evalúa luz y enfoque dentro de las regiones de manos, usando las mismas coordenadas que el detector.
+def hand_image_quality(image, points):
+    """Inspect actual hand regions in the SAME mirrored coordinate frame.
+
+    A dark/textureless wall should not veto a well-lit, focused hand. Keep the
+    original image-quality thresholds and inspect each visible hand separately.
+    """
+    pose, face, left, right = regions(np.asarray(points, np.float32))
+    height, width = image.shape[:2]
+    reports = []
+    for hand in (left, right):
+        if not np.any(hand) or not np.isfinite(hand).all():
+            continue
+        low = hand[:, :2].min(axis=0); high = hand[:, :2].max(axis=0)
+        pad = np.maximum((high-low)*.2, .01)
+        x0,y0 = np.floor(np.maximum(low-pad,0)*[width,height]).astype(int)
+        x1,y1 = np.ceil(np.minimum(high+pad,1)*[width,height]).astype(int)
+        if x1-x0 >= 12 and y1-y0 >= 12:
+            reports.append(image_quality(image[y0:y1,x0:x1]))
+    if not reports:
+        return {**image_quality(image), 'scope':'frame'}
+    warnings = list(dict.fromkeys(message for report in reports for message in report['warnings']))
+    return {'scope':'hands','brightness':min(report['brightness'] for report in reports),
+            'sharpness':min(report['sharpness'] for report in reports),'warnings':warnings,
+            'hands_evaluated':len(reports)}

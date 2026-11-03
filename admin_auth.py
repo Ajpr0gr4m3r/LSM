@@ -6,13 +6,16 @@ import time
 from pathlib import Path
 
 
+# Protege las operaciones administrativas con contraseña derivada y límite de intentos.
 class AdminGuard:
+    # Inicializa la ruta de credenciales y los contadores de bloqueo temporal.
     def __init__(self, config_path):
         self.config_path = Path(config_path)
         self.failures = 0
         self.window_started = 0
         self.blocked_until = 0
 
+    # Comprueba la contraseña contra PBKDF2; rechaza credenciales inválidas o intentos bloqueados.
     def verify(self, password):
         now = time.monotonic()
         if now < self.blocked_until:

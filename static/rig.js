@@ -1,13 +1,18 @@
 'use strict';
 // Las coordenadas ya vienen reflejadas del servidor, igual que la vista en espejo.
+// Mantiene el dibujador auxiliar heredado; la interfaz activa dibuja hand_rig desde app.js.
 class RigOverlay {
+  // Vincula el lienzo auxiliar e inicializa preferencia y temporizador.
   constructor(canvas) { this.canvas = canvas; this.enabled = false; this.timeout = null; }
+  // Limpia el lienzo y cancela el vencimiento del dibujo auxiliar.
   clear() {
     clearTimeout(this.timeout);
     this.canvas.getContext('2d').clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.canvas.hidden = true;
   }
+  // Cambia la activación del dibujador auxiliar y retira los puntos antiguos.
   setEnabled(enabled) { this.enabled = !!enabled; this.clear(); }
+  // Representa puntos finitos del formato auxiliar cuando está activado.
   draw(rig) {
     this.clear();
     if (!this.enabled || !rig || !(rig.width > 0 && rig.height > 0)) return;

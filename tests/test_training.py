@@ -13,7 +13,9 @@ import sign_languages as langs
 import web_train
 
 
+# Ayudante de prueba para TrainingTests.
 class TrainingTests(unittest.TestCase):
+    # Prueba automatizada: verifica candidate cannot replace a better validation model.
     def test_candidate_cannot_replace_a_better_validation_model(self):
         reference = {'accuracy':1., 'macro_f1':1., 'accepted_accuracy':1., 'coverage':1.}
         self.assertTrue(web_train.candidate_is_not_worse(reference, reference))
@@ -22,6 +24,7 @@ class TrainingTests(unittest.TestCase):
             self.assertFalse(web_train.candidate_is_not_worse(worse, reference))
         self.assertTrue(web_train.candidate_is_not_worse(reference, None))
 
+    # Prueba automatizada: verifica training publishes complete bundle.
     def test_training_publishes_complete_bundle(self, strategy="discriminative"):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -31,6 +34,7 @@ class TrainingTests(unittest.TestCase):
             from web_app import Runtime
             from config import SEQUENCE_LENGTH, FEATURE_DIM
 
+            # Ayudante de prueba para tiny model.
             def tiny_model(num_classes, input_dim=FEATURE_DIM):
                 result = tf.keras.Sequential([
                     tf.keras.layers.Input((SEQUENCE_LENGTH, input_dim)),
@@ -62,7 +66,10 @@ class TrainingTests(unittest.TestCase):
                 self.assertEqual(metadata['preprocessing'], 'articulation-motion-v5')
                 self.assertEqual(loaded.input_shape[-1], FEATURE_DIM + 244)
                 self.assertIsInstance(metadata['activated'], bool)
-                if strategy == 'trajectory':
+                if strategy == 'robust':
+                    self.assertEqual(metadata['hand_guard']['descriptor_version'], 'finger-articulation-v3')
+                    self.assertEqual(metadata['augmentation']['distance_scale'], [.72, 1.12])
+                if strategy in ('trajectory', 'robust'):
                     self.assertEqual(metadata['temporal_guard']['descriptor_version'], 'trajectory-v2')
                     self.assertTrue(metadata['augmentation']['temporal_warp']['direction_preserved'])
                 self.assertTrue(metadata['history'])
@@ -80,9 +87,15 @@ class TrainingTests(unittest.TestCase):
                 progress = json.loads((root / 'data' / 'jobs' / ('b' * 32 + '.json')).read_text())
                 self.assertEqual(progress['state'], 'completed')
 
+    # Prueba automatizada: verifica robust training publishes versioned guard.
+    def test_robust_training_publishes_versioned_guard(self):
+        self.test_training_publishes_complete_bundle(strategy='robust')
+
+    # Prueba automatizada: verifica trajectory training publishes versioned guard.
     def test_trajectory_training_publishes_versioned_guard(self):
         self.test_training_publishes_complete_bundle(strategy='trajectory')
 
+    # Prueba automatizada: verifica desktop loader skips empty and partial folders.
     def test_desktop_loader_skips_empty_and_partial_folders(self):
         import train
         with tempfile.TemporaryDirectory() as temporary:

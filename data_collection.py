@@ -58,6 +58,7 @@ from utils import (
 # A.  CREACIÓN DE ESTRUCTURA DE CARPETAS
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Crea todos los directorios necesarios para el dataset y el proyecto.
 def create_folder_structure() -> None:
     """
     Crea todos los directorios necesarios para el dataset y el proyecto.
@@ -93,6 +94,7 @@ def create_folder_structure() -> None:
 # B.  FUNCIONES DE DIBUJO DE UI PARA RECOLECCIÓN
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Pantalla de espera entre secuencias. El usuario debe presionar SPACE.
 def _draw_waiting_screen(image: np.ndarray, action: str,
                          seq_idx: int, total_seqs: int,
                          logo_lia, logo_cec,
@@ -145,6 +147,7 @@ def _draw_waiting_screen(image: np.ndarray, action: str,
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
 
 
+# UI durante la grabación activa de una secuencia.
 def _draw_recording_ui(image: np.ndarray, action: str,
                        seq_idx: int, frame_num: int, total_seqs: int,
                        logo_lia, logo_cec) -> None:
@@ -195,6 +198,7 @@ def _draw_recording_ui(image: np.ndarray, action: str,
 # C.  LOOP PRINCIPAL DE RECOLECCIÓN
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Pipeline completo de recolección de datos.
 def collect_data() -> None:
     """
     Pipeline completo de recolección de datos.

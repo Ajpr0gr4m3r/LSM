@@ -6,7 +6,9 @@ from recognition_features import (regions, finger_geometry, prepare_sequence, fe
 from web_train import class_decisions
 
 
+# Ayudante de prueba para FingerGeometryTests.
 class FingerGeometryTests(unittest.TestCase):
+    # Ayudante de prueba para hand.
     def hand(self, folded=False):
         points = np.zeros((30, FEATURE_DIM), np.float32)
         hand = regions(points)[2]
@@ -18,6 +20,7 @@ class FingerGeometryTests(unittest.TestCase):
                 hand[:, base+joint] = [.43 + .035 * finger, y, .002 * joint]
         return points
 
+    # Prueba automatizada: verifica geometry distinguishes flexion and retains missing hand.
     def test_geometry_distinguishes_flexion_and_retains_missing_hand(self):
         straight, folded = self.hand(), self.hand(True)
         geometry = finger_geometry(straight)
@@ -30,6 +33,7 @@ class FingerGeometryTests(unittest.TestCase):
         hand[:] = hand * .7 + [.1, .12, .03]
         np.testing.assert_allclose(geometry, finger_geometry(moved), atol=1e-5)
 
+    # Prueba automatizada: verifica new version preserves all old channels and load dimensions.
     def test_new_version_preserves_all_old_channels_and_load_dimensions(self):
         points = self.hand()
         old = prepare_sequence(points, STABLE_PREPROCESSING)
@@ -39,6 +43,7 @@ class FingerGeometryTests(unittest.TestCase):
         self.assertTrue(np.isfinite(new).all())
         self.assertEqual(feature_dimension(None), FEATURE_DIM)
 
+    # Prueba automatizada: verifica competing class rejected even inside wide radius.
     def test_competing_class_rejected_even_inside_wide_radius(self):
         a,b = self.hand(),self.hand(True)
         examples=np.stack([a]*4+[b]*4); targets=np.array([0]*4+[1]*4)
@@ -51,6 +56,7 @@ class FingerGeometryTests(unittest.TestCase):
         ambiguous=fit_hand_guard(np.stack([a]*8),targets,np.stack([a]*8),targets,contrastive=True)
         self.assertFalse(hand_guard_accept(a,0,ambiguous))
 
+    # Prueba automatizada: verifica class metrics expose confusion hidden by aggregate.
     def test_class_metrics_expose_confusion_hidden_by_aggregate(self):
         probabilities=np.array([[.99,.01],[.99,.01],[.99,.01],[.01,.99]])
         result=class_decisions(probabilities,np.array([0,0,1,1]),[True]*4,.85,.15,[{'id':'a','text':'A'},{'id':'b','text':'B'}])
@@ -58,6 +64,7 @@ class FingerGeometryTests(unittest.TestCase):
         self.assertEqual(result[1]['recall'],.5)
         self.assertEqual(result[1]['accepted'],1)
 
+    # Prueba automatizada: verifica group split balances classes without starving training.
     def test_group_split_balances_classes_without_starving_training(self):
         from dataset_tools import grouped_split
         # Two large consecutive batches and two single examples of class 0.

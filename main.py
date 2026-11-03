@@ -53,6 +53,7 @@ from utils import (
 # CLASE PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Sistema completo de reconocimiento de LSM dinámica en tiempo real.
 class LSMRecognizer:
     """
     Sistema completo de reconocimiento de LSM dinámica en tiempo real.
@@ -76,6 +77,7 @@ class LSMRecognizer:
     _COLOR_BUFFER_FULL = (0,  200, 100)    # Verde suave — buffer lleno
     _COLOR_ACCENT      = (0,  170, 255)    # Azul   — elementos de UI
 
+    # Inicializa el reconocedor de escritorio, cámara, buffers, historial y recursos gráficos.
     def __init__(self) -> None:
         # ── Modelo y etiquetas ─────────────────────────────────────
         self.model:     tf.keras.Model | None = None
@@ -120,6 +122,7 @@ class LSMRecognizer:
     # CARGA DEL MODELO
     # ══════════════════════════════════════════════════════════════
 
+    # Carga el modelo LSTM y el mapa de etiquetas desde disco.
     def _load_model(self) -> None:
         """
         Carga el modelo LSTM y el mapa de etiquetas desde disco.
@@ -164,6 +167,7 @@ class LSMRecognizer:
     # LÓGICA DE INFERENCIA Y ESTABILIZACIÓN
     # ══════════════════════════════════════════════════════════════
 
+    # Ejecuta una pasada del modelo LSTM sobre el buffer actual.
     def _run_inference(self) -> None:
         """
         Ejecuta una pasada del modelo LSTM sobre el buffer actual.
@@ -229,6 +233,7 @@ class LSMRecognizer:
                       f'({best_conf:.1%})  '
                       f'frames estables: {self.stable_count}')
 
+    # Vacía el buffer y resetea todo el estado de predicción.
     def _reset_state(self) -> None:
         """Vacía el buffer y resetea todo el estado de predicción."""
         self.frame_buffer.clear()
@@ -245,6 +250,7 @@ class LSMRecognizer:
     # FPS
     # ══════════════════════════════════════════════════════════════
 
+    # Calcula FPS suavizado usando una ventana deslizante de 30 frames.
     def _update_fps(self) -> float:
         """
         Calcula FPS suavizado usando una ventana deslizante de 30 frames.
@@ -260,6 +266,7 @@ class LSMRecognizer:
     # RENDERIZADO DE UI
     # ══════════════════════════════════════════════════════════════
 
+    # Dibuja todos los elementos gráficos sobre el frame actual.
     def _render_ui(self, image: np.ndarray, fps: float) -> None:
         """
         Dibuja todos los elementos gráficos sobre el frame actual.
@@ -339,6 +346,7 @@ class LSMRecognizer:
     # GUARDADO DE SESIÓN
     # ══════════════════════════════════════════════════════════════
 
+    # Guarda la oración acumulada en un archivo .txt con timestamp.
     def _save_session(self) -> None:
         """
         Guarda la oración acumulada en un archivo .txt con timestamp.
@@ -365,6 +373,7 @@ class LSMRecognizer:
     # LOOP PRINCIPAL
     # ══════════════════════════════════════════════════════════════
 
+    # Bucle principal de captura, procesamiento y visualización.
     def run(self) -> None:
         """
         Bucle principal de captura, procesamiento y visualización.
@@ -465,6 +474,7 @@ class LSMRecognizer:
 # ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Punto de entrada: configura GPU y lanza el reconocedor.
 def main() -> None:
     """Punto de entrada: configura GPU y lanza el reconocedor."""
     print('=' * 60)

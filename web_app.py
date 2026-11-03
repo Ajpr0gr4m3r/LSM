@@ -4,6 +4,7 @@ Ejecutar: .venv/bin/python web_app.py — abrir http://127.0.0.1:8765
 from __future__ import annotations
 import argparse
 import base64
+import hashlib
 from collections import deque
 import json
 import os
@@ -27,7 +28,7 @@ from accounts import Accounts
 import team_access
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
-from capture_quality import landmark_quality, image_quality, sequence_quality
+from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
 from studio_services import versions, activate_version, recent_activity, dataset_operation
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
@@ -37,6 +38,7 @@ TOKEN = secrets.token_urlsafe(32)
 ACCOUNTS = Accounts(WEB_DATA / "accounts" / "team.sqlite3")
 
 
+# Valida el manifiesto activo, la lengua, el pipeline y los archivos del modelo antes de cargarlo.
 def model_metadata(language):
     directory = model_dir(language)
     manifest = directory / 'current.json'
@@ -58,18 +60,24 @@ def model_metadata(language):
     return path, meta
 
 
+# Conserva detectores, buffers, procedencia y estado de una cámara; no representa una cuenta de usuario.
 class Session:
+    # Inicializa una cámara con sus detectores diferidos y contadores de seguimiento.
     def __init__(self, language):
         self.language = language
         self.owner_id = None
         self.holistic = None
+        self.snapshot_detector = None
         self.touched = time.monotonic()
         self.last_frame = 0.0
+        self.last_hand_seen = 0.0
+        self.hand_recovery_after = 0.0
         self.capture = None
         self.provenance = {}
         self.quality_gate = False
         self.reset()
 
+    # Vacía la secuencia y sus votos de reconocimiento sin cerrar la cámara ni borrar tomas guardadas.
     def reset(self):
         self.frames = deque(maxlen=SEQUENCE_LENGTH)
         self.probabilities = deque(maxlen=5)
@@ -82,22 +90,183 @@ class Session:
         self.last_inference = 0
         self.last_model = None
 
+    # Libera los detectores de video e imagen independientes de esta sesión.
     def close(self):
+        if self.snapshot_detector is not None:
+            self.snapshot_detector.close()
         if self.holistic is not None:
             self.holistic.close()
 
 
+# Coordina cámaras, modelos, salas temporales, administración y entrenamiento del servidor.
 class Runtime:
+    # Crea el bloqueo compartido, las cachés y los registros en memoria del servidor.
     def __init__(self):
         self.lock = threading.RLock()
         self.sessions = {}
+        self.conversations = {}
         self.models = {}
+        self.model_signatures = {}
+        self.snapshot_models = {}
         self.process = None
         self.job_id = None
         self.recovered_training_checked = False
         self.recovered_training_pid = None
         self.admin = AdminGuard(WEB_DATA / 'admin' / 'auth.json')
 
+    # Abre una sala temporal con llaves separadas y genera su QR local cuando existe origen móvil HTTPS.
+    def create_conversation(self, language, phone_origin):
+        language_info(language)
+        now = time.monotonic()
+        for key, room in list(self.conversations.items()):
+            if now >= room['expires']:
+                self.close_conversation(key)
+        if len(self.conversations) >= 8:
+            oldest = min(self.conversations, key=lambda key: self.conversations[key]['created'])
+            self.close_conversation(oldest)
+        identifier = secrets.token_hex(12)
+        desktop_key = secrets.token_urlsafe(32)
+        phone_key = secrets.token_urlsafe(32)
+        room = {'id': identifier, 'language': language, 'desktop_key': desktop_key,
+                'phone_key': phone_key, 'created': now, 'expires': now + 3600,
+                'phone_session': None, 'messages': [], 'next_message': 1, 'sign_drafts': {}}
+        self.conversations[identifier] = room
+        phone_url = f"{phone_origin}/phone/{identifier}/{phone_key}" if phone_origin else None
+        qr = None
+        if phone_url:
+            import cv2
+            matrix = cv2.QRCodeEncoder_create().encode(phone_url)
+            matrix = cv2.copyMakeBorder(matrix, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=255)
+            matrix = cv2.resize(matrix, None, fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
+            ok, encoded = cv2.imencode('.png', matrix)
+            if not ok:
+                self.conversations.pop(identifier, None)
+                raise ValueError('No se pudo generar el código QR.')
+            qr = base64.b64encode(encoded.tobytes()).decode('ascii')
+        return {'room': identifier, 'desktop_key': desktop_key, 'phone_url': phone_url,
+                'qr_png': qr, 'expires_in': 3600, 'messages': [], 'phone_connected': False}
+
+    # Valida la llave del participante y elimina salas vencidas antes de permitir su uso.
+    def conversation(self, identifier, key, side):
+        room = self.conversations.get(str(identifier or ''))
+        key_name = 'desktop_key' if side == 'desktop' else 'phone_key'
+        if room and time.monotonic() >= room['expires']:
+            self.close_conversation(room['id'])
+            room = None
+        if (not room or not isinstance(key, str)
+                or not secrets.compare_digest(room[key_name], key)):
+            raise ValueError('El enlace de conversación venció o dejó de ser válido. Crea uno nuevo.')
+        return room
+
+    # Normaliza y añade un mensaje al historial acotado en memoria de la sala.
+    def conversation_message(self, room, sender, text, kind='text', confidence=None):
+        message = ' '.join(str(text or '').split())
+        if not message or len(message) > 300:
+            raise ValueError('Escribe un mensaje de 1 a 300 caracteres.')
+        if kind not in ('text', 'sign'):
+            raise ValueError('Tipo de mensaje no válido.')
+        item = {'id': room['next_message'], 'sender': sender, 'text': message,
+                'kind': kind, 'confidence': confidence, 'created_at': time.time()}
+        room['next_message'] += 1
+        room['messages'].append(item)
+        room['messages'] = room['messages'][-80:]
+        return item
+
+    # Publica cada borrador que lleva cuatro segundos sin una seña confirmada nueva.
+    def flush_sign_drafts(self, room):
+        now = time.monotonic()
+        for side, draft in list(room['sign_drafts'].items()):
+            if now - draft['updated'] >= 4:
+                self.conversation_message(room, draft['sender'], draft['text'], 'sign',
+                                          sum(draft['confidence']) / len(draft['confidence']) if draft['confidence'] else None)
+                del room['sign_drafts'][side]
+
+    # Acumula letras o palabras por participante y reinicia la pausa de envío automático.
+    def append_conversation_sign(self, room, side, text, confidence):
+        self.flush_sign_drafts(room)
+        text = ' '.join(str(text or '').split())
+        if not text or len(text) > 300:
+            raise ValueError('La seña reconocida no tiene un texto válido.')
+        drafts = room['sign_drafts']
+        draft = drafts.get(side)
+        separator = '' if draft and draft['last_letter'] and len(text) == 1 else ' '
+        combined = draft['text'] + separator + text if draft else text
+        if len(combined) > 300:
+            self.conversation_message(room, draft['sender'], draft['text'], 'sign',
+                                      sum(draft['confidence']) / len(draft['confidence']) if draft['confidence'] else None)
+            draft = None
+            combined = text
+        new_score = [] if confidence is None else [float(confidence)]
+        scores = draft['confidence'] + new_score if draft else new_score
+        drafts[side] = {'text': combined, 'updated': time.monotonic(), 'confidence': scores,
+                        'last_letter': len(text) == 1, 'sender': 'Señas' if side == 'phone' else 'Computadora'}
+
+    # Publica borradores vencidos y devuelve mensajes, conexión y tiempo restante de una sala.
+    def conversation_state(self, room):
+        self.flush_sign_drafts(room)
+        return {'messages': room['messages'][-80:], 'phone_connected': room['phone_session'] in self.sessions,
+                'expires_in': max(0, int(room['expires'] - time.monotonic())),
+                'language': room['language'], 'locale': language_info(room['language'])['locale'],
+                'sign_drafts': {side: draft['text'] for side, draft in room['sign_drafts'].items()},
+                'sign_pause_seconds': 4}
+
+    # Revoca la sala y libera la cámara del teléfono asociada.
+    def close_conversation(self, identifier):
+        room = self.conversations.pop(identifier, None)
+        if room and room.get('phone_session'):
+            item = self.sessions.pop(room['phone_session'], None)
+            if item:
+                item.close()
+
+    # Atiende mensajes, cámara y fotos del teléfono limitados a la sala autorizada por su llave.
+    def phone_request(self, route, payload):
+        room = self.conversation(payload.get('room'), payload.get('key'), 'phone')
+        if route == '/api/phone/state':
+            return self.conversation_state(room)
+        if route == '/api/phone/message':
+            self.conversation_message(room, 'Teléfono', payload.get('text'))
+            return self.conversation_state(room)
+        if route == '/api/phone/join':
+            if self.training():
+                raise ValueError('Espera a que termine el entrenamiento para probar señas.')
+            sid = room.get('phone_session')
+            if sid in self.sessions:
+                return {'joined': True, 'session': sid, **self.conversation_state(room)}
+            if not self.load_model(room['language']):
+                raise ValueError('Este perfil aún no tiene un modelo entrenado para reconocer señas.')
+            sid = self.new_session(room['language'], 'Teléfono', 'móvil', quality_gate=True)
+            room['phone_session'] = sid
+            self.session(sid).owner_id = 'phone:' + room['id']
+            return {'joined': True, 'session': sid, **self.conversation_state(room)}
+        if route == '/api/phone/snapshot':
+            sid = room.get('phone_session')
+            if sid not in self.sessions:
+                raise ValueError('Activa la cámara del teléfono antes de tomar la foto.')
+            result = self.analyze_snapshot(sid, payload.get('image'))
+            if result.get('accepted'):
+                self.append_conversation_sign(room, 'phone', result['label']['text'], None)
+            result['conversation'] = self.conversation_state(room)
+            return result
+        if route == '/api/phone/frame':
+            sid = room.get('phone_session')
+            if sid not in self.sessions:
+                raise ValueError('Activa la cámara del teléfono para empezar.')
+            result = self.frame({'session': sid, 'image': payload.get('image'), 'mode': 'preview' if payload.get('snapshot_mode') is True else 'test'})
+            if result.get('confirmed'):
+                self.append_conversation_sign(room, 'phone', result['confirmed'].get('text'), result.get('confidence'))
+            result['conversation'] = self.conversation_state(room)
+            return result
+        if route == '/api/phone/leave':
+            sid = room.get('phone_session')
+            if sid:
+                item = self.sessions.pop(sid, None)
+                if item:
+                    item.close()
+                room['phone_session'] = None
+            return {'left': True, **self.conversation_state(room)}
+        raise ValueError('Acción de teléfono desconocida.')
+
+    # Desactiva un modelo que contiene una clase modificada para evitar reconocer datos retirados.
     def invalidate_label_model(self, language, label):
         manifest = model_dir(language) / 'current.json'
         if not manifest.is_file():
@@ -120,6 +289,7 @@ class Runtime:
                 item.reset()
         return True
 
+    # Verifica administración y confirmación antes de archivar los ejemplos de una etiqueta.
     def delete_recordings(self, payload):
         self.admin.verify(payload.get('password'))
         if payload.get('confirmed') is not True:
@@ -138,11 +308,12 @@ class Runtime:
                 item.reset()
         return result
 
+    # Recupera sesiones inactivas y abre una cámara con perfil y procedencia independientes.
     def new_session(self, language, participant="", camera="", quality_gate=False):
         language_info(language)
         now = time.monotonic()
         for key, item in list(self.sessions.items()):
-            if now - item.touched > 600:
+            if now - item.touched >= 15:
                 item.close()
                 del self.sessions[key]
         if len(self.sessions) >= 4:
@@ -153,6 +324,7 @@ class Runtime:
         self.sessions[identifier].provenance = {'session_id': identifier, 'participant': str(participant or '')[:80], 'camera': str(camera or '')[:80]}
         return identifier
 
+    # Valida una sesión de cámara y renueva su marca de actividad.
     def session(self, identifier):
         if identifier not in self.sessions:
             raise ValueError('La sesión terminó. Detén y vuelve a activar la cámara.')
@@ -160,6 +332,7 @@ class Runtime:
         item.touched = time.monotonic()
         return item
 
+    # Comprueba límites y operaciones pendientes y prepara una secuencia nueva para grabar.
     def start_capture(self, identifier, consecutive=False, batch_id=""):
         if not isinstance(consecutive, bool):
             raise ValueError('La opción de grabación consecutiva no es válida.')
@@ -178,6 +351,7 @@ class Runtime:
         item.provenance['batch_id'] = str(batch_id or '')[:80]
         return {'capturing': True}
 
+    # Lee el progreso del entrenamiento y detecta trabajos cuyo proceso se interrumpió.
     def job(self):
         if not self.job_id:
             previous = sorted((WEB_DATA / 'jobs').glob('*.json'), key=lambda p:p.stat().st_mtime, reverse=True)
@@ -201,6 +375,7 @@ class Runtime:
             state['result'] = {k: v for k, v in state['result'].items() if k not in ('hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')}
         return state
 
+    # Comprueba si sigue vivo un entrenamiento iniciado o recuperado después de reiniciar.
     def training(self):
         if self.process is not None:
             return self.process.poll() is None
@@ -217,6 +392,7 @@ class Runtime:
                 self.recovered_training_pid = None
         return False
 
+    # Reúne perfiles, vocabularios, ejemplos, modelos, actividad y trabajo para la interfaz.
     def state(self):
         profiles = []
         for info in LANGUAGES:
@@ -240,13 +416,115 @@ class Runtime:
                 'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job(),
                 'legacy_model': old_model.is_file(), 'activity': recent_activity(), 'api_version': 2}
 
+    # Prepara el comparador de fotos con referencias entrenadas y grabaciones únicas de validación congelada.
+    def prepare_snapshot(self, language):
+        from snapshot_recognition import build_snapshot
+        from web_dataset import load_sequence
+        from sign_languages import dataset_dir
+        bundle = model_metadata(language)
+        if not bundle:
+            raise ValueError('Primero necesitas un modelo activo para esta lengua.')
+        directory, metadata = bundle
+        signature = self.model_signature(language, directory)
+        cached = self.snapshot_models.get(language)
+        if cached and cached[0] == signature:
+            return cached[1]
+        split = metadata.get('split_hashes', {})
+        reserved = set(split.get('validation', [])) - set(split.get('train', [])) - set(split.get('test', []))
+        frames, targets, seen = [], [], set()
+        for i, label in enumerate(metadata['labels']):
+            for path in sorted((dataset_dir(language) / label['id']).glob('*.npz')):
+                try:
+                    points = load_sequence(path)
+                except (ValueError, KeyError, OSError):
+                    continue
+                fingerprint = hashlib.sha256(points.tobytes()).hexdigest()
+                if fingerprint in reserved and fingerprint not in seen:
+                    seen.add(fingerprint)
+                    # One real central observation per recording. Frames from
+                    # one video are not counted as independent validations.
+                    frame = points[len(points)//2]
+                    if landmark_quality(frame)['usable']:
+                        frames.append(frame); targets.append(i)
+        result = build_snapshot(metadata, frames, targets)
+        self.snapshot_models[language] = (signature, result)
+        return result
+
+    # Crea bajo demanda el detector independiente usado por fotos y recuperación del seguimiento.
+    def image_detector(self, item):
+        if item.snapshot_detector is None:
+            import mediapipe as mp
+            item.snapshot_detector = mp.solutions.holistic.Holistic(static_image_mode=True, model_complexity=1,
+                                                                   min_detection_confidence=.5)
+        return item.snapshot_detector
+
+    # Reintenta una pérdida reciente sobre la misma imagen, con frecuencia acotada y sin inventar puntos.
+    def recover_hand_tracking(self, item, mirrored, result, now):
+        from utils import hands_detected, mediapipe_detection, extract_keypoints
+        if hands_detected(result) and landmark_quality(extract_keypoints(result))['usable']:
+            item.last_hand_seen = now
+            return result, False
+        # Retry only a recent tracking loss, at most once a second. Analyze the
+        # very same exposure independently; never reuse old landmarks as hands.
+        if not item.last_hand_seen or now-item.last_hand_seen > .8 or now < item.hand_recovery_after:
+            return result, False
+        item.hand_recovery_after = now + 1.
+        _, recovered = mediapipe_detection(mirrored, self.image_detector(item))
+        if not hands_detected(recovered) or not landmark_quality(extract_keypoints(recovered))['usable']:
+            return result, False
+        item.last_hand_seen = now
+        # A successful independent re-detection can reinitialize a stuck tracker.
+        if item.holistic is not None:
+            item.holistic.close()
+            item.holistic = None
+        return recovered, True
+
+    # Valida una imagen, detecta su postura de forma independiente y ejecuta la comparación experimental.
+    def analyze_snapshot(self, identifier, encoded):
+        import cv2
+        from snapshot_recognition import classify_snapshot
+        from utils import mediapipe_detection, extract_keypoints
+        item = self.session(identifier)
+        if self.training() or item.capture:
+            raise ValueError('Termina la captura o el entrenamiento antes de comparar una foto.')
+        if not isinstance(encoded, str) or len(encoded) > 1500000:
+            raise ValueError('Imagen demasiado grande.')
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError('Imagen inválida.') from exc
+        image = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if image is None or image.shape[0] > 1080 or image.shape[1] > 1920:
+            raise ValueError('Imagen inválida o demasiado grande.')
+        mirrored = cv2.flip(image, 1)
+        _, result = mediapipe_detection(mirrored, self.image_detector(item))
+        points = extract_keypoints(result)
+        quality = landmark_quality(points)
+        warnings = hand_image_quality(mirrored, points)['warnings']
+        if not quality['usable'] or warnings:
+            return {'accepted':False,'label':None,'alternatives':[], 'reason':warnings[0] if warnings else quality['message']}
+        return classify_snapshot(points, self.prepare_snapshot(item.language))
+
+    # Obtiene firmas de manifiesto, metadatos y pesos para invalidar la caché cuando cambian.
+    def model_signature(self, language, directory):
+        paths = (model_dir(language) / 'current.json', directory / 'metadata.json', directory / 'model.keras')
+        return tuple((st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns) for st in (path.stat() for path in paths))
+
+    # Reutiliza un modelo sin cambios o valida y carga pesos y filtros compatibles desde disco.
     def load_model(self, language):
+        cached = self.models.get(language)
+        if cached and language in self.model_signatures:
+            try:
+                if self.model_signature(language, cached[0]) == self.model_signatures[language]:
+                    return cached[1:]
+            except OSError:
+                pass  # A removed/replaced artifact must pass full validation.
         bundle = model_metadata(language)
         if not bundle:
             return None
         directory, meta = bundle
         cached = self.models.get(language)
-        if not cached or cached[0] != directory:
+        if not cached or cached[0] != directory or language in self.model_signatures:
             import tensorflow as tf
             model = tf.keras.models.load_model(directory / 'model.keras', compile=False, safe_mode=True)
             if tuple(model.input_shape[1:]) != (SEQUENCE_LENGTH, feature_dimension(meta.get('preprocessing'))) or model.output_shape[-1] != len(meta['labels']):
@@ -255,8 +533,10 @@ class Runtime:
                 for item in (meta.get(guard_name) or {}).get('classes', []):
                     item['references'] = np.asarray(item['references'], dtype=np.float32)
             self.models[language] = directory, model, meta
+        self.model_signatures[language] = self.model_signature(language, directory)
         return self.models[language][1:]
 
+    # Procesa un fotograma: seguimiento, calidad, captura o inferencia con filtros y confirmación temporal.
     def frame(self, payload):
         if self.training():
             raise ValueError('Espera a que termine el entrenamiento antes de usar la cámara.')
@@ -284,10 +564,12 @@ class Runtime:
             if session.capture:
                 session.capture = None
                 raise ValueError('La captura se interrumpió. Graba la secuencia de nuevo con una conexión estable.')
-        _, results = mediapipe_detection(cv2.flip(image, 1), session.holistic)
+        mirrored = cv2.flip(image, 1)
+        _, results = mediapipe_detection(mirrored, session.holistic)
+        results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
         points = extract_keypoints(results)
         hands = hands_detected(results)
-        output = {'hands': hands, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
+        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
@@ -297,8 +579,9 @@ class Runtime:
                 if hand is not None
             ]
         quality = landmark_quality(points)
-        visual = image_quality(image)
+        visual = hand_image_quality(mirrored, points)
         quality['warnings'] = visual['warnings']
+        quality['image_scope'] = visual['scope']
         output.update(quality=quality, phase='waiting', alternatives=[], latency_ms=0)
         if session.quality_gate and visual['warnings']:
             quality['usable'] = False
@@ -336,6 +619,8 @@ class Runtime:
             session.stable_count = 0
             session.stable_label = None
             session.no_hands = session.no_hands + 1 if not hands else 0
+            output['phase'] = 'quality-rejected'
+            output['rejection_code'] = 'capture_quality'
             if session.no_hands >= 5:
                 session.gesture_confirmed = False
                 session.last_confirmed = None
@@ -409,8 +694,10 @@ class Runtime:
         immediate_test = payload.get('mode') == 'test' and confidence >= .90 - 1e-7 and decision
         switching = session.gesture_confirmed and label['id'] != session.last_confirmed
         # A new sign can follow the previous one without a no-hands gap.
-        # Brief rival predictions during transitions must not produce speech.
-        required = max(3, stability_frames) if switching else (1 if immediate_test else stability_frames)
+        # Isolated high-confidence frames are not stable gestures. Require
+        # three observations even for the first sign; transitions retain the
+        # calibrated stability requirement. No confidence threshold is reduced.
+        required = max(3, stability_frames) if switching else (3 if immediate_test else max(3, stability_frames))
         output['stability_required'] = required
         output['stability'] = min(session.stable_count, required)
         if decision and session.gesture_confirmed and label['id'] == session.last_confirmed:
@@ -425,11 +712,12 @@ class Runtime:
         output['latency_ms'] = round((time.monotonic() - now) * 1000)
         return output
 
+    # Valida clases, épocas y estado y lanza el entrenamiento en un proceso separado.
     def start_training(self, language, epochs, label_ids=None, strategy="baseline"):
         language_info(language)
         if self.training():
             raise ValueError('Ya hay un entrenamiento en curso.')
-        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory'):
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust'):
             raise ValueError('Estrategia de entrenamiento desconocida.')
         if not isinstance(epochs, int) or not 5 <= epochs <= 200:
             raise ValueError('Selecciona entre 5 y 200 épocas.')
@@ -459,16 +747,22 @@ class Runtime:
 RUNTIME = Runtime()
 
 
+# Implementa las rutas HTTP, la entrega de recursos y los controles de origen y autorización.
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+    disable_nagle_algorithm = True
+    # Configura la conexión y el tiempo de espera antes de recibir peticiones HTTP.
     def setup(self):
         super().setup()
         self.connection.settimeout(30)
 
+    # Registra solicitudes evitando ruido por fotogramas y exposición de llaves de salas en rutas.
     def log_message(self, format, *args):
         # Evitar una línea por cada fotograma.
-        if '/api/frame' not in str(args):
+        if not any(route in str(args) for route in ('/api/frame', '/api/phone/', '/phone/')):
             super().log_message(format, *args)
 
+    # Envía JSON o bytes con longitud, cabeceras de seguridad y cierre ante errores HTTP.
     def send_data(self, status, data, content_type='application/json; charset=utf-8'):
         if not isinstance(data, bytes):
             data = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -476,6 +770,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
+        if status >= 400:
+            self.close_connection = True
+            self.send_header('Connection', 'close')
         if getattr(self, 'session_cookie', None):
             self.send_header('Set-Cookie', self.session_cookie)
         self.send_header('Referrer-Policy', 'no-referrer')
@@ -485,15 +782,35 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    # Permite únicamente los Hosts configurados para la aplicación principal.
     def trusted_host(self):
         host = self.headers.get('Host', '')
         public = getattr(self.server, 'public_origin', None)
         return host == urlsplit(public).netloc if public else host in {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
 
+    # Comprueba Host y, en mutaciones, Origin exactos del acceso móvil HTTPS.
+    def trusted_phone_host(self, origin=False):
+        phone_origin = getattr(self.server, 'phone_origin', None)
+        if not phone_origin or self.headers.get('Host', '') != urlsplit(phone_origin).netloc:
+            return False
+        return not origin or self.headers.get('Origin') == phone_origin
+
+    # Entrega la aplicación, la página móvil autorizada, recursos permitidos y estado autenticado.
     def do_GET(self):
-        if not self.trusted_host():
-            return self.send_data(403, {'error': 'Abre la dirección configurada para este servidor de Seña.'})
         route = urlsplit(self.path).path
+        phone_asset = route in {'/static/phone.js', '/static/speech.js', '/static/styles.css', '/static/vendor/manrope.woff2'} and self.trusted_phone_host()
+        if not self.trusted_host() and not phone_asset and not (route.startswith('/phone/') and self.trusted_phone_host()):
+            return self.send_data(403, {'error': 'Abre la dirección configurada para este servidor de Seña.'})
+        if route.startswith('/phone/'):
+            parts = route.strip('/').split('/')
+            if (len(parts) != 3 or not self.trusted_phone_host()):
+                return self.send_data(404, {'error': 'Enlace de teléfono no disponible.'})
+            try:
+                with RUNTIME.lock:
+                    RUNTIME.conversation(parts[1], parts[2], 'phone')
+            except ValueError:
+                return self.send_data(410, 'Este enlace de conversación venció. Genera otro desde Seña.', 'text/plain; charset=utf-8')
+            return self.send_data(200, (ROOT / 'static' / 'phone.html').read_bytes(), 'text/html; charset=utf-8')
         if route == '/api/auth/status':
             return self.send_data(200, team_access.status(self, ACCOUNTS))
         if route.startswith('/api/'):
@@ -506,6 +823,8 @@ class Handler(BaseHTTPRequestHandler):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/static/speech.js': ('speech.js', 'text/javascript; charset=utf-8'),
                  '/static/accounts.js': ('accounts.js', 'text/javascript; charset=utf-8'),
+                 '/static/conversation.js': ('conversation.js', 'text/javascript; charset=utf-8'),
+                 '/static/phone.js': ('phone.js', 'text/javascript; charset=utf-8'),
                  '/static/studio.js': ('studio.js', 'text/javascript; charset=utf-8'),
                  '/static/continuous.js': ('continuous.js', 'text/javascript; charset=utf-8'),
                  '/static/app.js': ('app.js', 'text/javascript; charset=utf-8'),
@@ -519,10 +838,30 @@ class Handler(BaseHTTPRequestHandler):
         filename, mime = files[route]
         self.send_data(200, (ROOT / 'static' / filename).read_bytes(), mime)
 
+    # Valida tamaño, JSON, origen, token y permisos antes de ejecutar cada operación de la API.
     def do_POST(self):
         origin = self.headers.get('Origin')
         expected = {getattr(self.server, 'public_origin', None)} if getattr(self.server, 'public_origin', None) else {f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'}
         route = urlsplit(self.path).path
+        if route.startswith('/api/phone/'):
+            if not self.trusted_phone_host(origin=True):
+                return self.send_data(403, {'error': 'Origen de teléfono no autorizado.'})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if length <= 0 or length > 2_000_000:
+                    raise ValueError('Solicitud vacía o demasiado grande.')
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict):
+                    raise ValueError('Solicitud no válida.')
+                with RUNTIME.lock:
+                    result = RUNTIME.phone_request(route, payload)
+                return self.send_data(200, result)
+            except (ValueError, KeyError, TypeError) as exc:
+                return self.send_data(400, {'error': str(exc)})
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                return self.send_data(500, {'error': f'No se pudo completar la operación: {exc}'})
         auth = team_access.authenticate(self, ACCOUNTS, require_user=not route.startswith('/api/auth/'))
         if not auth:
             return self.send_data(401, {'error': 'Inicia sesión para continuar.'})
@@ -544,7 +883,26 @@ class Handler(BaseHTTPRequestHandler):
                 if not auth:
                     return self.send_data(401, {'error': 'La sesión terminó. Vuelve a iniciar sesión.'})
                 team_access.authorize(RUNTIME, auth['user'], route, payload)
-                if route == '/api/session':
+                if route == '/api/conversation/create':
+                    if payload.get('shared_consent') is not True:
+                        raise ValueError('Confirma que los mensajes y las señas se compartirán en esta conversación temporal.')
+                    result = RUNTIME.create_conversation(payload.get('language'), getattr(self.server, 'phone_origin', None))
+                elif route == '/api/conversation/state':
+                    room = RUNTIME.conversation(payload.get('room'), payload.get('key'), 'desktop')
+                    result = RUNTIME.conversation_state(room)
+                elif route == '/api/conversation/sign':
+                    room = RUNTIME.conversation(payload.get('room'), payload.get('key'), 'desktop')
+                    RUNTIME.append_conversation_sign(room, 'desktop', payload.get('text'), payload.get('confidence'))
+                    result = RUNTIME.conversation_state(room)
+                elif route == '/api/conversation/message':
+                    room = RUNTIME.conversation(payload.get('room'), payload.get('key'), 'desktop')
+                    RUNTIME.conversation_message(room, 'Computadora', payload.get('text'))
+                    result = RUNTIME.conversation_state(room)
+                elif route == '/api/conversation/close':
+                    room = RUNTIME.conversation(payload.get('room'), payload.get('key'), 'desktop')
+                    RUNTIME.close_conversation(room['id'])
+                    result = {'closed': True}
+                elif route == '/api/session':
                     result = {'session': RUNTIME.new_session(payload.get('language'), (str(payload.get('participant', '')).strip()[:80] if auth['user'].get('local') else 'user:' + auth['user']['id']), payload.get('camera'), payload.get('quality_gate'))}
                     item = RUNTIME.session(result['session'])
                     item.owner_id = auth['user']['id']
@@ -575,6 +933,8 @@ class Handler(BaseHTTPRequestHandler):
                 elif route == '/api/capture/discard':
                     discard_draft(payload.get('language'), payload.get('draft_id'))
                     result = {'discarded': True}
+                elif route == '/api/snapshot':
+                    result = RUNTIME.analyze_snapshot(payload.get('session'), payload.get('image'))
                 elif route == '/api/frame':
                     result = RUNTIME.frame(payload)
                 elif route == '/api/admin/delete-recordings':
@@ -606,11 +966,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_data(500, {'error': f'No se pudo completar la operación: {exc}'})
 
 
+# Valida los argumentos de arranque, configura el servidor y libera detectores al cerrarlo.
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1', help='Escucha interna; usa un proxy HTTPS para acceso remoto.')
-    parser.add_argument('--public-url', help='Origen HTTPS público del proxy, por ejemplo https://senas.ejemplo.com')
+    parser.add_argument('--public-url', help='Origen HTTPS del proxy autenticado, por ejemplo https://senas.ejemplo.com')
+    parser.add_argument('--phone-origin', help='Origen HTTPS privado para los enlaces temporales de teléfono (Tailscale Serve).')
     args = parser.parse_args()
     cache = WEB_DATA / 'cache' / 'matplotlib'
     cache.mkdir(parents=True, exist_ok=True)
@@ -621,10 +983,18 @@ def main():
         if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
             parser.error('--public-url debe ser un origen HTTPS sin ruta, credenciales ni parámetros.')
         args.public_url = 'https://' + parsed.netloc
+    if args.phone_origin:
+        parsed_phone = urlsplit(args.phone_origin)
+        if parsed_phone.scheme != 'https' or not parsed_phone.hostname or parsed_phone.username or parsed_phone.password or parsed_phone.path not in ('', '/') or parsed_phone.query or parsed_phone.fragment:
+            parser.error('--phone-origin debe ser un origen HTTPS sin ruta, credenciales ni parámetros.')
+        args.phone_origin = 'https://' + parsed_phone.netloc
+    if args.public_url and args.phone_origin:
+        parser.error('Usa --phone-origin para enlazar teléfonos en modo local; no combines los dos modos.')
     if args.host not in ('127.0.0.1', 'localhost', '::1') and not args.public_url:
         parser.error('Para escuchar fuera de localhost configura --public-url y un proxy HTTPS.')
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.public_origin = args.public_url
+    server.phone_origin = args.phone_origin
     server.local_mode = not args.public_url
     server.local_csrf = secrets.token_urlsafe(32)
     address = args.public_url or f'http://127.0.0.1:{args.port}'

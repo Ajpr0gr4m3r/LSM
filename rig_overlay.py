@@ -3,9 +3,11 @@ import numpy as np
 from recognition_features import regions
 
 
+# Construye el formato auxiliar heredado del rig; el protocolo web activo usa hand_rig.
 def rig_payload(points, width, height):
     pose, face, left, right = regions(np.asarray(points))
 
+    # Convierte puntos finitos y visibles en coordenadas para el formato auxiliar.
     def visible_points(region, visibility=False):
         output = []
         for point in region:

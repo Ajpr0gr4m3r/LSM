@@ -24,10 +24,12 @@ PORT = 8765
 TARGET = f'http://127.0.0.1:{PORT}'
 
 
+# Representa un fallo controlado de la configuración privada heredada.
 class SetupError(RuntimeError):
     pass
 
 
+# Localiza el ejecutable instalado de Tailscale sin instalarlo ni iniciar sesión.
 def cli_path():
     for path in ('/Applications/Tailscale.app/Contents/MacOS/Tailscale', shutil.which('tailscale')):
         if path and Path(path).is_file():
@@ -35,6 +37,7 @@ def cli_path():
     raise SetupError('Falta instalar Tailscale y completar su inicio de sesión.')
 
 
+# Ejecuta un comando con tiempo límite y transforma sus fallos en mensajes de configuración.
 def command(args, timeout=15):
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -45,6 +48,7 @@ def command(args, timeout=15):
     return result.stdout
 
 
+# Ejecuta una consulta y exige que devuelva un objeto JSON válido.
 def read_json_output(args):
     try:
         result = json.loads(command(args))
@@ -55,6 +59,7 @@ def read_json_output(args):
         raise SetupError('Respuesta de Tailscale incompatible; no se modificó su configuración.') from None
 
 
+# Deriva el origen HTTPS del nombre DNS de una Mac conectada a Tailscale.
 def discover_origin(status):
     if status.get('BackendState') != 'Running' or not status.get('Self', {}).get('Online'):
         raise SetupError('Abre Tailscale, inicia sesión y conecta esta Mac a la red del laboratorio.')
@@ -64,6 +69,7 @@ def discover_origin(status):
     return 'https://' + dns
 
 
+# Comprueba que Serve pertenezca a Seña y que no haya Funnel u otro servicio que se sobrescribiría.
 def check_proxy(config, origin):
     """Evitar exposición pública y cambios a otros servicios del equipo."""
     if any(config.get('AllowFunnel', {}).values()):
@@ -78,6 +84,7 @@ def check_proxy(config, origin):
     return True
 
 
+# Consulta si existe una cuenta administradora activa para el despliegue autenticado heredado.
 def configured_admin():
     path = DATA / 'accounts' / 'team.sqlite3'
     if not path.exists():
@@ -86,6 +93,7 @@ def configured_admin():
         return bool(db.execute("SELECT 1 FROM users WHERE active=1 AND role='admin' LIMIT 1").fetchone())
 
 
+# Comprueba si el último trabajo de entrenamiento sigue vivo antes de cambiar el servicio.
 def training_active():
     files = sorted((DATA / 'jobs').glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
     if files:
@@ -99,6 +107,7 @@ def training_active():
     return False
 
 
+# Lee y valida la configuración privada persistida en disco.
 def current_config():
     if not CONFIG.exists():
         return {'origin': None}
@@ -112,6 +121,7 @@ def current_config():
     return result
 
 
+# Guarda el origen privado de forma atómica y con permisos restringidos.
 def write_config(origin):
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     temp = CONFIG.with_suffix('.tmp')
@@ -120,6 +130,7 @@ def write_config(origin):
     os.replace(temp, CONFIG)
 
 
+# Activa o desactiva el despliegue autenticado heredado preservando configuraciones ajenas.
 def configure(enable):
     if training_active():
         raise SetupError('Espera a que termine el entrenamiento antes de cambiar el acceso.')
@@ -160,6 +171,7 @@ def configure(enable):
     print('Falta comprobar la conexión desde un segundo equipo del laboratorio.')
 
 
+# Espera a que el backend acepte el Host HTTPS configurado antes de publicar el proxy.
 def wait_for_backend(origin, attempts=30):
     from urllib.request import Request, urlopen
     from urllib.parse import urlsplit
@@ -175,6 +187,7 @@ def wait_for_backend(origin, attempts=30):
     raise SetupError('El servicio de Seña no aceptó la dirección privada. Inicia su servicio persistente y revisa los registros.')
 
 
+# Construye la definición del servicio LaunchAgent de macOS.
 def agent_definition():
     directory = DATA / 'server'
     return {'Label': LABEL, 'ProgramArguments': [sys.executable, str(ROOT / 'private_server.py'), 'run'],
@@ -183,6 +196,7 @@ def agent_definition():
             'EnvironmentVariables': {'PYTHONUNBUFFERED': '1', 'TF_CPP_MIN_LOG_LEVEL': '2'}}
 
 
+# Instala y arranca el supervisor local después de comprobar sus condiciones de funcionamiento.
 def install_agent():
     if sys.platform != 'darwin':
         raise SetupError('El servicio automático incluido es para macOS.')
@@ -212,6 +226,7 @@ def install_agent():
     print('Servicio de Seña instalado y respondiendo; se iniciará al entrar en esta cuenta de macOS.')
 
 
+# Supervisa una única instancia hija y la reinicia al cambiar el origen del modo autenticado.
 def run_backend():
     """Un solo servidor; recargar origen mata únicamente el hijo que iniciamos."""
     lock_path = CONFIG.parent / 'service.lock'
@@ -223,6 +238,7 @@ def run_backend():
         except BlockingIOError:
             raise SetupError('Ya existe un supervisor de Seña.') from None
         stopping = False
+        # Marca la solicitud de parada para cerrar ordenadamente el proceso hijo.
         def stop(*_):
             nonlocal stopping
             stopping = True
@@ -247,6 +263,7 @@ def run_backend():
                 time.sleep(1)
 
 
+# Verifica TLS y que el despliegue heredado exija autenticación para acceder al estado.
 def verify_private_https(origin):
     """Check TLS and the anonymous login gate from this machine."""
     import ssl
@@ -270,6 +287,7 @@ def verify_private_https(origin):
         return False
 
 
+# Muestra el diagnóstico del despliegue autenticado heredado y la conexión de Tailscale.
 def status():
     result = {'local_url': TARGET, 'configured_url': current_config().get('origin'), 'admin_ready': configured_admin(),
               'private_access_verified': False}
@@ -286,6 +304,7 @@ def status():
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+# Selecciona la acción de administración del servicio privado recibida por línea de comandos.
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['status', 'install-service', 'enable', 'disable', 'run'])

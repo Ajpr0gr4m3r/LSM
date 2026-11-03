@@ -30,16 +30,19 @@ const batch = new ContinuousCapture();
 let batchPause = 3;
 let cameraStarting = false,
   cameraListing = false;
+let snapshotBusy = false;
 let deletingRecordings = false,
   adminLanguage = null,
   displayedModelKey = null;
 const profile = () => state?.profiles.find((p) => p.id === language);
 
+// Muestra o limpia una notificación general, indicando si es un error.
 function notice(message, error = false) {
   $('notice').textContent = message;
   $('notice').className = error ? 'error' : '';
   $('notice').hidden = !message;
 }
+// Envía JSON a la API con el CSRF actual y convierte errores HTTP en mensajes utilizables.
 async function api(path, body) {
   const options =
     body === undefined
@@ -62,12 +65,14 @@ async function api(path, body) {
   }
   return data;
 }
+// Crea una opción de selector usando texto seguro, sin interpretar HTML.
 function makeOption(value, text) {
   const element = document.createElement('option');
   element.value = value;
   element.textContent = text;
   return element;
 }
+// Actualiza vocabulario, controles y estados habilitados según cámara, perfil y operaciones en curso.
 function render() {
   const p = profile();
   if (!p) return;
@@ -189,12 +194,18 @@ function render() {
   $('draft-picker').disabled = batch.active;
   $('start-batch').disabled =
     !stream || !frameReady || countdown || recording || batch.active || savingDraft || busy;
+  $('capture-countdown').disabled = recording || countdown || batch.active;
+  $('take-snapshot').disabled = !stream || !frameReady || snapshotBusy || !$('snapshot-mode').checked;
   $('stop-batch').disabled = !batch.active;
+  $('pause-batch').disabled = !batch.active || (batch.paused && (recording || countdown));
+  $('pause-batch').textContent = batch.paused ? 'Continuar tanda' : 'Pausar tanda';
   $('batch-limit').disabled = batch.active;
   $('batch-pause').disabled = batch.active;
   renderBatchCounter();
   $('batch-status').textContent = batch.active
-    ? 'Repite la seña después de cada cuenta atrás.'
+    ? batch.paused
+      ? (recording ? 'Terminando la toma actual antes de pausar…' : `Tanda pausada · ${batch.count}/${batch.limit} tomas completas. Pulsa Continuar tanda.`)
+      : 'Repite la seña después de cada cuenta atrás.'
     : batch.count
       ? 'Ponles nombre en Grabaciones pendientes.'
       : 'Elige cuántas tomas quieres y empieza la tanda.';
@@ -268,6 +279,7 @@ function render() {
   if (typeof renderStudio === 'function') renderStudio();
   if (typeof renderTeam === 'function') renderTeam();
 }
+// Dibuja los símbolos y su progreso y permite elegir una letra para nombrar la siguiente toma.
 function renderAlphabet() {
   const p = profile(),
     alphabet = p.alphabet;
@@ -324,6 +336,7 @@ function renderAlphabet() {
   $('alphabet-source').hidden = !alphabet.source;
   if (alphabet.source) $('alphabet-source').href = alphabet.source;
 }
+// Solicita registrar símbolos del perfil o de los siete perfiles, sin crear ejemplos ficticios.
 async function addAlphabet(scope, extras = false) {
   if (addingAlphabet) return;
   const chosenLanguage = language;
@@ -346,6 +359,7 @@ async function addAlphabet(scope, extras = false) {
   }
 }
 
+// Muestra estado, época y métricas del trabajo real de entrenamiento.
 function renderJob() {
   const job = state.job;
   $('job-panel').hidden = !job;
@@ -381,6 +395,7 @@ function renderJob() {
     notice(job.message, true);
   lastJobState = fingerprint;
 }
+// Reutiliza la consulta de estado en curso y solo vuelve a dibujar cuando cambian sus datos.
 async function refresh() {
   if (stateRequest) return stateRequest;
   const accountIdentity = typeof accountState !== 'undefined' ? accountState?.user?.id : null;
@@ -396,6 +411,7 @@ async function refresh() {
     });
   return stateRequest;
 }
+// Detiene la cámara, cambia el perfil y limpia estados que no deben cruzarse entre lenguas.
 async function selectLanguage(id) {
   if (id === language) return;
   await stopCamera();
@@ -408,11 +424,13 @@ async function selectLanguage(id) {
   render();
   if (typeof loadVersions === 'function' && currentView === 'training') await loadVersions();
 }
+// Traduce los modos históricos a las vistas actuales del estudio.
 async function selectMode(next) {
   return navigateStudio(
     next === 'train' ? 'dataset' : next === 'guide' ? 'settings' : 'recognition',
   );
 }
+// Restaura el panel de reconocimiento sin inventar candidatos o confianza.
 function resetResult() {
   $('result-word').textContent = profile()?.model ? 'Esperando una seña.' : 'Sin modelo activo.';
   $('result-description').textContent = profile()?.model
@@ -422,6 +440,7 @@ function resetResult() {
   $('confidence-progress').value = 0;
   $('stability').textContent = 'Esperando una secuencia';
 }
+// Actualiza opciones de borrado y sus requisitos según vocabulario, operación y permisos.
 function renderAdmin() {
   const p = profile();
   const previous = adminLanguage === language ? $('admin-label').value : '';
@@ -451,6 +470,7 @@ function renderAdmin() {
   $('admin-confirm').disabled = blocked;
   $('admin-delete').disabled = blocked || !selected;
 }
+// Envía el borrado administrativo confirmado y actualiza el estado después de archivar ejemplos.
 async function deleteRecordings(event) {
   event.preventDefault();
   if (deletingRecordings) return;
@@ -483,6 +503,7 @@ async function deleteRecordings(event) {
     render();
   }
 }
+// Enumera cámaras disponibles y conserva la selección si el dispositivo sigue conectado.
 async function refreshCameras() {
   if (cameraListing) return;
   cameraListing = true;
@@ -519,6 +540,7 @@ async function refreshCameras() {
     $('refresh-cameras').disabled = cameraStarting;
   }
 }
+// Solicita permiso, abre la cámara seleccionada y crea su sesión de procesamiento en el servidor.
 async function startCamera() {
   if (stream || cameraStarting) return;
   if (!$('shared-camera-consent').checked) return notice('Acepta el procesamiento en el servidor antes de activar la cámara.', true);
@@ -597,6 +619,7 @@ async function startCamera() {
     render();
   }
 }
+// Cancela cuentas atrás y tandas, apaga pistas y libera la sesión de cámara remota.
 async function stopCamera() {
   clearHandRig();
   batch.stop();
@@ -629,25 +652,27 @@ async function stopCamera() {
   }
   if (state) render();
 }
+// Captura un fotograma conservando proporción y calidad, lo procesa y programa el siguiente sin solapar envíos.
 async function sendFrame(mark) {
   if (!stream || mark !== generation || !session) return;
   const started = performance.now();
   try {
     const canvas = $('frame-canvas'),
       video = $('camera');
-    const width = Math.min(video.videoWidth || 640, 640);
-    canvas.width = width;
-    canvas.height = Math.round((width * (video.videoHeight || 480)) / (video.videoWidth || 640));
+    const width = Math.round((video.videoWidth || 640) * Math.min(640 / (video.videoWidth || 640), 480 / (video.videoHeight || 480), 1));
+    const height = Math.round((width * (video.videoHeight || 480)) / (video.videoWidth || 640));
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     const result = await api('/api/frame', {
       session,
-      image: canvas.toDataURL('image/jpeg', 0.7).split(',')[1],
+      image: canvas.toDataURL('image/jpeg', 0.82).split(',')[1],
       show_hand_rig: $('show-hand-rig').checked,
-      mode,
+      mode: mode === 'test' && $('snapshot-mode').checked ? 'preview' : mode,
       strict: localStorage.getItem('sena-confirmation') === 'strict',
     });
     if (mark !== generation) return;
-    drawHandRig(result.hand_rig, canvas.width, canvas.height);
+    drawHandRig(result.hand_rig, canvas.width, canvas.height, canvas);
     const quality = result.quality;
     if (quality) {
       $('quality-status').dataset.quality = quality.usable ? 'good' : 'poor';
@@ -660,7 +685,7 @@ async function sendFrame(mark) {
       frameReady = true;
       render();
     }
-    $('camera-state').textContent = result.hands ? 'Manos visibles' : 'Buscando manos';
+    $('camera-state').textContent = result.hands ? (quality?.usable ? (result.tracking_recovered ? 'Seguimiento recuperado' : 'Manos visibles') : 'Revisando encuadre') : 'Buscando manos';
     $('hands-status').textContent = result.hands
       ? 'Manos detectadas · Mantén el movimiento natural.'
       : 'Coloca ambas manos dentro del encuadre.';
@@ -676,12 +701,14 @@ async function sendFrame(mark) {
         const progress = batch.complete(result.draft_id, serial);
         renderBatchCounter();
         if (progress && !progress.done && batch.current(serial)) {
-          await refresh();
           if (mark !== generation) return;
           notice(
             `La siguiente toma empieza en ${batchPause} segundos.`,
           );
           void recordExample(true, serial);
+        } else if (progress && !progress.done && batch.paused) {
+          await refresh();
+          notice(`Tanda pausada. Conservas ${batch.count}/${batch.limit} tomas completas.`);
         } else {
           await stopCamera();
           await refresh();
@@ -704,7 +731,7 @@ async function sendFrame(mark) {
         return;
       }
     }
-    if (mode === 'test' && !result.inference_skipped) showPrediction(result);
+    if (mode === 'test' && !$('snapshot-mode').checked && !result.inference_skipped) showPrediction(result);
   } catch (error) {
     if (mark !== generation) return;
     notice(error.message, true);
@@ -718,6 +745,7 @@ async function sendFrame(mark) {
       Math.max(0, 1000 / state.target_fps - (performance.now() - started)),
     );
 }
+// Presenta aceptación o rechazo y añade solamente confirmaciones estables al historial y la voz.
 function showPrediction(result) {
   if (!profile().model) {
     resetResult();
@@ -730,7 +758,7 @@ function showPrediction(result) {
   if (result.candidate) {
     $('result-word').textContent = (result.confirmed || result.phase === 'held')
       ? result.candidate.text
-      : sessionConfirmedText(result);
+      : (lastSpoken || (result.stability >= 2 ? sessionConfirmedText(result) : 'Observando el gesto…'));
     $('result-description').textContent =
       result.rejection_reason ||
       (result.confirmed
@@ -758,9 +786,11 @@ function showPrediction(result) {
     lastSpoken = result.confirmed.text;
     $('speak').disabled = !('speechSynthesis' in window);
     if ('speechSynthesis' in window) speak();
+    if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(result.confirmed.text, result.confidence);
     renderHistory();
   }
 }
+// Dibuja las confirmaciones y actualiza aciertos comprobados y exportación de sesión.
 function renderHistory() {
   $('history').replaceChildren();
   for (const item of history.slice(-12)) {
@@ -773,6 +803,7 @@ function renderHistory() {
   $('practice-score').textContent = `${correct} / ${checks} aciertos`;
   $('download').disabled = !history.length;
 }
+// Limpia historial, estadísticas locales y resultado visible de reconocimiento.
 function clearHistory() {
   history = [];
   checks = correct = 0;
@@ -781,6 +812,7 @@ function clearHistory() {
   renderHistory();
   resetResult();
 }
+// Espera la preparación elegida y solicita una toma completa, comprobando cancelaciones de tanda.
 async function recordExample(automatic = false, serial = null) {
   if (
     !stream ||
@@ -794,7 +826,7 @@ async function recordExample(automatic = false, serial = null) {
   render();
   const mark = generation;
   try {
-    for (let n = automatic ? batchPause : 3; n > 0; n--) {
+    for (let n = automatic ? batchPause : Number($('capture-countdown').value); n > 0; n--) {
       if (mark !== generation || (automatic && !batch.current(serial))) return;
       $('record').textContent = `Prepárate… ${n}`;
       $('capture-instruction').textContent = `La grabación empieza en ${n}…`;
@@ -806,7 +838,7 @@ async function recordExample(automatic = false, serial = null) {
       consecutive: automatic,
       batch_id: automatic ? `batch-${batch.serial}` : '',
     });
-    if (mark !== generation || (automatic && !batch.current(serial))) return;
+    if (mark !== generation || (automatic && !batch.active)) return;
     recording = true;
     $('record').textContent = 'Grabando…';
     $('capture-instruction').textContent = 'Haz la seña completa ahora.';
@@ -820,6 +852,7 @@ async function recordExample(automatic = false, serial = null) {
     }
   }
 }
+// Muestra completas/objetivo en la cámara y mantiene su etiqueta accesible.
 function renderBatchCounter() {
   const visible = mode === 'train' && batch.limit > 0 && (batch.active || batch.count > 0);
   const counter = $('batch-counter');
@@ -828,6 +861,7 @@ function renderBatchCounter() {
   counter.setAttribute('aria-label', `${batch.count} de ${batch.limit} tomas completas`);
   $('camera-state').hidden = visible;
 }
+// Valida tamaño y pausa y comienza la primera captura de una tanda consecutiva.
 async function startContinuous() {
   if (!stream || !frameReady || recording || countdown || batch.active || savingDraft) return;
   try {
@@ -847,6 +881,24 @@ async function startContinuous() {
     render();
   }
 }
+// Pausa entre tomas o al terminar la actual y reanuda conservando el progreso.
+async function toggleContinuousPause() {
+  if (!batch.active) return;
+  if (batch.paused) {
+    if (recording || countdown) return;
+    const serial = batch.resume();
+    render();
+    notice('Tanda reanudada. Prepárate para la siguiente toma.');
+    await recordExample(true, serial);
+  } else {
+    batch.pause();
+    render();
+    notice(recording
+      ? 'La toma actual terminará y la tanda quedará pausada.'
+      : `Tanda pausada. Conservas ${batch.count}/${batch.limit} tomas completas.`);
+  }
+}
+// Cierra la cámara y conserva las tomas completas pendientes de nombrar.
 async function stopContinuous() {
   await stopCamera();
   await refresh();
@@ -854,6 +906,7 @@ async function stopContinuous() {
     'Tanda detenida. Ponles nombre en Grabaciones pendientes; la toma incompleta se descartó.',
   );
 }
+// Integra una toma pendiente con su significado en el vocabulario del perfil seleccionado.
 async function saveNamedCapture(event) {
   event.preventDefault();
   if (!selectedDraft || savingDraft) return;
@@ -882,6 +935,7 @@ async function saveNamedCapture(event) {
     render();
   }
 }
+// Retira una toma pendiente sin incorporarla al entrenamiento.
 async function discardCapture() {
   if (!selectedDraft || savingDraft) return;
   savingDraft = true;
@@ -899,6 +953,7 @@ async function discardCapture() {
   }
 }
 
+// Cierra la cámara y solicita entrenar las clases y estrategia elegidas.
 async function trainModel() {
   const epochs = Number($('epochs').value);
   if (!Number.isInteger(epochs) || epochs < 5 || epochs > 200)
@@ -923,6 +978,7 @@ async function trainModel() {
 }
 const automaticSpeech = new SenaSpeechQueue(window.speechSynthesis, window.SpeechSynthesisUtterance,
   () => notice('No se pudo reproducir la voz. Revisa el sonido y los permisos del navegador.', true));
+// Añade la última confirmación a la cola de voz con el idioma del perfil.
 function speak() {
   if (lastSpoken) automaticSpeech.enqueue(lastSpoken, profile().locale);
 }
@@ -947,6 +1003,17 @@ $('stop-camera').addEventListener('click', stopCamera);
 $('record').addEventListener('click', () => recordExample());
 $('start-batch').addEventListener('click', startContinuous);
 $('stop-batch').addEventListener('click', stopContinuous);
+$('pause-batch').addEventListener('click', toggleContinuousPause);
+// Usa Espacio para pausar o continuar Dataset sin interferir con escritura, diálogos ni otras vistas.
+function capturePauseShortcut(event) {
+  if (event.code !== 'Space' || event.repeat || event.defaultPrevented ||
+      event.ctrlKey || event.altKey || event.metaKey || event.shiftKey ||
+      currentView !== 'dataset' || !batch.active || document.querySelector('dialog[open]')) return;
+  if (event.target?.closest('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+  event.preventDefault();
+  void toggleContinuousPause();
+}
+document.addEventListener('keydown', capturePauseShortcut);
 $('add-alphabet').addEventListener('click', () => addAlphabet('language'));
 $('add-all-alphabets').addEventListener('click', () => addAlphabet('all'));
 $('add-alphabet-extras').addEventListener('click', () => addAlphabet('language', true));
@@ -997,6 +1064,11 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => {
   if (stream) stream.getTracks().forEach((t) => t.stop());
+  if (session) void fetch('/api/close', {
+    method: 'POST', keepalive: true,
+    headers: {'Content-Type': 'application/json', 'X-LSM-Token': state?.token || ''},
+    body: JSON.stringify({session}),
+  }).catch(() => {});
 });
 window.addEventListener('DOMContentLoaded', () => {
   bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
@@ -1010,18 +1082,29 @@ const handRigEdges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
   [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
   [13,17],[0,17],[17,18],[18,19],[19,20]];
 let handRigExpiry;
+// Borra el dibujo y cancela su vencimiento para no dejar puntos antiguos sobre la cámara.
 function clearHandRig() {
   clearTimeout(handRigExpiry);
   const canvas = $('hand-rig');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   canvas.hidden = true;
 }
-function drawHandRig(hands, width, height) {
+// Dibuja la imagen analizada reflejada una vez y sus puntos sincronizados, no el video adelantado.
+function drawHandRig(hands, width, height, sourceFrame = null) {
   clearHandRig();
   if (!$('show-hand-rig').checked || !stream || !hands?.length) return;
   const canvas = $('hand-rig');
   canvas.width = width; canvas.height = height; canvas.hidden = false;
   const ctx = canvas.getContext('2d');
+  if (sourceFrame) {
+    // The landmarks refer to this exact captured frame, mirrored by the server.
+    // Painting over the newer live video would visibly detach them from the hand.
+    ctx.save();
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(sourceFrame, 0, 0, width, height);
+    ctx.restore();
+  }
   ctx.lineWidth = 2; ctx.strokeStyle = '#c5ef73'; ctx.fillStyle = '#ffffff';
   ctx.shadowColor = '#10251b'; ctx.shadowBlur = 3;
   for (const hand of hands) {
@@ -1038,6 +1121,7 @@ function drawHandRig(hands, width, height) {
   }
   handRigExpiry = setTimeout(clearHandRig, 800);
 }
+// Activa o desactiva el rig y conserva la preferencia visual en el navegador.
 function setHandRig(enabled, persist = true) {
   $('show-hand-rig').checked = enabled;
   const toggle = $('camera-rig-toggle');
@@ -1054,3 +1138,49 @@ try { savedHandRig = localStorage.getItem('sena.hand-rig') === 'true'; } catch (
 setHandRig(savedHandRig, false);
 $('show-hand-rig').addEventListener('change', () => setHandRig($('show-hand-rig').checked));
 $('camera-rig-toggle').addEventListener('click', () => setHandRig(!$('show-hand-rig').checked));
+
+
+// Captura una imagen en memoria y muestra comparación experimental o rechazo, sin probabilidad inventada.
+async function takeSnapshot() {
+  if (!stream || !session || snapshotBusy || !$('snapshot-mode').checked) return;
+  const video = $('camera'), canvas = $('snapshot-preview');
+  if (!video.videoWidth || !video.videoHeight) return;
+  const mark = generation;
+  const scale = Math.min(640/video.videoWidth,480/video.videoHeight,1);
+  canvas.width = Math.round(video.videoWidth*scale); canvas.height = Math.round(video.videoHeight*scale);
+  canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+  canvas.hidden = false;
+  const image = canvas.toDataURL('image/jpeg',.82).split(',')[1];
+  snapshotBusy = true; render();
+  $('snapshot-result').textContent = 'Comparando la foto con las formas aprendidas…';
+  try {
+    const result = await api('/api/snapshot',{session,image});
+    if (mark !== generation) return;
+    $('confidence').textContent = '—'; $('confidence-progress').value = 0;
+    $('stability').textContent = 'Foto experimental · sin probabilidad temporal';
+    if (result.accepted) {
+      $('result-word').textContent = result.label.text;
+      $('result-description').textContent = result.note;
+      $('snapshot-result').textContent = `${result.label.text} · referencia de validación: ${result.validation_support} grabaciones. Resultado experimental.`;
+      history.push({...result.label, method:'snapshot-hand-shape-v1', confidence:null, expected:'', time:new Date().toISOString()});
+      renderHistory();
+      lastSpoken = result.label.text;
+      $('speak').disabled = !('speechSynthesis' in window);
+      automaticSpeech.enqueue(lastSpoken,profile().locale);
+      if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(lastSpoken,null);
+    } else {
+      $('result-word').textContent = 'Foto sin confirmar';
+      $('snapshot-result').textContent = result.reason;
+      $('result-description').textContent = result.reason;
+    }
+  } catch (error) { $('snapshot-result').textContent = error.message; }
+  finally { snapshotBusy = false; render(); }
+}
+$('take-snapshot').addEventListener('click',takeSnapshot);
+$('snapshot-mode').addEventListener('change',async()=>{
+  $('snapshot-preview').hidden = true;
+  resetResult();render();
+  if (session && mode === 'test') {
+    try { await api('/api/reset',{session}); } catch(error) { notice(error.message,true); }
+  }
+});

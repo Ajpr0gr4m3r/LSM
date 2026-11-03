@@ -14,4 +14,8 @@ const sources = scripts.map(file => {
   return source;
 });
 assert.doesNotThrow(() => new vm.Script(sources.join('\n;\n')), 'Los scripts clásicos no deben redeclarar variables globales.');
+for (const file of ['/static/phone.js']) {
+  const source = fs.readFileSync(path.join(root, file.slice(1)), 'utf8');
+  assert.doesNotThrow(() => new vm.Script(source, {filename:file}), file);
+}
 console.log('Scripts completos: sintaxis y declaraciones globales correctas.');

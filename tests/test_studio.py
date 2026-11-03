@@ -17,6 +17,7 @@ from capture_quality import landmark_quality, sequence_quality
 from recognition_features import regions, prepare_sequence, STABLE_PREPROCESSING, HAND_PREPROCESSING, calibrate_decision, temporal_descriptor
 
 
+# Ayudante de prueba para points.
 def points():
     output=np.zeros((30,data.FEATURE_DIM),np.float32)
     pose,_,left,_=regions(output)
@@ -26,16 +27,20 @@ def points():
     return output
 
 
+# Ayudante de prueba para StudioTests.
 class StudioTests(unittest.TestCase):
+    # Prepara el estado temporal aislado que necesita cada prueba.
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.patches=[patch.object(langs,'WEB_DATA',self.root),patch.object(langs,'WEB_MODELS',self.root/'models'),patch.object(web_app,'WEB_DATA',self.root)]
         for p in self.patches:p.start()
         self.raw=points()
+    # Elimina los recursos temporales creados durante la prueba.
     def tearDown(self):
         for p in reversed(self.patches):p.stop()
         self.temp.cleanup()
 
+    # Prueba automatizada: verifica metadata survives draft commit and legacy still loads.
     def test_metadata_survives_draft_commit_and_legacy_still_loads(self):
         sid=data.save_draft('lsm',self.raw,{'session_id':'session-1','participant':'person-1','batch_id':'batch-1'})
         saved=data.commit_draft('lsm',sid,'A')
@@ -45,6 +50,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(data.sequence_metadata(old),{})
         np.testing.assert_array_equal(data.load_sequence(old),self.raw)
 
+    # Prueba automatizada: verifica audit duplicates conflicts and export language isolation.
     def test_audit_duplicates_conflicts_and_export_language_isolation(self):
         data.save_sequence('lsm','hola',self.raw)
         data.save_sequence('lsm','hola',self.raw)
@@ -56,6 +62,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(sum(r['samples'] for r in data.inventory('asl')),0)
         with self.assertRaises(ValueError):import_dataset('lsm',packet['data'])
 
+    # Prueba automatizada: verifica roundtrip unicode import deduplicates and preserves metadata.
     def test_roundtrip_unicode_import_deduplicates_and_preserves_metadata(self):
         label=langs.register_label('jsl','こんにちは ★')
         data.save_sequence('jsl',label['id'],self.raw,metadata={'session_id':'original-session'})
@@ -67,6 +74,7 @@ class StudioTests(unittest.TestCase):
             row=next(r for r in audit_dataset('jsl')['samples'] if r['valid'])
             self.assertEqual(row['text'],'こんにちは ★');self.assertEqual(row['metadata']['session_id'],'original-session')
 
+    # Prueba automatizada: verifica import rejects unsafe zip and all or nothing bad example.
     def test_import_rejects_unsafe_zip_and_all_or_nothing_bad_example(self):
         buffer=io.BytesIO()
         with zipfile.ZipFile(buffer,'w') as z:z.writestr('../outside',b'bad')
@@ -74,6 +82,7 @@ class StudioTests(unittest.TestCase):
         self.assertFalse((self.root/'outside').exists())
         with self.assertRaises(ValueError):import_dataset('lsm','not base64')
 
+    # Prueba automatizada: verifica group split never shares person or duplicate content.
     def test_group_split_never_shares_person_or_duplicate_content(self):
         y=np.tile(np.repeat([0,1],10),6);groups=np.repeat([f'person-{i}' for i in range(6)],20)
         train,val,test=grouped_split(y,groups)
@@ -82,6 +91,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(set(np.concatenate([train,val,test])),set(range(len(y))))
         with self.assertRaises(ValueError):grouped_split(np.array([0,1]),np.array(['same','same']))
 
+    # Prueba automatizada: verifica quality and new preprocessing preserve old models and time.
     def test_quality_and_new_preprocessing_preserve_old_models_and_time(self):
         self.assertTrue(landmark_quality(self.raw[0])['usable'])
         outside=self.raw.copy();regions(outside)[2][:,0,0]=1.2
@@ -96,21 +106,26 @@ class StudioTests(unittest.TestCase):
         self.assertFalse(np.allclose(temporal_descriptor(moving),temporal_descriptor(moving[::-1])))
         np.testing.assert_array_equal(self.raw,points())
 
+    # Prueba automatizada: verifica calibration uses margin and can reject all.
     def test_calibration_uses_margin_and_can_reject_all(self):
         probabilities=np.array([[.99,.01],[.02,.98],[.96,.04],[.5,.5]])
         report=calibrate_decision(probabilities,np.array([0,1,0,1]),[True]*4)
         self.assertEqual(report['accepted'],3)
         self.assertEqual(calibrate_decision(probabilities,np.array([0,1,0,1]),[False]*4)['accepted'],0)
 
+    # Prueba automatizada: verifica inference rejects ambiguity and confirms once until release.
     def test_inference_rejects_ambiguity_and_confirms_once_until_release(self):
         runtime=web_app.Runtime();sid=runtime.new_session('lsm');session=runtime.session(sid);session.holistic=object()
         fake=types.SimpleNamespace(mediapipe_detection=lambda image,model:(image,object()),extract_keypoints=lambda r:self.raw[0],hands_detected=lambda r:True)
+        # Ayudante de prueba para Model.
         class Model:
             probabilities=np.array([.99,.01],np.float32)
+            # Ayudante de prueba para   call  .
             def __call__(self,*args,**kwargs):return types.SimpleNamespace(numpy=lambda:self.probabilities[None])
         model=Model();meta={'created_at':'new','preprocessing':HAND_PREPROCESSING,'labels':[{'id':'a','text':'A'},{'id':'b','text':'B'}]}
         encoded=base64.b64encode(cv2.imencode('.jpg',np.ones((32,32,3),np.uint8)*100)[1]).decode()
         clock=[100.]
+        # Ayudante de prueba para tick.
         def tick():clock[0]+=.25;return clock[0]
         confirms=[]
         with patch.dict('sys.modules',{'utils':fake}),patch.object(runtime,'load_model',return_value=(model,meta)),patch('web_app.time.monotonic',side_effect=tick):
@@ -130,6 +145,7 @@ class StudioTests(unittest.TestCase):
             for i in range(7):r=runtime.frame({'session':sid,'image':encoded,'mode':'test'})
             self.assertIsNone(r['candidate']);self.assertIsNone(r['confirmed']);self.assertTrue(r['rejection_reason'])
 
+    # Prueba automatizada: verifica capture waits for quality then saves provenance without images.
     def test_capture_waits_for_quality_then_saves_provenance_without_images(self):
         runtime=web_app.Runtime();sid=runtime.new_session('lsm','person-1',quality_gate=True);session=runtime.session(sid);session.holistic=object();runtime.start_capture(sid,True,'batch-1')
         current=[np.zeros(data.FEATURE_DIM,np.float32)]
@@ -145,6 +161,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(data.sequence_metadata(path)['participant'],'person-1')
         self.assertEqual(list(path.parent.glob('*.jpg')),[])
 
+    # Prueba automatizada: verifica sample review returns timeline not images or landmarks.
     def test_sample_review_returns_timeline_not_images_or_landmarks(self):
         from dataset_tools import inspect_sample
         filename=data.save_sequence('lsm','hola',self.raw)
@@ -153,6 +170,7 @@ class StudioTests(unittest.TestCase):
         self.assertIn('motion',result['timeline'][0]);self.assertNotIn('points',result)
         with self.assertRaises(ValueError):inspect_sample('asl',Path(filename).stem)
 
+    # Prueba automatizada: verifica admin sample mutations recover and keep other languages.
     def test_admin_sample_mutations_recover_and_keep_other_languages(self):
         from studio_services import dataset_operation
         from test_admin import configure
@@ -171,6 +189,7 @@ class StudioTests(unittest.TestCase):
         self.assertEqual(data.inventory('asl')[0]['samples'],1)
         self.assertTrue(list((self.root/'trash'/'lsm').glob('*/*/*.npz')))
 
+    # Prueba automatizada: verifica restore checks removed classes and loads legacy model.
     def test_restore_checks_removed_classes_and_loads_legacy_model(self):
         import tensorflow as tf
         from studio_services import activate_version,versions
@@ -187,6 +206,7 @@ class StudioTests(unittest.TestCase):
         loaded,meta=web_app.Runtime().load_model('lsm')
         self.assertEqual(loaded.output_shape[-1],2);self.assertIsNone(meta['preprocessing'])
 
+    # Prueba automatizada: verifica duplicate sessions are unioned before splitting.
     def test_duplicate_sessions_are_unioned_before_splitting(self):
         records=[];labels=langs.labels_for('lsm')[:1]
         for i in range(2):

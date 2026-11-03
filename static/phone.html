@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Conversación · Seña</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script defer src="/static/speech.js"></script>
+  <script defer src="/static/phone.js"></script>
+</head>
+<body class="phone-body">
+  <main class="phone-shell">
+    <a class="brand" href="#phone-camera" aria-label="Seña"><span class="brand-mark">◉</span> seña<span class="brand-period">.</span></a>
+    <section class="card phone-card">
+      <span class="small-label">SALA TEMPORAL</span>
+      <h1>Conecta tu teléfono</h1>
+      <p id="phone-intro">Acepta el uso de la cámara para reconocer las señas de este perfil. No grabamos ni guardamos video.</p>
+      <label class="check-row"><input id="phone-consent" type="checkbox"> Acepto enviar fotogramas a la computadora que abrió esta sala para reconocer señas. El video no se almacena.</label>
+      <button id="phone-start" class="primary wide" type="button" disabled>Activar cámara</button>
+      <div id="phone-camera" class="phone-camera" hidden>
+        <video id="phone-video" autoplay playsinline muted></video>
+        <div id="phone-camera-state" class="mini-badge">Buscando manos…</div>
+      </div>
+      <label class="check-row"><input id="phone-snapshot-mode" type="checkbox"> Foto experimental · señas estáticas</label>
+      <button id="phone-snapshot" class="secondary wide" type="button" disabled>Comparar una foto</button>
+      <canvas id="phone-snapshot-preview" class="snapshot-preview" hidden aria-label="Foto analizada"></canvas>
+      <p id="phone-snapshot-result" class="help" role="status">Solo formas de mano; para movimiento usa el modo temporal.</p>
+      <p id="phone-result" class="phone-result" aria-live="polite">Aún no se reconoce ninguna seña.</p>
+      <div class="card-heading"><h2>Mensajes</h2><span id="phone-connection" class="mini-badge">Conectando</span></div>
+      <div id="phone-messages" class="conversation-messages phone-messages" aria-live="polite" aria-relevant="additions text"><p class="help">Esperando mensajes…</p></div>
+      <form id="phone-form" class="conversation-form">
+        <label class="sr-only" for="phone-input">Responder a la otra persona</label>
+        <input id="phone-input" type="text" maxlength="300" autocomplete="off" placeholder="También puedes escribir…" disabled>
+        <button class="primary" type="submit" disabled>Enviar</button>
+      </form>
+      <button id="phone-stop" class="text-button" type="button" hidden>Desconectar teléfono</button>
+      <p id="phone-error" class="error" role="status" hidden></p>
+    </section>
+    <p class="help phone-footnote">Seña reconoce únicamente las señas incluidas en el modelo activo de este perfil.</p>
+  </main>
+</body>
+</html>

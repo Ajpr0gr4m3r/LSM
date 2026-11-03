@@ -1,5 +1,6 @@
 'use strict';
 let accountState = null, accountMode = 'login', accountBusy = false, accountBoot = null;
+// Envía operaciones de cuenta con el CSRF de acceso, separado del token del estado de cámara.
 async function accountApi(path, body) {
   const response = await fetch(path, body === undefined ? {} : {
     method: 'POST', headers: {'Content-Type':'application/json', 'X-LSM-Token':accountState?.csrf || ''},
@@ -9,6 +10,7 @@ async function accountApi(path, body) {
   if (!response.ok) throw new Error(result.error || 'No se pudo acceder al equipo.');
   return result;
 }
+// Oculta el estudio, detiene la cámara y vuelve a consultar la sesión de acceso.
 function lockAccount() {
   accountState = null;
   $('team-workspace').hidden = true;
@@ -16,6 +18,7 @@ function lockAccount() {
   if (stream) void stopCamera();
   void bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
 }
+// Configura los campos de registro o inicio de sesión del modo autenticado heredado.
 function accountScreen(mode) {
   accountMode = mode;
   const setup = accountState?.setup_required, registering = mode !== 'login';
@@ -32,11 +35,13 @@ function accountScreen(mode) {
   $('account-password').value = '';
   $('account-message').textContent = '';
 }
+// Comparte la carga inicial en curso para evitar consultas de acceso duplicadas.
 async function bootstrapAccounts() {
   if (accountBoot) return accountBoot;
   accountBoot = loadAccount();
   try { return await accountBoot; } finally { accountBoot = null; }
 }
+// Abre el estudio en modo local o muestra el acceso del despliegue autenticado.
 async function loadAccount() {
   accountState = await accountApi('/api/auth/status');
   if (accountState.user) {
@@ -50,6 +55,7 @@ async function loadAccount() {
     accountScreen(accountState.setup_required ? 'setup' : 'login');
   }
 }
+// Aplica identidad y permisos y oculta controles de cuentas cuando está activo el modo local.
 function renderTeam() {
   const user = state?.user || accountState?.user;
   if (!user) return;

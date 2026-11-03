@@ -10,7 +10,9 @@ from rig_overlay import rig_payload
 from web_app import Runtime
 
 
+# Ayudante de prueba para RigTests.
 class RigTests(unittest.TestCase):
+    # Prueba automatizada: verifica coordinates are not mirrored twice and absent points are hidden.
     def test_coordinates_are_not_mirrored_twice_and_absent_points_are_hidden(self):
         points = np.zeros(FEATURE_DIM, dtype=np.float32)
         pose, face, left, _ = regions(points)
@@ -26,6 +28,7 @@ class RigTests(unittest.TestCase):
         self.assertTrue(all(p is None for p in result['right']))
         self.assertEqual((result['width'], result['height']), (640,480))
 
+    # Prueba automatizada: verifica frame returns rig only when requested without a trained model.
     def test_frame_returns_rig_only_when_requested_without_a_trained_model(self):
         runtime = Runtime()
         sid = runtime.new_session('lsm')

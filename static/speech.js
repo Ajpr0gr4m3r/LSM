@@ -1,7 +1,9 @@
 'use strict';
 
 // Keep the active utterance alive and finish it before speaking the next sign.
+// Gestiona la voz con una cola breve y sin cortar el mensaje que ya está sonando.
 class SenaSpeechQueue {
+  // Conserva el sintetizador y prepara la consulta de voces instaladas.
   constructor(synthesis, Utterance, onError = () => {}) {
     this.synthesis = synthesis;
     this.Utterance = Utterance;
@@ -14,6 +16,7 @@ class SenaSpeechQueue {
     synthesis?.getVoices();
   }
 
+  // Añade un texto no repetido y limita la cola para no acumular retraso de anuncios.
   enqueue(text, locale) {
     if (!text || !this.synthesis || !this.Utterance) return;
     if (this.current?.text === text && this.current.lang === locale) return;
@@ -24,6 +27,7 @@ class SenaSpeechQueue {
     this.playNext();
   }
 
+  // Selecciona voz e idioma y reproduce el siguiente mensaje al terminar el anterior.
   playNext() {
     if (this.current || this.waiting || !this.pending.length) return;
     const {text, locale} = this.pending.shift();

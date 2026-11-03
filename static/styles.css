@@ -2144,3 +2144,34 @@ dialog .chart svg {
 #camera-rig-toggle:focus-visible { outline: 2px solid white; outline-offset: 3px; }
 .camera-top { z-index: 2; }
 @media (max-width: 480px) { .camera-top-right { flex-wrap: wrap; justify-content: flex-end; } }
+
+/* Conversaciones temporales en la computadora y en el teléfono */
+.conversation-layout { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(320px, 1.1fr); gap: 18px; align-items: start; }
+.conversation-setup, .conversation-chat { padding: 22px; }
+.conversation-consent { align-items: flex-start; margin: 18px 0; }
+.conversation-link-box { display: grid; grid-template-columns: 1fr 112px; gap: 14px; align-items: center; margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.conversation-link-box .input-row { display: flex; gap: 8px; }
+.conversation-link-box input { min-width: 0; flex: 1; }
+.conversation-link-box img { display: block; width: 112px; height: 112px; image-rendering: pixelated; background: white; border-radius: 8px; padding: 5px; }
+.conversation-messages { height: min(47vh, 450px); min-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 9px; padding: 12px 2px; border-block: 1px solid var(--line); }
+.conversation-message { max-width: 85%; align-self: flex-start; border: 1px solid var(--line); background: var(--surface-2); border-radius: 12px 12px 12px 3px; padding: 9px 12px; overflow-wrap: anywhere; }
+.conversation-message.mine { align-self: flex-end; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 12px 12px 3px 12px; }
+.conversation-message p { margin: 3px 0 0; color: var(--ink); }
+.conversation-message small, .conversation-message-meta { color: var(--muted); font-size: 10px; }
+.conversation-form { display: flex; gap: 8px; margin-top: 12px; }
+.conversation-form input { flex: 1; min-width: 0; }
+.phone-body { min-height: 100vh; background: var(--bg); }
+.phone-shell { max-width: 560px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom)); }
+.phone-shell > .brand { display: block; margin: 6px 4px 18px; text-decoration: none; font-size: 20px; font-weight: 750; }
+.phone-card { padding: 20px; }
+.phone-card h1 { font-size: 27px; margin: 5px 0 9px; }
+.phone-camera { position: relative; margin-top: 14px; overflow: hidden; border-radius: 12px; background: #101914; aspect-ratio: 4 / 3; }
+.phone-camera video { width: 100%; height: 100%; display: block; object-fit: cover; transform: scaleX(-1); }
+.phone-camera > .mini-badge { position: absolute; left: 10px; bottom: 10px; background: #10251ddd; color: white; }
+.phone-result { min-height: 40px; margin: 12px 0; font-size: 20px; font-weight: 700; }
+.phone-messages { height: min(32vh, 320px); min-height: 160px; }
+.phone-footnote { text-align: center; padding: 0 12px; }
+@media (max-width: 720px) { .conversation-layout { grid-template-columns: 1fr; } .conversation-link-box { grid-template-columns: 1fr 88px; } .conversation-link-box img { width: 88px; height: 88px; } .conversation-setup, .conversation-chat { padding: 16px; } }
+.phone-camera-link { margin-top: 6px; }
+
+.snapshot-preview { display: block; width: 100%; max-height: 300px; object-fit: contain; transform: scaleX(-1); border-radius: 12px; margin-top: 12px; }

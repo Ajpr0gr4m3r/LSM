@@ -16,11 +16,12 @@ from dataset_tools import training_provenance, grouped_split, persistent_split
 from motion_features import fit_motion_profile, augment_timing, motion_challenges
 from validation_protocol import calibration_split, validation_support
 from recognition_decision import batch_evidence, calibrate_joint_policy, policy_allowed, rejection_report, decision_details
-from recognition_features import DISCRIMINATIVE_PREPROCESSING, augment_articulation
+from recognition_features import DISCRIMINATIVE_PREPROCESSING, augment_articulation, augment_robust
 from recognition_analysis import (evaluate, temperature_probabilities, fit_temperature, calibrate_policy,
     dataset_summary, deduplicate, regression_check, preprocessing_probe, label_review_candidates)
 
 
+# Incluye clases anteriores que conservan ejemplos para no entrenar solamente el vocabulario nuevo.
 def retained_label_ids(language, label_ids):
     """Rehearsal uses all retained classes from the active model, never just new ones."""
     if label_ids is None: return None
@@ -37,6 +38,7 @@ def retained_label_ids(language, label_ids):
 
 
 
+# Resume aciertos, F1 y aceptación para comparar resultados de validación.
 def validation_summary(probabilities, targets, allowed, threshold, margin=.15):
     import numpy as np
     from sklearn.metrics import f1_score
@@ -45,6 +47,7 @@ def validation_summary(probabilities, targets, allowed, threshold, margin=.15):
             'macro_f1': float(f1_score(targets, np.argmax(probabilities, axis=1), average='macro', zero_division=0))}
 
 
+# Calcula precisión de aceptaciones, recuperación y cobertura separadas por clase.
 def class_decisions(probabilities, targets, allowed, threshold, margin, labels):
     """Accepted precision is by predicted class; recall/coverage by true class."""
     import numpy as np
@@ -64,6 +67,7 @@ def class_decisions(probabilities, targets, allowed, threshold, margin, labels):
     return output
 
 
+# Compara métricas globales del candidato y el anterior cuando existe una referencia comparable.
 def candidate_is_not_worse(candidate, previous):
     if previous is None:
         return True
@@ -71,6 +75,7 @@ def candidate_is_not_worse(candidate, previous):
                for key in ('accuracy', 'macro_f1', 'accepted_accuracy', 'coverage'))
 
 
+# Escribe progreso o metadatos en un archivo temporal y lo sustituye atómicamente.
 def write_json(path, payload):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,6 +84,7 @@ def write_json(path, payload):
     os.replace(temp, path)
 
 
+# Ejecuta separación, aumentos, entrenamiento, calibración, evaluación y posible activación de una versión.
 def train_language(language, epochs, job_id, label_ids=None, strategy="baseline", activate=True):
     language_info(language)
     if len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
@@ -94,7 +100,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         from model import build_web_model
 
         tf.keras.utils.set_random_seed(42)
-        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory'):
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust'):
             raise ValueError('Estrategia de entrenamiento desconocida.')
         label_ids = retained_label_ids(language, label_ids)
         raw, y, labels = read_dataset(language, MIN_SAMPLES, label_ids)
@@ -129,7 +135,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
-        fit_points, y_fit = (augment_timing if strategy == 'trajectory' else augment_training if strategy == 'baseline' else augment_articulation)(view_points, view_targets)
+        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy == 'trajectory' else augment_training if strategy == 'baseline' else augment_articulation)(view_points, view_targets)
         X_fit = np.stack([prepare_sequence(sequence, preprocessing) for sequence in fit_points])
 
         from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
@@ -142,7 +148,9 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             contrastive_history = contrastive_warmup(encoder, X[train], y[train], epochs=min(4, max(1, epochs//4)))
         history = []
 
+        # Calcula una métrica de selección que considera F1 macro y la clase con menor recuperación.
         class BalancedValidation(tf.keras.callbacks.Callback):
+            # Evalúa la reserva de selección y añade las métricas equilibradas a los registros de la época.
             def on_epoch_end(self, epoch, logs=None):
                 probabilities = self.model(X[selection], training=False).numpy()
                 predicted = np.argmax(probabilities, axis=1)
@@ -155,7 +163,9 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                 # behind high accuracy in the easy or overrepresented classes.
                 logs['val_balanced_score'] = .7 * macro + .3 * worst - 1e-4 * min(float(logs['val_loss']), 100)
 
+        # Publica en disco el avance que la interfaz consulta durante el entrenamiento.
         class Progress(tf.keras.callbacks.Callback):
+            # Añade métricas e historia de la época y actualiza el trabajo de entrenamiento.
             def on_epoch_end(self, epoch, logs=None):
                 status.update(epoch=epoch + 1, message='Entrenando y evaluando la validación.',
                               metrics={k: float(v) for k, v in (logs or {}).items()})
@@ -169,7 +179,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_balanced_score', mode='max', save_best_only=True),
             tf.keras.callbacks.EarlyStopping(monitor='val_balanced_score', mode='max', min_delta=1e-6, patience=16, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5)]
-        if strategy in ('baseline', 'trajectory'):
+        if strategy in ('baseline', 'trajectory', 'robust'):
             model.fit(X_fit, y_fit, validation_data=(X[selection], onehot[selection]), epochs=epochs,
                       batch_size=min(16,len(train)), verbose=2, class_weight=weights, callbacks=callbacks+[Progress()])
         else:
@@ -179,8 +189,8 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         model = tf.keras.models.load_model(checkpoint, compile=False, safe_mode=True)
         val_probs = model(X[validation], training=False).numpy()
         cal_probs = model(X[calibration_indices], training=False).numpy()
-        guard = fit_hand_guard(view_points, np.argmax(view_targets, axis=1), raw[calibration_indices], y[calibration_indices], contrastive=True)
-        temporal_guard = fit_temporal_guard(raw[train], y[train], raw[calibration_indices], y[calibration_indices], descriptor_version='trajectory-v2' if strategy == 'trajectory' else None)
+        guard = fit_hand_guard(view_points, np.argmax(view_targets, axis=1), raw[calibration_indices], y[calibration_indices], contrastive=True, descriptor_version='finger-articulation-v3' if strategy == 'robust' else None)
+        temporal_guard = fit_temporal_guard(raw[train], y[train], raw[calibration_indices], y[calibration_indices], descriptor_version='trajectory-v2' if strategy in ('trajectory', 'robust') else None)
         motion_profile = fit_motion_profile(raw[train], y[train])
         temperature = fit_temperature(cal_probs, y[calibration_indices])
         cal_probs = temperature_probabilities(cal_probs, temperature)
@@ -225,6 +235,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         if previous_bundle:
             old_model,old_meta=previous_bundle
             old_ids=[l['id'] for l in old_meta['labels']]
+            # Compara modelos solo en ejemplos comunes ajenos a sus entrenamientos y calibraciones.
             def compare_previous(indices_set, candidate_probs, candidate_allowed, final_test=False):
                 excluded_splits=('train','validation') if final_test else ('train',)
                 excluded=set(h for part in excluded_splits for h in old_meta.get('split_hashes',{}).get(part,[]))
@@ -284,12 +295,13 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'diagnostics':diagnostics, 'contrastive_history':contrastive_history,
             'split_groups':{name:sorted(set(groups[indices].tolist())) for name,indices in (('train',train),('validation',validation),('test',test))},
             'provenance': provenance, 'history': history, 'temporal_guard': temporal_guard, 'motion_profile': motion_profile,
-            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy == 'trajectory' else None,
+            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy in ('trajectory', 'robust') else None,
             'input_dim': int(X.shape[-1]), 'hand_guard': guard,
             'dataset_sha256': hashlib.sha256(raw.tobytes()).hexdigest(),
             'augmentation': {'training_only': True, 'variants_per_original': 8,
-                             'jitter': 'ordered-time-warp' if strategy == 'trajectory' else 'legacy-independent' if strategy == 'baseline' else 'palm-scaled-temporally-correlated',
-                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy == 'trajectory' else None,
+                             'jitter': 'distance-timing-articulation-v1' if strategy == 'robust' else 'ordered-time-warp' if strategy == 'trajectory' else 'legacy-independent' if strategy == 'baseline' else 'palm-scaled-temporally-correlated',
+                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy in ('trajectory', 'robust') else None,
+                             'distance_scale': [.72, 1.12] if strategy == 'robust' else None,
                              'camera_roll_degrees': [4, 10], 'horizontal_scale': [.95, 1.05]},
             'validation_decisions': validation_evaluation,
             'validation_by_class': class_validation,
@@ -322,7 +334,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=40)
     parser.add_argument('--job-id', required=True)
     parser.add_argument('--labels', nargs='+', help='IDs de las señas seleccionadas; cada una requiere el mínimo real.')
-    parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory'], default='baseline')
+    parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory','robust'], default='baseline')
     parser.add_argument('--no-activate', action='store_true', help='Guardar evaluación sin cambiar el modelo activo.')
     args = parser.parse_args()
     if not 5 <= args.epochs <= 200:

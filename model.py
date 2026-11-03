@@ -39,6 +39,7 @@ from tensorflow.keras.regularizers import l2
 from config import SEQUENCE_LENGTH, FEATURE_DIM, ACTIONS
 
 
+# BiLSTM más compacto para datasets personales con pocas decenas de ejemplos.
 def build_web_model(num_classes: int, learning_rate: float = 5e-4, input_dim: int = FEATURE_DIM) -> tf.keras.Model:
     """BiLSTM más compacto para datasets personales con pocas decenas de ejemplos."""
     model = Sequential(name='Sign_Web_Compact', layers=[
@@ -62,6 +63,7 @@ def build_web_model(num_classes: int, learning_rate: float = 5e-4, input_dim: in
 # MODELO 1: BiLSTM con Proyección Temporal
 # ══════════════════════════════════════════════════════════════════════════════
 
+# LSTM Bidireccional con capa de proyección temporal.
 def build_lstm_model(num_classes: int = len(ACTIONS),
                      learning_rate: float = 1e-3) -> tf.keras.Model:
     """
@@ -166,6 +168,7 @@ def build_lstm_model(num_classes: int = len(ACTIONS),
 # MODELO 2: BiLSTM + Atención Multi-Cabeza
 # ══════════════════════════════════════════════════════════════════════════════
 
+# BiLSTM con Mecanismo de Atención Multi-Cabeza.
 def build_attention_model(num_classes: int = len(ACTIONS),
                           learning_rate: float = 5e-4) -> tf.keras.Model:
     """

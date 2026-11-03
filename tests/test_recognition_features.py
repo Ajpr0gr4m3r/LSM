@@ -5,7 +5,9 @@ from recognition_features import normalize_sequence, augment_training, augment_v
 from recognition_features import prepare_sequence, local_hands, fit_hand_guard, hand_guard_accept, feature_dimension, HAND_PREPROCESSING
 
 
+# Ayudante de prueba para FeatureTests.
 class FeatureTests(unittest.TestCase):
+    # Ayudante de prueba para sequence.
     def sequence(self):
         sequence = np.zeros((30, FEATURE_DIM), dtype=np.float32)
         pose, _, left, _ = regions(sequence)
@@ -15,6 +17,7 @@ class FeatureTests(unittest.TestCase):
         left[:, 0, 1] += np.linspace(0, .1, 30)
         return sequence
 
+    # Prueba automatizada: verifica normalization removes translation and scale but retains motion.
     def test_normalization_removes_translation_and_scale_but_retains_motion(self):
         original = self.sequence()
         translated = original.copy()
@@ -28,6 +31,7 @@ class FeatureTests(unittest.TestCase):
         self.assertTrue(np.all(regions(normalized)[3] == 0))
         self.assertTrue(np.all(regions(normalized)[0][:, 11, 3] == 1))
 
+    # Prueba automatizada: verifica augmentation preserves absence labels and original data.
     def test_augmentation_preserves_absence_labels_and_original_data(self):
         original = np.stack([normalize_sequence(self.sequence())] * 2)
         saved = original.copy()
@@ -41,6 +45,7 @@ class FeatureTests(unittest.TestCase):
         self.assertTrue(np.all(regions(varied)[3] == 0))
         self.assertFalse(np.allclose(varied[2:], np.tile(original, (2, 1, 1))))
 
+    # Prueba automatizada: verifica decision filter reports rejections without inflating accuracy.
     def test_decision_filter_reports_rejections_without_inflating_accuracy(self):
         probs = np.array([[.99, .01], [.01, .99], [.6, .4], [.01, .99]])
         y = np.array([0, 1, 0, 0])
@@ -51,10 +56,12 @@ class FeatureTests(unittest.TestCase):
         calibrated = validation_threshold(probs, y)
         self.assertEqual(calibrated['threshold'], .95)
 
+    # Prueba automatizada: verifica shoulders missing has finite fallback.
     def test_shoulders_missing_has_finite_fallback(self):
         empty = np.zeros((30, FEATURE_DIM), np.float32)
         np.testing.assert_array_equal(normalize_sequence(empty), empty)
 
+    # Prueba automatizada: verifica compact network produces finite class probabilities.
     def test_compact_network_produces_finite_class_probabilities(self):
         import tensorflow as tf
         from model import build_web_model
@@ -65,6 +72,7 @@ class FeatureTests(unittest.TestCase):
         np.testing.assert_allclose(probabilities.sum(axis=1), [1.0], atol=1e-6)
         self.assertLess(model.count_params(), 300000)
 
+    # Ayudante de prueba para hand sequence.
     def hand_sequence(self):
         sequence = self.sequence()
         hand = regions(sequence)[2]
@@ -73,6 +81,7 @@ class FeatureTests(unittest.TestCase):
         hand[:, 0, :] = [.5, .7, 0]
         return sequence
 
+    # Prueba automatizada: verifica local hand shape is invariant to translation and size.
     def test_local_hand_shape_is_invariant_to_translation_and_size(self):
         original = self.hand_sequence()
         moved = original.copy()
@@ -85,6 +94,7 @@ class FeatureTests(unittest.TestCase):
         self.assertTrue(np.all(prepared[:, -1] == 0))
         self.assertTrue(np.all(prepared[:, -2] == 1))
 
+    # Prueba automatizada: verifica guard accepts similar hand shape and rejects distant shapes.
     def test_guard_accepts_similar_hand_shape_and_rejects_distant_shapes(self):
         known = self.hand_sequence()
         train = np.stack([known] * 6)
@@ -96,6 +106,7 @@ class FeatureTests(unittest.TestCase):
         self.assertFalse(hand_guard_accept(other, 0, guard))
         self.assertTrue(hand_guard_accept(other, 0, None), 'Los modelos anteriores no reciben un filtro inventado.')
 
+    # Prueba automatizada: verifica new features keep flags and missing hand zero during augmentation.
     def test_new_features_keep_flags_and_missing_hand_zero_during_augmentation(self):
         prepared = prepare_sequence(self.hand_sequence())
         varied, labels = augment_training(prepared[None], np.array([[1, 0]], dtype=np.float32))
@@ -104,6 +115,7 @@ class FeatureTests(unittest.TestCase):
         self.assertTrue(np.all(varied[:, :, FEATURE_DIM + 63:FEATURE_DIM + 126] == 0))
         self.assertTrue(np.all(varied[:, :, -2] == 1))
 
+    # Prueba automatizada: verifica legacy preprocessing remains compatible.
     def test_legacy_preprocessing_remains_compatible(self):
         points = self.sequence()
         np.testing.assert_array_equal(prepare_sequence(points, None), points)
@@ -111,6 +123,7 @@ class FeatureTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             feature_dimension('unknown')
 
+    # Prueba automatizada: verifica viewpoint variants preserve labels absences depth and visibility.
     def test_viewpoint_variants_preserve_labels_absences_depth_and_visibility(self):
         raw = np.stack([self.hand_sequence(), self.sequence()])
         saved = raw.copy()
@@ -131,6 +144,7 @@ class FeatureTests(unittest.TestCase):
         for points, label in zip(varied, np.argmax(labels, axis=1)):
             self.assertTrue(hand_guard_accept(points, label, guard))
 
+    # Prueba automatizada: verifica viewpoint rotation is constant through time.
     def test_viewpoint_rotation_is_constant_through_time(self):
         raw = self.hand_sequence()
         raw[:] = raw[:1]

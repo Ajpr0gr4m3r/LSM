@@ -11,13 +11,14 @@ from recognition_features import (hand_descriptor, temporal_descriptor, nearest_
                                   hand_guard_accept, temporal_guard_accept, temporal_guard_score)
 
 
+# Mide distancia de forma, rival y trayectoria de una predicción respecto a sus referencias aprendidas.
 def evidence(points, predicted, metadata):
     hand = metadata.get('hand_guard')
     temporal = metadata.get('temporal_guard')
     result = {'hand': 0., 'rival': 0., 'temporal': 0.}
     if hand:
         contrastive = hand.get('version') == 'finger-contrast-v2'
-        descriptor = hand_descriptor(points, contrastive)
+        descriptor = hand_descriptor(points, contrastive, hand.get('descriptor_version'))
         own = hand['classes'][int(predicted)]
         distance = nearest_distance(descriptor, own['references'])
         result['hand'] = distance / max(float(own['max_distance']), 1e-8)
@@ -30,11 +31,13 @@ def evidence(points, predicted, metadata):
     return result
 
 
+# Calcula las evidencias geométricas de todas las secuencias evaluadas.
 def batch_evidence(points, probabilities, metadata):
     rows = [evidence(p, int(i), metadata) for p, i in zip(points, np.argmax(probabilities, axis=1))]
     return {key: np.array([row[key] for row in rows]) for key in ('hand', 'rival', 'temporal')}
 
 
+# Construye máscaras separadas de forma, rival, trayectoria y confianza según la política guardada.
 def gate_masks(probabilities, policy, scores, strict=False):
     p = np.atleast_2d(probabilities)
     classes = [policy.get('classes', {}).get(str(int(i)), {}) for i in p.argmax(axis=1)]
@@ -46,11 +49,13 @@ def gate_masks(probabilities, policy, scores, strict=False):
             'confidence': accepted_mask(p, policy, strict=strict)}
 
 
+# Combina los filtros geométricos para usarlos también durante la evaluación fuera de cámara.
 def policy_allowed(probabilities, policy, scores):
     gates = gate_masks(probabilities, policy, scores)
     return gates['hand'] & gates['rival'] & gates['temporal']
 
 
+# Ajusta conjuntamente los filtros por clase para maximizar cobertura con precisión empírica suficiente.
 def calibrate_joint_policy(probabilities, targets, scores, hand_guard=None, groups=None, motion_guard=None):
     """Maximize observed coverage subject to >=95% precision, >=3 accepted.
 
@@ -106,6 +111,7 @@ def calibrate_joint_policy(probabilities, targets, scores, hand_guard=None, grou
     return policy
 
 
+# Describe en qué etapa se rechazan secuencias y qué clases carecen de soporte fiable.
 def rejection_report(probabilities, targets, labels, policy, scores):
     p = np.asarray(probabilities); correct = p.argmax(axis=1) == np.asarray(targets)
     masks = gate_masks(p, policy, scores); accepted = np.ones(len(p), bool)
@@ -124,6 +130,7 @@ def rejection_report(probabilities, targets, labels, policy, scores):
             'note': 'Descartes acumulados de secuencias conocidas; no mide falsos positivos de señas desconocidas.'}
 
 
+# Aplica la política versionada y devuelve aceptación o una razón concreta de rechazo.
 def decision_details(points, probabilities, metadata, strict=False, test_mode=False):
     p = np.asarray(probabilities); index = int(p.argmax())
     policy = metadata.get('decision_policy') or {'threshold': metadata.get('decision_threshold', .85),

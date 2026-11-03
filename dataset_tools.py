@@ -17,10 +17,12 @@ MAX_EXPANDED = 128 * 1024 * 1024
 _CACHE = {}
 
 
+# Calcula la huella de una secuencia de puntos para identificar copias exactas.
 def digest(points):
     return hashlib.sha256(np.asarray(points,dtype=np.float32).tobytes()).hexdigest()
 
 
+# Inspecciona los archivos de un perfil y describe validez, calidad, duplicados y procedencia.
 def sample_rows(language):
     root = dataset_dir(language)
     files = sorted(root.glob('*/*.npz'))
@@ -53,6 +55,7 @@ def sample_rows(language):
     return rows
 
 
+# Resume problemas del dataset para mostrarlos en la revisión de grabaciones.
 def audit_dataset(language):
     rows = sample_rows(language)
     return {'language':language,'samples':rows,'summary':{
@@ -63,6 +66,7 @@ def audit_dataset(language):
         'without_provenance':sum(not r.get('metadata',{}).get('session_id') for r in rows)}}
 
 
+# Construye un ZIP con manifiesto y ejemplos válidos de una sola lengua.
 def export_dataset(language):
     language_info(language)
     output = io.BytesIO()
@@ -82,6 +86,7 @@ def export_dataset(language):
             'samples':len(manifest['samples'])}
 
 
+# Valida el ZIP completo, sus rutas y muestras antes de incorporar ejemplos compatibles.
 def import_dataset(language, encoded):
     language_info(language)
     if not isinstance(encoded,str) or len(encoded) > MAX_ARCHIVE * 1.4:
@@ -154,6 +159,7 @@ def import_dataset(language, encoded):
     return {'imported':len(created),'skipped_duplicates':skipped}
 
 
+# Agrupa ejemplos por personas o sesiones y vincula copias para impedir fugas entre conjuntos.
 def training_provenance(language, raw, targets, labels):
     rows=[r for r in sample_rows(language) if r['valid']]
     lookup={r.get('sha256'):r for r in rows}
@@ -163,12 +169,14 @@ def training_provenance(language, raw, targets, labels):
     by_person=(all(len(people)>=3 for people in people_by_class)
                and all(r.get('metadata',{}).get('participant') not in (None, '', 'user:local') for r in rows))
     parent={}
+    # Encuentra el representante de un grupo y comprime sus enlaces de equivalencia.
     def root(value):
         parent.setdefault(value,value)
         while parent[value]!=value:
             parent[value]=parent[parent[value]]
             value=parent[value]
         return value
+    # Deriva la identidad de agrupación a partir de participante, sesión o huella histórica.
     def group_for(row):
         meta=row.get('metadata',{})
         return ('person:'+meta['participant'] if by_person and meta.get('participant') else
@@ -195,6 +203,7 @@ def training_provenance(language, raw, targets, labels):
         'note':'Históricos sin sesión: evaluación exploratoria, no demuestra generalización a personas nuevas.' if legacy else ('Separación por personas.' if by_person else 'Separación por sesiones; hacen falta tres personas por clase para evaluar personas nuevas.')}
 
 
+# Busca un reparto por grupos completos donde todas las clases estén representadas en cada conjunto.
 def grouped_split(targets, groups, seed=42):
     """Grupos enteros en cada conjunto; no divide tandas ni participantes."""
     rng=np.random.default_rng(seed)
@@ -226,6 +235,7 @@ def grouped_split(targets, groups, seed=42):
     return tuple(best)
 
 
+# Devuelve metadatos y curvas escalares de movimiento y calidad para revisar una toma.
 def inspect_sample(language, identifier):
     validate_identifier(identifier)
     row=next((r for r in sample_rows(language) if r['id']==identifier),None)
@@ -241,6 +251,7 @@ def inspect_sample(language, identifier):
                                      'quality':float(landmark_quality(frame)['score'])} for i,frame in enumerate(points)]}
 
 
+# Conserva el destino histórico de grupos y huellas al ampliar el vocabulario.
 def persistent_split(targets, groups, path, seed=42, fingerprints=None):
     """Freeze assignments across vocabulary growth; never recycle a test group."""
     path=Path(path)

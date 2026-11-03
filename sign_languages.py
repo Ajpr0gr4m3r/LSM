@@ -36,12 +36,14 @@ WORDS = {
     'ayuda': ['Ayuda', 'Hilfe', 'Help', '助けて', '帮助', 'Aide', 'Ajuda'],
 }
 
+# Valida el identificador y devuelve los datos del perfil de lengua de señas.
 def language_info(language):
     for item in LANGUAGES:
         if item['id'] == language:
             return item
     raise ValueError('Lengua de señas desconocida.')
 
+# Combina el vocabulario predeterminado traducido con las etiquetas personalizadas de ese perfil.
 def labels_for(language):
     language_info(language)
     index = next(i for i, item in enumerate(LANGUAGES) if item['id'] == language)
@@ -49,25 +51,30 @@ def labels_for(language):
                  'text': WORDS[str(a)][index] if str(a) in WORDS else str(a).replace('_', ' ')} for a in ACTIONS]
     return defaults + custom_labels(language)
 
+# Rechaza etiquetas que no pertenecen al vocabulario de la lengua seleccionada.
 def validate_label(language, label):
     if label not in {item['id'] for item in labels_for(language)}:
         raise ValueError('La seña no pertenece al vocabulario configurado.')
     return label
 
+# Devuelve la carpeta de ejemplos de un perfil validado.
 def dataset_dir(language):
     language_info(language)
     return WEB_DATA / 'datasets' / language
 
+# Devuelve la carpeta de versiones de modelos de un perfil validado.
 def model_dir(language):
     language_info(language)
     return WEB_MODELS / language
 
+# Describe el contrato de captura necesario para comprobar compatibilidad de datos y modelos.
 def pipeline_spec():
     return {'version': 'holistic-web-mirror-v1', 'sequence_length': SEQUENCE_LENGTH,
             'feature_dim': FEATURE_DIM, 'full_face': USE_FULL_FACE,
             'face_indices': FACE_KEY_INDICES, 'mirrored': True, 'target_fps': CAPTURE_FPS}
 
 
+# Normaliza espacios y Unicode y rechaza nombres vacíos, excesivos o con caracteres de control.
 def clean_sign_name(name):
     if not isinstance(name, str):
         raise ValueError('Escribe el nombre o significado de la seña.')
@@ -80,6 +87,7 @@ def clean_sign_name(name):
     return name
 
 
+# Carga y comprueba las etiquetas personalizadas persistidas para una lengua.
 def custom_labels(language):
     language_info(language)
     path = WEB_DATA / 'vocabulary' / f'{language}.json'
@@ -99,6 +107,7 @@ def custom_labels(language):
     return labels
 
 
+# Reutiliza una etiqueta equivalente o registra una nueva de forma atómica dentro del perfil.
 def register_label(language, name):
     """Añade al catálogo de una lengua; el código Python permanece estable."""
     name = clean_sign_name(name)

@@ -13,15 +13,20 @@ ITERATIONS = 600000
 COOKIE = 'sena_session'
 
 
+# Calcula el hash SHA-256 de un token para no almacenarlo en claro en SQLite.
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+# Gestiona las cuentas del modo de equipo heredado; el modo local actual no exige iniciar sesión.
 class Accounts:
+    # Conserva la ruta de la base SQLite sin abrir una conexión permanente.
     def __init__(self, path):
         self.path = Path(path)
 
+    # Abre una transacción, crea las tablas si faltan y cierra la conexión al terminar.
     @contextmanager
+    # Abre una transacción, crea las tablas si faltan y cierra la conexión al terminar.
     def db(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with closing(sqlite3.connect(self.path, timeout=20)) as db, db:
@@ -43,14 +48,18 @@ class Accounts:
             ''')
             yield db
 
+    # Indica si ya se registró alguna cuenta en este servidor.
     def configured(self):
         with self.db() as db:
             return bool(db.execute('SELECT 1 FROM users LIMIT 1').fetchone())
 
+    # Devuelve únicamente los campos de usuario que pueden enviarse al navegador.
     @staticmethod
+    # Devuelve únicamente los campos de usuario que pueden enviarse al navegador.
     def public(row):
         return {k: row[k] for k in ('id', 'username', 'name', 'role', 'active')}
 
+    # Valida caducidad y actividad de la sesión y devuelve usuario y token CSRF.
     def session(self, token):
         if not token or len(token) > 128:
             return None
@@ -69,6 +78,7 @@ class Accounts:
             db.execute('UPDATE sessions SET touched=? WHERE token=?', (now, digest(token)))
             return {'user': user, 'csrf': row['csrf']}
 
+    # Emite tokens aleatorios de sesión y CSRF; sustituye la sesión anterior si corresponde.
     def issue(self, user_id=None, previous=None):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         now = time.time()
@@ -82,11 +92,14 @@ class Accounts:
                        (digest(token), user_id, csrf, now+(43200 if user_id else 900), now))
         return token, csrf
 
+    # Elimina la sesión identificada por el hash del token recibido.
     def logout(self, token):
         with self.db() as db:
             db.execute('DELETE FROM sessions WHERE token=?', (digest(token),))
 
+    # Comprueba formato y longitud de usuario, nombre y contraseña antes del registro.
     @staticmethod
+    # Comprueba formato y longitud de usuario, nombre y contraseña antes del registro.
     def validate(username, name, password):
         if not isinstance(username, str) or not re.fullmatch(r'[a-zA-Z0-9_.-]{3,40}', username):
             raise ValueError('Usuario: usa de 3 a 40 letras, números, puntos o guiones.')
@@ -96,6 +109,7 @@ class Accounts:
             raise ValueError('La contraseña debe tener entre 12 y 256 caracteres.')
         return username.lower(), name.strip()
 
+    # Registra una cuenta con contraseña derivada y consume una invitación de un solo uso.
     def register(self, username, name, password, invite=None, bootstrap=False):
         username, name = self.validate(username, name, password)
         salt = secrets.token_hex(16)
@@ -119,6 +133,7 @@ class Accounts:
                 db.execute('DELETE FROM invites WHERE token=?', (digest(invite),))
         return identifier
 
+    # Cuenta intentos por identidad y bloquea temporalmente el acceso cuando supera el límite.
     def throttle(self, identity, limit=10):
         key, now = digest(identity), time.time()
         with self.db() as db:
@@ -128,10 +143,12 @@ class Accounts:
                 raise PermissionError('Demasiados intentos. Espera diez minutos.')
             db.execute('INSERT INTO attempts VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1', (key, now+600))
 
+    # Borra el contador de intentos de una identidad después de autenticarla.
     def clear_throttle(self, identity):
         with self.db() as db:
             db.execute('DELETE FROM attempts WHERE key=?', (digest(identity),))
 
+    # Verifica usuario y contraseña con PBKDF2 y comparación de tiempo constante.
     def login(self, username, password):
         if not isinstance(username, str) or not isinstance(password, str) or len(username)>40 or len(password)>256:
             raise PermissionError('Usuario o contraseña incorrectos.')
@@ -144,6 +161,7 @@ class Accounts:
             raise PermissionError('Usuario o contraseña incorrectos.')
         return self.public(row)
 
+    # Crea una invitación aleatoria con caducidad para añadir un colaborador.
     def invite(self, admin_id):
         token = secrets.token_urlsafe(24)
         with self.db() as db:
@@ -151,10 +169,12 @@ class Accounts:
             db.execute('INSERT INTO invites VALUES (?,?,?)', (digest(token), time.time()+604800, admin_id))
         return token
 
+    # Lista los datos públicos de las cuentas en orden de creación.
     def users(self):
         with self.db() as db:
             return [self.public(row) for row in db.execute('SELECT * FROM users ORDER BY created')]
 
+    # Reactiva una cuenta colaboradora sin modificar administradores.
     def enable(self, identifier):
         with self.db() as db:
             row = db.execute('SELECT role FROM users WHERE id=?', (identifier,)).fetchone()
@@ -162,6 +182,7 @@ class Accounts:
                 raise ValueError('Selecciona una cuenta colaboradora.')
             db.execute('UPDATE users SET active=1 WHERE id=?', (identifier,))
 
+    # Desactiva un colaborador y revoca sus sesiones; impide desactivar al propio actor.
     def disable(self, identifier, actor):
         if identifier == actor:
             raise ValueError('No puedes desactivar tu propia cuenta.')

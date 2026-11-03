@@ -31,19 +31,23 @@ CATALOGS = {
 }
 
 
+# Obtiene los símbolos y notas del abecedario correspondiente al perfil validado.
 def alphabet_for(language):
     language_info(language)
     return {**CATALOGS[language], 'symbols': list(CATALOGS[language]['symbols']), 'extras': list(CATALOGS[language]['extras'])}
 
 
+# Busca si un símbolo ya tiene una etiqueta equivalente para evitar duplicarlo.
 def find_symbol_label(labels, symbol):
     # lower conserva ß distinto de SS y mantiene los diacríticos.
     return next((row for row in labels if row['text'].lower() == symbol.lower()), None)
 
 
+# Combina símbolos, ejemplos y vocabulario aprendido para mostrar el progreso del abecedario.
 def alphabet_status(language, rows, model):
     catalog = alphabet_for(language)
     trained = {label['id'] for label in (model or {}).get('labels', [])}
+    # Construye las filas de símbolos con su etiqueta, cantidad de ejemplos y estado entrenado.
     def entries(symbols):
         result = []
         for symbol in symbols:
@@ -54,6 +58,7 @@ def alphabet_status(language, rows, model):
     return {**catalog, 'symbols': entries(catalog['symbols']), 'extras': entries(catalog['extras'])}
 
 
+# Registra los símbolos de un perfil sin inventar ejemplos ni modificar sus modelos.
 def add_alphabet(language, extras=False):
     if not isinstance(extras, bool):
         raise ValueError('La opción de variantes debe ser verdadera o falsa.')
@@ -64,5 +69,6 @@ def add_alphabet(language, extras=False):
     return {'language': language, 'added': sum(label['id'] not in before for label in labels), 'total': len(labels)}
 
 
+# Registra las bases de los siete abecedarios manteniendo separados sus vocabularios.
 def add_all_alphabets():
     return [add_alphabet(language['id']) for language in LANGUAGES]
