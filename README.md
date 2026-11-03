@@ -6,9 +6,9 @@ Seña es una aplicación local para recopilar ejemplos de lenguas de señas, ent
 
 ## Diagrama del flujo
 
-![Diagrama de flujo de Seña: captura, entrenamiento, reconocimiento y conversación](docs/diagrama_flujo_sena.svg)
+![Mapa de arquitectura y flujo de todo el código de Seña: interfaces, servidor, dataset, entrenamiento, inferencia, persistencia, conversación y módulos heredados](docs/diagrama_flujo_sena.svg)
 
-El diagrama también está disponible en [SVG](docs/diagrama_flujo_sena.svg), para ampliarlo sin perder calidad.
+El diagrama incluye los módulos principales y cómo se conectan sus datos. Para conocer cada función y método individual, consulta el [índice de funciones](docs/FUNCIONES.md). El SVG se puede ampliar sin perder calidad.
 
 ## Iniciar la aplicación
 
