@@ -39,7 +39,6 @@ class RigTests(unittest.TestCase):
         with patch.dict('sys.modules', {'utils':fake}):
             self.assertNotIn('rig', runtime.frame(payload))
             result = runtime.frame({**payload, 'rig':True})
-            self.assertAlmostEqual(result['rig']['left'][0][0], .7)
-            self.assertEqual(result['rig']['width'], 32)
+            self.assertNotIn('rig', result, 'El protocolo actual no entrega un esqueleto para superponer.')
             self.assertEqual(len(runtime.session(sid).frames), 0)
             self.assertIsNone(result['candidate'])

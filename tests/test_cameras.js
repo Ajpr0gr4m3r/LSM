@@ -12,10 +12,11 @@ const $ = id => {
 let devices = [{kind:'videoinput', deviceId:'builtin', label:'FaceTime'}, {kind:'videoinput', deviceId:'usb', label:'USB'}, {kind:'audioinput', deviceId:'mic'}];
 let stopped = 0, constraints, ended, messages = [], closed = 0, sent = 0;
 const streamMock = () => ({getTracks:() => [{stop:() => stopped++}], getVideoTracks:() => [{getSettings:() => ({deviceId:'usb'}), addEventListener:(event, callback) => { ended = callback; }}]});
+$('shared-camera-consent').checked = true;
 const sandbox = { $, navigator:{mediaDevices:{enumerateDevices:async () => devices, getUserMedia:async c => { constraints = c; return streamMock(); }}},
   makeOption:(value, text) => ({value, text}), api:async path => { if (path === '/api/close') closed++; return {session:'session-id'}; },
-  render:() => {}, notice:(text,error) => messages.push({text,error}), sendFrame:() => sent++, clearTimeout, console,
-  rigOverlay:{clear:() => {}}, profile:() => ({model:true}), batch:{stop:() => {}}, language:'lsm', mode:'train', state:{} };
+  clearHandRig:() => {}, render:() => {}, notice:(text,error) => messages.push({text,error}), sendFrame:() => sent++, clearTimeout, console,
+  cameraFingerprint:async () => 'anonymous-device', profile:() => ({model:true}), batch:{stop:() => {}}, language:'lsm', mode:'train', state:{} };
 vm.createContext(sandbox);
 vm.runInContext('let stream=null, session=null, generation=0, timer=null, countdown=false, recording=false, frameReady=false, cameraStarting=false, cameraListing=false;'+cameraCode, sandbox);
 (async () => {

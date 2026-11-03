@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const root=path.join(__dirname,'../static');const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const ids=[...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]);
+assert.equal(new Set(ids).size,ids.length,'No duplicar identificadores al mover controles.');
+const dynamic=new Set(['alternatives','quality-status','quality-message','frame-latency']);
+for(const file of ['app.js','studio.js','accounts.js'])for(const [,id] of fs.readFileSync(path.join(root,file),'utf8').matchAll(/\$\('([^']+)'\)/g))assert(ids.includes(id)||dynamic.has(id),`Falta ${id} usado por ${file}`);
+for(const view of ['home','recognition','dataset','training','settings'])assert(ids.includes('view-'+view));
+assert(!html.includes('rig-overlay'));assert(!html.includes('toggle-rig'));assert(!html.includes('src="http'));
+assert(html.indexOf('/static/app.js')<html.indexOf('/static/studio.js'));
+console.log('Estudio: cinco vistas, controles únicos, assets locales y ausencia de superposición comprobados.');

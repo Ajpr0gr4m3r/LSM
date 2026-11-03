@@ -20,15 +20,21 @@ import uuid
 import numpy as np
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
-from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept
+from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept
 from web_dataset import inventory, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
 from admin_auth import AdminGuard
-from rig_overlay import rig_payload
+from accounts import Accounts
+import team_access
+from recognition_analysis import temperature_probabilities
+from recognition_decision import decision_details
+from capture_quality import landmark_quality, image_quality, sequence_quality
+from studio_services import versions, activate_version, recent_activity, dataset_operation
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
 
 ROOT = Path(BASE_DIR)
 TOKEN = secrets.token_urlsafe(32)
+ACCOUNTS = Accounts(WEB_DATA / "accounts" / "team.sqlite3")
 
 
 def model_metadata(language):
@@ -55,10 +61,13 @@ def model_metadata(language):
 class Session:
     def __init__(self, language):
         self.language = language
+        self.owner_id = None
         self.holistic = None
         self.touched = time.monotonic()
         self.last_frame = 0.0
         self.capture = None
+        self.provenance = {}
+        self.quality_gate = False
         self.reset()
 
     def reset(self):
@@ -69,6 +78,9 @@ class Session:
         self.last_confirmed = None
         self.cooldown = 0
         self.no_hands = 0
+        self.gesture_confirmed = False
+        self.last_inference = 0
+        self.last_model = None
 
     def close(self):
         if self.holistic is not None:
@@ -82,6 +94,8 @@ class Runtime:
         self.models = {}
         self.process = None
         self.job_id = None
+        self.recovered_training_checked = False
+        self.recovered_training_pid = None
         self.admin = AdminGuard(WEB_DATA / 'admin' / 'auth.json')
 
     def invalidate_label_model(self, language, label):
@@ -124,7 +138,7 @@ class Runtime:
                 item.reset()
         return result
 
-    def new_session(self, language):
+    def new_session(self, language, participant="", camera="", quality_gate=False):
         language_info(language)
         now = time.monotonic()
         for key, item in list(self.sessions.items()):
@@ -135,6 +149,8 @@ class Runtime:
             raise ValueError('Ya hay cuatro sesiones abiertas. Detén una cámara y vuelve a intentarlo.')
         identifier = uuid.uuid4().hex
         self.sessions[identifier] = Session(language)
+        self.sessions[identifier].quality_gate = quality_gate is True
+        self.sessions[identifier].provenance = {'session_id': identifier, 'participant': str(participant or '')[:80], 'camera': str(camera or '')[:80]}
         return identifier
 
     def session(self, identifier):
@@ -144,11 +160,13 @@ class Runtime:
         item.touched = time.monotonic()
         return item
 
-    def start_capture(self, identifier, consecutive=False):
+    def start_capture(self, identifier, consecutive=False, batch_id=""):
         if not isinstance(consecutive, bool):
             raise ValueError('La opción de grabación consecutiva no es válida.')
         item = self.session(identifier)
         pending = pending_drafts(item.language)
+        if item.owner_id:
+            pending = [d for d in pending if team_access.draft_owner(item.language, d['id']) == item.owner_id]
         if pending and not consecutive:
             raise ValueError('Pon nombre o descarta la grabación pendiente antes de hacer otra, o usa una tanda consecutiva.')
         if len(pending) >= 100:
@@ -156,24 +174,48 @@ class Runtime:
         if self.training() or item.capture:
             raise ValueError('Termina la operación actual antes de grabar otra secuencia.')
         item.reset()
-        item.capture = {'points': [], 'hands': 0}
+        item.capture = {'points': [], 'hands': 0, 'quality_bad': 0, 'wait_frames': 0}
+        item.provenance['batch_id'] = str(batch_id or '')[:80]
         return {'capturing': True}
 
     def job(self):
         if not self.job_id:
-            return None
+            previous = sorted((WEB_DATA / 'jobs').glob('*.json'), key=lambda p:p.stat().st_mtime, reverse=True)
+            if not previous:
+                return None
+            self.job_id = previous[0].stem
         path = WEB_DATA / 'jobs' / f'{self.job_id}.json'
         state = {'id': self.job_id, 'state': 'running', 'message': 'Preparando entrenamiento…', 'epoch': 0}
         if path.exists():
             state = json.loads(path.read_text())
+        if state.get('state') == 'running' and self.process is None:
+            pid = state.get('pid')
+            try:
+                if not isinstance(pid, int): raise OSError()
+                os.kill(pid, 0)
+            except OSError:
+                state.update(state='failed', message='El entrenamiento se interrumpió. Los modelos anteriores siguen guardados.')
         if self.process is not None and self.process.poll() is not None and state['state'] == 'running':
             state.update(state='failed', message='El proceso terminó antes de completar el modelo. Revisa web_data/jobs/' + self.job_id + '.log')
         if 'result' in state:
-            state['result'] = {k: v for k, v in state['result'].items() if k != 'hand_guard'}
+            state['result'] = {k: v for k, v in state['result'].items() if k not in ('hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')}
         return state
 
     def training(self):
-        return self.process is not None and self.process.poll() is None
+        if self.process is not None:
+            return self.process.poll() is None
+        if not self.recovered_training_checked:
+            self.recovered_training_checked = True
+            status = self.job() or {}
+            if status.get('state') == 'running':
+                self.recovered_training_pid = status.get('pid')
+        if isinstance(self.recovered_training_pid, int):
+            try:
+                os.kill(self.recovered_training_pid, 0)
+                return True
+            except OSError:
+                self.recovered_training_pid = None
+        return False
 
     def state(self):
         profiles = []
@@ -183,7 +225,7 @@ class Runtime:
             error = None
             try:
                 result = model_metadata(info['id'])
-                metadata = {k: v for k, v in result[1].items() if k != 'hand_guard'} if result else None
+                metadata = {k: v for k, v in result[1].items() if k not in ('hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
                     if manifest.is_file():
@@ -196,7 +238,7 @@ class Runtime:
         old_model = ROOT / 'models' / 'lsm_model.h5'
         return {'profiles': profiles, 'minimum_samples': MIN_SAMPLES, 'recommended_samples': RECOMMENDED_SAMPLES, 'sequence_length': SEQUENCE_LENGTH,
                 'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job(),
-                'legacy_model': old_model.is_file()}
+                'legacy_model': old_model.is_file(), 'activity': recent_activity(), 'api_version': 2}
 
     def load_model(self, language):
         bundle = model_metadata(language)
@@ -209,6 +251,9 @@ class Runtime:
             model = tf.keras.models.load_model(directory / 'model.keras', compile=False, safe_mode=True)
             if tuple(model.input_shape[1:]) != (SEQUENCE_LENGTH, feature_dimension(meta.get('preprocessing'))) or model.output_shape[-1] != len(meta['labels']):
                 raise ValueError('Las dimensiones del modelo no coinciden con sus metadatos.')
+            for guard_name in ('hand_guard', 'temporal_guard'):
+                for item in (meta.get(guard_name) or {}).get('classes', []):
+                    item['references'] = np.asarray(item['references'], dtype=np.float32)
             self.models[language] = directory, model, meta
         return self.models[language][1:]
 
@@ -243,11 +288,32 @@ class Runtime:
         points = extract_keypoints(results)
         hands = hands_detected(results)
         output = {'hands': hands, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
-                  'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0, 'rejection_reason': None}
-        if payload.get('rig') is True:
-            output['rig'] = rig_payload(points, image.shape[1], image.shape[0])
+                  'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
+                  'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
+        if payload.get('show_hand_rig') is True:
+            output['hand_rig'] = [
+                [[round(float(p.x), 5), round(float(p.y), 5)] for p in hand.landmark]
+                for hand in (results.left_hand_landmarks, results.right_hand_landmarks)
+                if hand is not None
+            ]
+        quality = landmark_quality(points)
+        visual = image_quality(image)
+        quality['warnings'] = visual['warnings']
+        output.update(quality=quality, phase='waiting', alternatives=[], latency_ms=0)
+        if session.quality_gate and visual['warnings']:
+            quality['usable'] = False
+            quality['message'] = visual['warnings'][0]
         if session.capture is not None:
             capture = session.capture
+            if session.quality_gate and not capture['points'] and not quality['usable']:
+                capture['wait_frames'] += 1
+                output['phase'] = 'waiting-for-hands'
+                if capture['wait_frames'] >= 50:
+                    session.capture = None
+                    raise ValueError('No se pudo iniciar una toma válida. Revisa la luz y el encuadre y vuelve a grabar.')
+                return output
+            capture['quality_bad'] = capture.get('quality_bad', 0) + int(not quality['usable'])
+            output['phase'] = 'capturing'
             capture['points'].append(points)
             capture['hands'] += int(hands)
             output['captured'] = len(capture['points'])
@@ -255,19 +321,36 @@ class Runtime:
                 session.capture = None
                 if capture['hands'] < SEQUENCE_LENGTH * .8:
                     raise ValueError('Las manos no fueron visibles en suficientes fotogramas. Repite la seña.')
-                output['draft_id'] = save_draft(session.language, capture['points'])
+                if session.quality_gate and capture['quality_bad'] > SEQUENCE_LENGTH * .2:
+                    raise ValueError('La toma perdió calidad o parte de las manos. Repite con buena luz y los dedos dentro del encuadre.')
+                if session.quality_gate and sequence_quality(capture['points'])['boundary_warning']:
+                    output['capture_warning'] = 'La toma terminó con movimiento. Revisa que la seña esté completa antes de integrarla.'
+                output['draft_id'] = save_draft(session.language, capture['points'], session.provenance)
                 session.reset()
             return output
         if payload.get('mode') != 'test':
             return output
+        if session.quality_gate and not quality['usable']:
+            session.frames.clear()
+            session.probabilities.clear()
+            session.stable_count = 0
+            session.stable_label = None
+            session.no_hands = session.no_hands + 1 if not hands else 0
+            if session.no_hands >= 5:
+                session.gesture_confirmed = False
+                session.last_confirmed = None
+            output['rejection_reason'] = quality['message']
+            return output
         session.frames.append(points)
         output['buffer'] = len(session.frames)
         if not hands:
+            session.frames.clear()
             session.probabilities.clear()
             session.stable_label, session.stable_count = None, 0
             session.no_hands += 1
             if session.no_hands >= 5:
                 session.last_confirmed = None
+                session.gesture_confirmed = False
                 session.frames.clear()
             return output
         session.no_hands = 0
@@ -275,42 +358,85 @@ class Runtime:
         if not bundle or len(session.frames) < SEQUENCE_LENGTH:
             return output
         model, metadata = bundle
+        stability_frames = max(1, int(metadata.get('stability_frames', STABILITY_FRAMES)))
+        output['stability_required'] = stability_frames
+        model_identity = (metadata.get('version'), metadata.get('created_at'))
+        if session.last_model != model_identity:
+            session.probabilities.clear()
+            session.stable_label = None
+            session.stable_count = 0
+            session.gesture_confirmed = False
+            session.last_confirmed = None
+            session.cooldown = 0
+            session.last_inference = 0
+            session.last_model = model_identity
+        if now - session.last_inference < .10:
+            output['phase'] = 'observing'
+            output['inference_skipped'] = True
+            return output
+        session.last_inference = now
         raw_sequence = np.stack(session.frames)
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
         probs = model(sequence[None, ...], training=False).numpy()[0]
-        session.probabilities.append(probs)
-        probs = np.mean(session.probabilities, axis=0)
+        probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
+        if metadata.get('decision_input') == 'single-window-v1':
+            # Calibrate and decide on the same window. Consecutive accepted
+            # windows below provide stability without mixing prior gestures.
+            session.probabilities.clear()
+        else:
+            # Preserve the decision behavior of previously saved models.
+            session.probabilities.append(probs)
+            probs = np.mean(session.probabilities, axis=0)
         index = int(np.argmax(probs))
         label = metadata['labels'][index]
         confidence = float(probs[index])
-        output.update(candidate=label, confidence=confidence)
-        known_shape = hand_guard_accept(raw_sequence, index, metadata.get('hand_guard'))
-        if not known_shape:
-            output['rejection_reason'] = 'La forma de la mano se aleja de los ejemplos aprendidos. Repite la seña o añade ejemplos variados.'
-        threshold = metadata.get('decision_threshold', CONFIDENCE_THRESHOLD)
-        margin = float(np.sort(probs)[-1] - np.sort(probs)[-2])
-        if not known_shape or confidence < threshold or margin < metadata.get('decision_margin', .15):
+        output.update(candidate=label, confidence=confidence, phase='observing',
+                      alternatives=[{**metadata['labels'][int(i)], 'confidence': float(probs[i])} for i in np.argsort(probs)[-3:][::-1]])
+        details = decision_details(raw_sequence, probs, metadata, strict=payload.get('strict') is True, test_mode=payload.get('mode') == 'test')
+        decision = details['accepted']
+        output['rejection_reason'] = details.get('reason')
+        output['rejection_code'] = details.get('code')
+        if not decision:
+            output['candidate'] = None
+            if not output['rejection_reason']:
+                output['rejection_reason'] = 'Seña ambigua. Mantén el gesto o vuelve a empezar.'
+            output['phase'] = 'uncertain'
             session.stable_label, session.stable_count = None, 0
         elif session.stable_label == label['id']:
             session.stable_count += 1
         else:
             session.stable_label, session.stable_count = label['id'], 1
-        output['stability'] = min(session.stable_count, STABILITY_FRAMES)
-        if (session.stable_count >= STABILITY_FRAMES and now >= session.cooldown
-                and label['id'] != session.last_confirmed):
+        immediate_test = payload.get('mode') == 'test' and confidence >= .90 - 1e-7 and decision
+        switching = session.gesture_confirmed and label['id'] != session.last_confirmed
+        # A new sign can follow the previous one without a no-hands gap.
+        # Brief rival predictions during transitions must not produce speech.
+        required = max(3, stability_frames) if switching else (1 if immediate_test else stability_frames)
+        output['stability_required'] = required
+        output['stability'] = min(session.stable_count, required)
+        if decision and session.gesture_confirmed and label['id'] == session.last_confirmed:
+            output['phase'] = 'held'
+        ready = decision and session.stable_count >= required
+        if ready and (switching or (not session.gesture_confirmed and now >= session.cooldown)):
+            output['phase'] = 'confirmed'
+            session.gesture_confirmed = True
             output['confirmed'] = label
             session.last_confirmed = label['id']
             session.cooldown = now + COOLDOWN_SECONDS
+        output['latency_ms'] = round((time.monotonic() - now) * 1000)
         return output
 
-    def start_training(self, language, epochs, label_ids=None):
+    def start_training(self, language, epochs, label_ids=None, strategy="baseline"):
         language_info(language)
         if self.training():
             raise ValueError('Ya hay un entrenamiento en curso.')
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory'):
+            raise ValueError('Estrategia de entrenamiento desconocida.')
         if not isinstance(epochs, int) or not 5 <= epochs <= 200:
             raise ValueError('Selecciona entre 5 y 200 épocas.')
         if pending_drafts(language):
             raise ValueError('Pon nombre o descarta las grabaciones pendientes antes de entrenar.')
+        from web_train import retained_label_ids
+        label_ids = retained_label_ids(language, label_ids)
         read_dataset(language, MIN_SAMPLES, label_ids)
         for session in self.sessions.values():
             if session.capture:
@@ -325,7 +451,7 @@ class Runtime:
         selection_args = ['--labels', *label_ids] if label_ids is not None else []
         with (logs / f'{self.job_id}.log').open('w') as output:
             self.process = subprocess.Popen([sys.executable, '-u', str(ROOT / 'web_train.py'),
-                                             '--language', language, '--epochs', str(epochs), '--job-id', self.job_id, *selection_args],
+                                             '--language', language, '--epochs', str(epochs), '--job-id', self.job_id, '--strategy', strategy, *selection_args],
                                             cwd=ROOT, env=env, stdout=output, stderr=subprocess.STDOUT)
         return {'job_id': self.job_id}
 
@@ -334,6 +460,10 @@ RUNTIME = Runtime()
 
 
 class Handler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(30)
+
     def log_message(self, format, *args):
         # Evitar una línea por cada fotograma.
         if '/api/frame' not in str(args):
@@ -346,6 +476,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
+        if getattr(self, 'session_cookie', None):
+            self.send_header('Set-Cookie', self.session_cookie)
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Permissions-Policy', 'camera=(self), microphone=()')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'")
         self.end_headers()
@@ -353,20 +487,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def trusted_host(self):
         host = self.headers.get('Host', '')
-        return host in {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
+        public = getattr(self.server, 'public_origin', None)
+        return host == urlsplit(public).netloc if public else host in {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
 
     def do_GET(self):
         if not self.trusted_host():
-            return self.send_data(403, {'error': 'Abre esta página desde localhost.'})
+            return self.send_data(403, {'error': 'Abre la dirección configurada para este servidor de Seña.'})
         route = urlsplit(self.path).path
+        if route == '/api/auth/status':
+            return self.send_data(200, team_access.status(self, ACCOUNTS))
+        if route.startswith('/api/'):
+            auth = team_access.authenticate(self, ACCOUNTS)
+            if not auth:
+                return self.send_data(401, {'error': 'Inicia sesión para continuar.'})
         if route == '/api/state':
             with RUNTIME.lock:
-                return self.send_data(200, RUNTIME.state())
+                return self.send_data(200, team_access.shared_state(RUNTIME, auth['user'], auth['csrf']))
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
-                 '/static/rig.js': ('rig.js', 'text/javascript; charset=utf-8'),
+                 '/static/speech.js': ('speech.js', 'text/javascript; charset=utf-8'),
+                 '/static/accounts.js': ('accounts.js', 'text/javascript; charset=utf-8'),
+                 '/static/studio.js': ('studio.js', 'text/javascript; charset=utf-8'),
                  '/static/continuous.js': ('continuous.js', 'text/javascript; charset=utf-8'),
                  '/static/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/static/styles.css': ('styles.css', 'text/css; charset=utf-8')}
+        if route.startswith('/static/vendor/'):
+            name = route.removeprefix('/static/vendor/')
+            if name in {'manrope.woff2','lucide.svg','manrope-latin.woff2'}:
+                return self.send_data(200, (ROOT / 'static' / 'vendor' / name).read_bytes(), 'font/woff2' if name.endswith('.woff2') else 'image/svg+xml')
         if route not in files:
             return self.send_data(404, {'error': 'Recurso no encontrado.'})
         filename, mime = files[route]
@@ -374,20 +521,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         origin = self.headers.get('Origin')
-        expected = {f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'}
-        if not self.trusted_host() or (origin and origin not in expected) or self.headers.get('X-LSM-Token') != TOKEN:
+        expected = {getattr(self.server, 'public_origin', None)} if getattr(self.server, 'public_origin', None) else {f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'}
+        route = urlsplit(self.path).path
+        auth = team_access.authenticate(self, ACCOUNTS, require_user=not route.startswith('/api/auth/'))
+        if not auth:
+            return self.send_data(401, {'error': 'Inicia sesión para continuar.'})
+        if not self.trusted_host() or (origin and origin not in expected) or not team_access.csrf_valid(self, auth):
             return self.send_data(403, {'error': 'Sesión no autorizada. Recarga la página.'})
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            if length <= 0 or length > 2000000:
+            max_length = 48 * 1024 * 1024 if urlsplit(self.path).path == '/api/dataset/import' else 2000000
+            if length <= 0 or length > max_length:
                 raise ValueError('Solicitud vacía o demasiado grande.')
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError('Solicitud no válida.')
             route = urlsplit(self.path).path
+            if route.startswith('/api/auth/'):
+                return self.send_data(200, team_access.auth_post(self, route, payload, ACCOUNTS, RUNTIME, auth))
             with RUNTIME.lock:
+                auth = team_access.authenticate(self, ACCOUNTS)
+                if not auth:
+                    return self.send_data(401, {'error': 'La sesión terminó. Vuelve a iniciar sesión.'})
+                team_access.authorize(RUNTIME, auth['user'], route, payload)
                 if route == '/api/session':
-                    result = {'session': RUNTIME.new_session(payload.get('language'))}
+                    result = {'session': RUNTIME.new_session(payload.get('language'), (str(payload.get('participant', '')).strip()[:80] if auth['user'].get('local') else 'user:' + auth['user']['id']), payload.get('camera'), payload.get('quality_gate'))}
+                    item = RUNTIME.session(result['session'])
+                    item.owner_id = auth['user']['id']
+                    item.provenance['owner_id'] = auth['user']['id']
                 elif route == '/api/close':
                     item = RUNTIME.sessions.pop(payload.get('session'), None)
                     if item:
@@ -399,7 +560,7 @@ class Handler(BaseHTTPRequestHandler):
                     item.capture = None
                     result = {'reset': True}
                 elif route == '/api/capture':
-                    result = RUNTIME.start_capture(payload.get('session'), payload.get('consecutive', False))
+                    result = RUNTIME.start_capture(payload.get('session'), payload.get('consecutive', False), payload.get('batch_id'))
                 elif route == '/api/alphabet':
                     if RUNTIME.training():
                         raise ValueError('Espera a que termine el entrenamiento para añadir letras.')
@@ -418,8 +579,20 @@ class Handler(BaseHTTPRequestHandler):
                     result = RUNTIME.frame(payload)
                 elif route == '/api/admin/delete-recordings':
                     result = RUNTIME.delete_recordings(payload)
+                elif route.startswith('/api/dataset/'):
+                    result = dataset_operation(RUNTIME, route, payload)
+                elif route == '/api/models/list':
+                    result = {'versions': versions(payload.get('language'))}
+                elif route == '/api/models/activate':
+                    RUNTIME.admin.verify(payload.get('password'))
+                    if RUNTIME.training() or any(s.capture for s in RUNTIME.sessions.values()):
+                        raise ValueError('Termina el entrenamiento y las capturas antes de cambiar de modelo.')
+                    result = activate_version(payload.get('language'), payload.get('version'))
+                    RUNTIME.models.pop(payload.get('language'), None)
+                    for s in RUNTIME.sessions.values():
+                        if s.language == payload.get('language'): s.reset()
                 elif route == '/api/train':
-                    result = RUNTIME.start_training(payload.get('language'), payload.get('epochs', 40), payload.get('labels'))
+                    result = RUNTIME.start_training(payload.get('language'), payload.get('epochs', 40), payload.get('labels'), payload.get('strategy', 'baseline'))
                 else:
                     return self.send_data(404, {'error': 'Ruta no encontrada.'})
             self.send_data(200, result)
@@ -436,13 +609,26 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--host', default='127.0.0.1', help='Escucha interna; usa un proxy HTTPS para acceso remoto.')
+    parser.add_argument('--public-url', help='Origen HTTPS público del proxy, por ejemplo https://senas.ejemplo.com')
     args = parser.parse_args()
     cache = WEB_DATA / 'cache' / 'matplotlib'
     cache.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault('MPLCONFIGDIR', str(cache))
     os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
-    print(f'\nPágina de señas: http://127.0.0.1:{args.port}\nCtrl+C para cerrar.\n', flush=True)
+    if args.public_url:
+        parsed = urlsplit(args.public_url)
+        if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+            parser.error('--public-url debe ser un origen HTTPS sin ruta, credenciales ni parámetros.')
+        args.public_url = 'https://' + parsed.netloc
+    if args.host not in ('127.0.0.1', 'localhost', '::1') and not args.public_url:
+        parser.error('Para escuchar fuera de localhost configura --public-url y un proxy HTTPS.')
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    server.public_origin = args.public_url
+    server.local_mode = not args.public_url
+    server.local_csrf = secrets.token_urlsafe(32)
+    address = args.public_url or f'http://127.0.0.1:{args.port}'
+    print(f'\nPágina de señas: {address}\nCtrl+C para cerrar.\n', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

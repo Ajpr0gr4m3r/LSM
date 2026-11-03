@@ -1,0 +1,2596 @@
+{
+  "profiles": [
+    {
+      "language": "lsm",
+      "samples": 634,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "Hola",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "Gracias",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "Por favor",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "Me llamo",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "Mucho gusto",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "Buenos días",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "Adiós",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "Sí",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "No",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "Ayuda",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_071781edd7cc44b9819463e9af946f3d",
+          "text": "A",
+          "meaning": "A",
+          "samples": 84,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+          "text": "B",
+          "meaning": "B",
+          "samples": 72,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a11b0e3c636d4c37b26960943807a593",
+          "text": "C",
+          "meaning": "C",
+          "samples": 84,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8812c954569447e784a7dd7b644d0d23",
+          "text": "D",
+          "meaning": "D",
+          "samples": 62,
+          "invalid": 0
+        },
+        {
+          "id": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+          "text": "E",
+          "meaning": "E",
+          "samples": 80,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2cc984dba89e4b7c976061426a68b5aa",
+          "text": "F",
+          "meaning": "F",
+          "samples": 80,
+          "invalid": 0
+        },
+        {
+          "id": "custom_193b1d3cc07f4430b4850a0a83cbcba0",
+          "text": "G",
+          "meaning": "G",
+          "samples": 80,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1dd9530e21df4a24a7162cca61cb65a3",
+          "text": "H",
+          "meaning": "H",
+          "samples": 92,
+          "invalid": 0
+        },
+        {
+          "id": "custom_db181ef558cc41a8a468bd7915c0281a",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_d0ed9df7c6d14b7b891a829d793efc1c",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_958c287993fa48ebaab53d2f99627913",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_914ea9e4fcb8426ca7c6e87829a1e93d",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b7b945a893a14096a5a6e91b51da8e14",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e10aeaefa2fe445aa4d94ba70ee2ebc8",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b449fe6d891a4eb4844f650c8a50ddf5",
+          "text": "Ñ",
+          "meaning": "Ñ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8ecbfae31d804234920831cd1bacd5c5",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_340ad1b059e64de2a0dc4d31fb81a090",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_5ff51ace70824c37bf8aa1e54d37da71",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_54d97b6111704ec19572a72652cf72a6",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_06f46692a9b34faaa46757bc0307198d",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_fd1f516cc6e646c1bdeb3938a1559715",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_dde7d0a12ac54204810fb168fcbe8a9b",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2221474eeb174c39904b0d771760fe22",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_238ba7999bb348b497aae5454087f623",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_72a887e121374857ae7529f4cd0b09ce",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_20b2b6cf0cc04ec28716a73e96e1e2ea",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_03707dc2663f4558821d045e6b6ea0cd",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 372,
+      "duplicates": 0,
+      "low_quality": 3
+    },
+    {
+      "language": "dgs",
+      "samples": 0,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "Hallo",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "Danke",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "Bitte",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "Ich heiße",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "Freut mich",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "Guten Morgen",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "Auf Wiedersehen",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "Ja",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "Nein",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "Hilfe",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b1412384a2684e2494b50d74b03206c5",
+          "text": "A",
+          "meaning": "A",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ea0756c2461048089e810231127c911e",
+          "text": "B",
+          "meaning": "B",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ac4bad6cc13442f188eb003220aa02a1",
+          "text": "C",
+          "meaning": "C",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_df94f8033ba147d58899038b31791edb",
+          "text": "D",
+          "meaning": "D",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1c87b869f07e40b9ab1e7c75be86949f",
+          "text": "E",
+          "meaning": "E",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a42862e5c0d94bf8b1887f8412e18532",
+          "text": "F",
+          "meaning": "F",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4119a60ab9e14245994c4baa516589b2",
+          "text": "G",
+          "meaning": "G",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_711d192700eb495286b05d71664a5312",
+          "text": "H",
+          "meaning": "H",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a2893f23ddfe4496aff0dbdd4bb553a9",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8c65c04bbfe24525b14e616873d45f41",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3ab43659ee2d45beb082ae9c62c213f9",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b4946598feea47839addb9f7c00cf2d5",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e7e9cded1c0b47319fb2c26eb19eb517",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f4837a190e8b4338929699fd91e50c91",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_953424e442054a15a64a837789a6e3ff",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e0b2381df8da4ca49188ed8e473b427e",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_dbd92bfa15c244e4a1478eae7bf73106",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ad4b72cd422246ae8f8485c7fee0e6e7",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_86e2aed428164b068bb5cb74f63c1928",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_103fe329bd254f77931918abf48bf06a",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_fe19d436aed34981857c4b8e48d7134d",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_d4a9b127656c405daa27eba7643c72e6",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_69201d47914943a691aede8406c25225",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4b6b7ab132624b27a6ff9472916230cc",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c39f74e39e00474cabc52f7a2c00a1cd",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3c5f286a66e6498498f484619320e198",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f4a63bea2cba4f1cb8aaeed8a0d36776",
+          "text": "Ä",
+          "meaning": "Ä",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_efd993f112f944fbb0d5efea9360aa38",
+          "text": "Ö",
+          "meaning": "Ö",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_98a7f4c8d4ba4543ae15e74036c9a9bc",
+          "text": "Ü",
+          "meaning": "Ü",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1bdeaccf08924621a109d0dcb70cf836",
+          "text": "ß",
+          "meaning": "ß",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 0,
+      "duplicates": 0,
+      "low_quality": 0
+    },
+    {
+      "language": "asl",
+      "samples": 0,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "Hello",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "Thank you",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "Please",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "My name is",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "Nice to meet you",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "Good morning",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "Goodbye",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "Yes",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "No",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "Help",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_76e60ce2454748ca98557f6f7ccbb0a4",
+          "text": "A",
+          "meaning": "A",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e21f75aca0e64f828bfd7f1f65df0665",
+          "text": "B",
+          "meaning": "B",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0be971d9de2f494aa0491259e1902690",
+          "text": "C",
+          "meaning": "C",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3225c92646904e0da00f11c9170ca0a7",
+          "text": "D",
+          "meaning": "D",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4495b22c20f54b56840cdff0ebfb5e62",
+          "text": "E",
+          "meaning": "E",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_375b231d6cdf40c5a95aea8420a3e03a",
+          "text": "F",
+          "meaning": "F",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1d4acd4f849a4c66b50d2de439c4fc4d",
+          "text": "G",
+          "meaning": "G",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_648353b737254636a901416594fa9211",
+          "text": "H",
+          "meaning": "H",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_35adaee038ea4eec90209adb67441f70",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a63f8cd94fc64c23a212c9035248ffa3",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8df82eb4a75e4b6eb3a35d321a53e6be",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_fd1933a7b0a540c1bde4fc59441c7551",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8d7a68d89f8f42a2a7f3710b29f9094e",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_78e8af4a1f1440c0a9a3d02fa00747e5",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_bafdda67f4f540839d2dcb5741e43df7",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8f162e3b5dfa4456b2e6b89dca6522e2",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f763732fda7346ae962acbd34b49af14",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b978ca7982a14e319bfedf764981d04e",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_86a8875a52a441ee9436ab816cce9e64",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_43dcc303df0643288c6b1cf07d58ebcd",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_359affbac4f64394bea0ba28936d9c76",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_6c35b3eba02248b2ad1074b74bf314a6",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_82fd5d24bb4343e693b8c5aa285c9c8d",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f9435bed17a744eebc1132ae474ec9b5",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_daf67ee46d64437bb1b1e66a18652cfc",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c26da330b6c94d4caa72b687dfb1f220",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 0,
+      "duplicates": 0,
+      "low_quality": 0
+    },
+    {
+      "language": "jsl",
+      "samples": 0,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "こんにちは",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "ありがとう",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "お願いします",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "私の名前は",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "はじめまして",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "おはようございます",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "さようなら",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "はい",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "いいえ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "助けて",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2e2eda57aaed4a48bbbb1b9602a651b0",
+          "text": "あ",
+          "meaning": "あ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8364a18df70544ed8aefaaf2f01c7e1d",
+          "text": "い",
+          "meaning": "い",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e47095ff08aa407b80efaa7d834b81a5",
+          "text": "う",
+          "meaning": "う",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_34ec1aac068b4f249e0826da7f9c0ca8",
+          "text": "え",
+          "meaning": "え",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e7b4b52f72b84f5b8834726c5db3e250",
+          "text": "お",
+          "meaning": "お",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_75d9847e669947028ad94da3934335c7",
+          "text": "か",
+          "meaning": "か",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_677a98f34d08473793c4007f5c7acece",
+          "text": "き",
+          "meaning": "き",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4090558b77714417a7b82476717c8a46",
+          "text": "く",
+          "meaning": "く",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a298e6c1f1f34c14820f0f7375fa288d",
+          "text": "け",
+          "meaning": "け",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e522a8e3459940eb8c7aedfc3d9dfad4",
+          "text": "こ",
+          "meaning": "こ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_d46436c9734f4884980b4fe7a9f091f1",
+          "text": "さ",
+          "meaning": "さ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2b626af61d3f47f9a8e88e6623efcaa0",
+          "text": "し",
+          "meaning": "し",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_415a785c29ca443eafbd9d58bf9639be",
+          "text": "す",
+          "meaning": "す",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_cee82358ab0b4562812e102fa62ba0f9",
+          "text": "せ",
+          "meaning": "せ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8a5372c1e3834ca684a806df25e94e4f",
+          "text": "そ",
+          "meaning": "そ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_147d31ddf0624e08bef3174a9cda57c8",
+          "text": "た",
+          "meaning": "た",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_58572eca073a44a38fbf2fc94da3e43d",
+          "text": "ち",
+          "meaning": "ち",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_eb11d81420b14de69916442df9074af7",
+          "text": "つ",
+          "meaning": "つ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b1c18e62f027466bbebc750cfcc0a14d",
+          "text": "て",
+          "meaning": "て",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b5ad65b410084e2c918b2874bf2f8ceb",
+          "text": "と",
+          "meaning": "と",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1f22f19429b64273b3208e181150e0e4",
+          "text": "な",
+          "meaning": "な",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_77a7a01f21fe47f4b31e0c67c37d51fb",
+          "text": "に",
+          "meaning": "に",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8ee62eb82a1c47118c2402ab79841778",
+          "text": "ぬ",
+          "meaning": "ぬ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e3da7545e5cd45cf8109ce4c03c4b88f",
+          "text": "ね",
+          "meaning": "ね",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_5cf63f00aa1d4f59b588215beb2d70d5",
+          "text": "の",
+          "meaning": "の",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_69196774962c454298a56dd22f1d986f",
+          "text": "は",
+          "meaning": "は",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_bc4908db38dd49a6bd61119a69b7f01c",
+          "text": "ひ",
+          "meaning": "ひ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ac7f3a7b422a4dbda44aa87e962755e9",
+          "text": "ふ",
+          "meaning": "ふ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_61f15a791f3b412e965316db21005e4f",
+          "text": "へ",
+          "meaning": "へ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_332b0e3034be47f8b243876b6f8caa7f",
+          "text": "ほ",
+          "meaning": "ほ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_dddb2a372ab740cb846d8994e4a75a5b",
+          "text": "ま",
+          "meaning": "ま",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_af6581fef92a4694a304750fdfaa8d12",
+          "text": "み",
+          "meaning": "み",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_96dfdd23f814481897abd690ef13fcb0",
+          "text": "む",
+          "meaning": "む",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8d5679b6f1a243619e1dbbdfd326319b",
+          "text": "め",
+          "meaning": "め",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_67663991b4d04a0b9c1dedf231c7ec0f",
+          "text": "も",
+          "meaning": "も",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b2ab755c57aa44c28cdc2847b4475fca",
+          "text": "や",
+          "meaning": "や",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4a893d2594984548b075910d8fd2e65d",
+          "text": "ゆ",
+          "meaning": "ゆ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a0eeb4d05b234bc199f49b29d7df2287",
+          "text": "よ",
+          "meaning": "よ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8dd764b372e14e5d96f8355125b9862b",
+          "text": "ら",
+          "meaning": "ら",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f2c488bfe3094c5aa76932ca7389ea62",
+          "text": "り",
+          "meaning": "り",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_04cd55d0d9a9433c9520fcdcf5827e5b",
+          "text": "る",
+          "meaning": "る",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_d7ce4598569e4cc1a5ded2a9e0dbddef",
+          "text": "れ",
+          "meaning": "れ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ecbc98fab72949eba228a54285a1f244",
+          "text": "ろ",
+          "meaning": "ろ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a118418a28444323b54f245c1f399d98",
+          "text": "わ",
+          "meaning": "わ",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_6491cc0784a4421fa9ef1720b3e017c9",
+          "text": "を",
+          "meaning": "を",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8c9df188af154f48a22890f30ef50002",
+          "text": "ん",
+          "meaning": "ん",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 0,
+      "duplicates": 0,
+      "low_quality": 0
+    },
+    {
+      "language": "csl",
+      "samples": 0,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "你好",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "谢谢",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "请",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "我叫",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "很高兴认识你",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "早上好",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "再见",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "是",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "不",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "帮助",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b69e2d0eba2343a3aaacfc55f0ad8b96",
+          "text": "A",
+          "meaning": "A",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8ca1e8852b564acb95aa0246aae4b54a",
+          "text": "B",
+          "meaning": "B",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b61443e61e2141ff96a56e8b93b2bdff",
+          "text": "C",
+          "meaning": "C",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_009d5d7fc4df41b185b9f7b3540b0105",
+          "text": "D",
+          "meaning": "D",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0d9340c17c37469e8e8eb9208e2556c3",
+          "text": "E",
+          "meaning": "E",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c0339dfb983c48dc8cb5383365261ff4",
+          "text": "F",
+          "meaning": "F",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4ba12c21f39e4bb6ab2f009e476581be",
+          "text": "G",
+          "meaning": "G",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_33b734fa38464a66a83010d3f43bc3cc",
+          "text": "H",
+          "meaning": "H",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_43c619480665454d999d8eafd4948cd5",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3c8065b1ae5d45738a8f83a403deb9ed",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_784823205fae48e8a0a15548e755e8d9",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8b15f1d3810743e6a1810191545b7f51",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_5b9f9c7c6e4942efa528e40d7d606f4a",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_671fd7408f984edf966a2c43015979d8",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0335dad1530c4121b9c3bf277ae61e4d",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_274da2403f7f4ecd888d1d7eef3bb7c8",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ad80ed53b2cf4fbdb65ec6b1fa0511be",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_62ea3e17d00c4b6daa26a83a853fec2a",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_010f622fe62544d890b6ffd03a78d50c",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1a59ccdb2df44a718e24edbdc012699f",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_fcb1e7852f744d0fb47d1be1efdd1b8a",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_921265c54bff4bf9b7e057f44c141280",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_290cea02ce6542ac9f7f42a64fac8af1",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_5ac2757f2ac94ea187b84f29ddc28a01",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3a352fcac126438dbcb34ea143793615",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_cfe600a4c9e2443a96b7649fad00814a",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_58e9a78df3134bb39cfb265dd49487a1",
+          "text": "ZH",
+          "meaning": "ZH",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_496cb3fafb2e4f54b66298eb67fdfce6",
+          "text": "CH",
+          "meaning": "CH",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_185c28c6440d406c8c04fbf62d8133b5",
+          "text": "SH",
+          "meaning": "SH",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e7128594c6a348ada4c04aabf46365ce",
+          "text": "NG",
+          "meaning": "NG",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 0,
+      "duplicates": 0,
+      "low_quality": 0
+    },
+    {
+      "language": "lsf",
+      "samples": 121,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "Bonjour",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "Merci",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "S’il vous plaît",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "Je m’appelle",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "Enchanté / Enchantée",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "Bonjour",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "Au revoir",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "Oui",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "Non",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "Aide",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_f1072849df96466391d32458fe0e6993",
+          "text": "A",
+          "meaning": "A",
+          "samples": 60,
+          "invalid": 0
+        },
+        {
+          "id": "custom_080244ba6ee24ec29278f9ce5a4eed3a",
+          "text": "B",
+          "meaning": "B",
+          "samples": 31,
+          "invalid": 0
+        },
+        {
+          "id": "custom_cd6a5db72e54402aa150a286b13f5c1f",
+          "text": "C",
+          "meaning": "C",
+          "samples": 30,
+          "invalid": 0
+        },
+        {
+          "id": "custom_90ebc17b35764d4fa84bc0fa77aede41",
+          "text": "D",
+          "meaning": "D",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8660ef6241804701ae27232f5f068703",
+          "text": "E",
+          "meaning": "E",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_7c9bf8828f1441b08d27b093aaffcc38",
+          "text": "F",
+          "meaning": "F",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_94910f0f460d4ba6a32e145478712187",
+          "text": "G",
+          "meaning": "G",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e4d453c9a7154b608e4e389ec37d8f4a",
+          "text": "H",
+          "meaning": "H",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e11cdc5bd73b4c2788eb368c28bb2da8",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3ce1e1901c7a408ca057defb731456af",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_b17e4f11bdf34d73a55553ce5276024e",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_adab1582ec8d427488e394f8ed55fd98",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_82d78719a05f497787dc77693c36bbd7",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4beef6858c6449e5ad7a1de34bb32e4b",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_764ae174d82844668f92c507695be477",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_a21e00c413e14b20b80e27cbb85474b3",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_3909a0fbda6f432d821f708bf506e3ba",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_74b92131241147469ccecbb25ff254e1",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_193dc4aec42543c6af87c4b202fc7447",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4c28a6c8b7ff42f4bae025c2e1da6212",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c70a7527c74845a3a12619a41a96d369",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0861cbb194774b05b992f8cbfde5c5e4",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_7b927ea44c1847c0bfb73b828fddc397",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_6dd2783a344b495cac11a705cea6d783",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_601d1afdf1c443e3b9faa53b720a5f70",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0b058fadea3e4e618e8e6326a8623d81",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 121,
+      "duplicates": 0,
+      "low_quality": 0
+    },
+    {
+      "language": "libras",
+      "samples": 0,
+      "classes": [
+        {
+          "id": "hola",
+          "meaning": "hola",
+          "text": "Olá",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "gracias",
+          "meaning": "gracias",
+          "text": "Obrigado / Obrigada",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "por_favor",
+          "meaning": "por favor",
+          "text": "Por favor",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "me_llamo",
+          "meaning": "me llamo",
+          "text": "Meu nome é",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "mucho_gusto",
+          "meaning": "mucho gusto",
+          "text": "Prazer em conhecer você",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "buenos_dias",
+          "meaning": "buenos dias",
+          "text": "Bom dia",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "adios",
+          "meaning": "adios",
+          "text": "Tchau",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "si",
+          "meaning": "si",
+          "text": "Sim",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "no",
+          "meaning": "no",
+          "text": "Não",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "ayuda",
+          "meaning": "ayuda",
+          "text": "Ajuda",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_541db05ef2564e7ba6b9f0d7acb2a1f4",
+          "text": "A",
+          "meaning": "A",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c8ee688b35dc4161a75420e223099d56",
+          "text": "B",
+          "meaning": "B",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_6926b2a6b4204628b9b57aff4c4d0961",
+          "text": "C",
+          "meaning": "C",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c92978969d264430a7ce6e390c87e814",
+          "text": "D",
+          "meaning": "D",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_0268675b1095477e85dac9e0e4929ee6",
+          "text": "E",
+          "meaning": "E",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_80e90bed3dc044dcad341305a98439c4",
+          "text": "F",
+          "meaning": "F",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_da0e91e34e53453e9efb91da4f4d9125",
+          "text": "G",
+          "meaning": "G",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_89a8209953704cdd82cccf33c90c29ae",
+          "text": "H",
+          "meaning": "H",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_aa3ea4115fa24871ba89447999912fa9",
+          "text": "I",
+          "meaning": "I",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_c06165cd2b8d489ea9d9c54c818aea60",
+          "text": "J",
+          "meaning": "J",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_04d9e5eebfa1425e861912bc42498603",
+          "text": "K",
+          "meaning": "K",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_5aa329f481cf47d4b3226da9447a01c6",
+          "text": "L",
+          "meaning": "L",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_fd028ed4dc9046108b99fb9e61af3811",
+          "text": "M",
+          "meaning": "M",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_4ecdfcd302574f2db59c8730299e8ed7",
+          "text": "N",
+          "meaning": "N",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_ef041e0e9ff44e0baf7714dd6beaa948",
+          "text": "O",
+          "meaning": "O",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_6e28a4a0bb2243e9838d8cb25d06cccf",
+          "text": "P",
+          "meaning": "P",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2e2ba0568af3483b88124bfe46fe6779",
+          "text": "Q",
+          "meaning": "Q",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_8afe415739234dcba9898cab6f0ce29a",
+          "text": "R",
+          "meaning": "R",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_1cd70fa8d326481ab230543c8f3eb3c5",
+          "text": "S",
+          "meaning": "S",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_2c7231d6d9be49dca7a129aa0b0fa080",
+          "text": "T",
+          "meaning": "T",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_01207c31daa643d3bb7ab5c21a240e75",
+          "text": "U",
+          "meaning": "U",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_e1f798f50789423497fb8455eb946f5b",
+          "text": "V",
+          "meaning": "V",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_01f0bf81fadd4b839ac51d3f3b22c7c4",
+          "text": "W",
+          "meaning": "W",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_60d3cfd7ca9d4e77acf176da0ef72eb6",
+          "text": "X",
+          "meaning": "X",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_29a9655ccc3045e9b27a7514242cd0d0",
+          "text": "Y",
+          "meaning": "Y",
+          "samples": 0,
+          "invalid": 0
+        },
+        {
+          "id": "custom_99bd49179e244b13879d96b8e1f04797",
+          "text": "Z",
+          "meaning": "Z",
+          "samples": 0,
+          "invalid": 0
+        }
+      ],
+      "legacy_samples": 0,
+      "duplicates": 0,
+      "low_quality": 0
+    }
+  ],
+  "models": [
+    {
+      "language": "lsm",
+      "version": "473cc21de1524681b56143956b038f28",
+      "active": false,
+      "preprocessing": null,
+      "labels": [
+        "A",
+        "B"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_071781edd7cc44b9819463e9af946f3d",
+            "b": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "a_text": "A",
+            "b_text": "B",
+            "a_to_b": 2,
+            "b_to_a": 0,
+            "a_rate": 1.0,
+            "b_rate": 0.0,
+            "errors": 2
+          }
+        ],
+        "groups": [
+          [
+            "custom_071781edd7cc44b9819463e9af946f3d",
+            "custom_ad6591580eb14cd5b35f9cd533efc97a"
+          ]
+        ]
+      },
+      "test_accuracy": 0.5,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "0e0bef8a499a4ee59c572b29a3ee1e5c",
+      "active": true,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F",
+        "G"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "870268ca9924480399c451c394d1ba34",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "4b521c2413fc45eda92896cca5b8387c",
+      "active": false,
+      "preprocessing": "stable-finger-geometry-v4",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_193b1d3cc07f4430b4850a0a83cbcba0",
+            "b": "custom_1dd9530e21df4a24a7162cca61cb65a3",
+            "a_text": "G",
+            "b_text": "H",
+            "a_to_b": 0,
+            "b_to_a": 21,
+            "a_rate": 0.0,
+            "b_rate": 0.525,
+            "errors": 21
+          },
+          {
+            "a": "custom_071781edd7cc44b9819463e9af946f3d",
+            "b": "custom_1dd9530e21df4a24a7162cca61cb65a3",
+            "a_text": "A",
+            "b_text": "H",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.1,
+            "b_rate": 0.0,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_071781edd7cc44b9819463e9af946f3d",
+            "custom_1dd9530e21df4a24a7162cca61cb65a3",
+            "custom_193b1d3cc07f4430b4850a0a83cbcba0"
+          ]
+        ]
+      },
+      "test_accuracy": 0.7441860465116279,
+      "provenance": {
+        "legacy_samples": 372,
+        "group_count": 383,
+        "note": "Los históricos sin participante/sesión no permiten comprobar independencia entre personas."
+      },
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "59b55e6e06134c5c8643261c194d84c7",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "6f91a4f122644d4bb6a3144893b573f3",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F",
+        "G"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "01dd215f4594410887dddd3143789642",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "b": "custom_2cc984dba89e4b7c976061426a68b5aa",
+            "a_text": "E",
+            "b_text": "F",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.125,
+            "b_rate": 0.0,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "custom_2cc984dba89e4b7c976061426a68b5aa"
+          ]
+        ]
+      },
+      "test_accuracy": 0.9722222222222222,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "e3c01b87c71f4d1385cde79f355b77d3",
+      "active": false,
+      "preprocessing": "stable-body-hand-v3",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_8812c954569447e784a7dd7b644d0d23",
+            "b": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "a_text": "D",
+            "b_text": "E",
+            "a_to_b": 18,
+            "b_to_a": 0,
+            "a_rate": 0.6,
+            "b_rate": 0.0,
+            "errors": 18
+          },
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_8812c954569447e784a7dd7b644d0d23",
+            "a_text": "B",
+            "b_text": "D",
+            "a_to_b": 0,
+            "b_to_a": 10,
+            "a_rate": 0.0,
+            "b_rate": 0.3333333333333333,
+            "errors": 10
+          },
+          {
+            "a": "custom_071781edd7cc44b9819463e9af946f3d",
+            "b": "custom_2cc984dba89e4b7c976061426a68b5aa",
+            "a_text": "A",
+            "b_text": "F",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.041666666666666664,
+            "b_rate": 0.0,
+            "errors": 1
+          },
+          {
+            "a": "custom_a11b0e3c636d4c37b26960943807a593",
+            "b": "custom_8812c954569447e784a7dd7b644d0d23",
+            "a_text": "C",
+            "b_text": "D",
+            "a_to_b": 0,
+            "b_to_a": 1,
+            "a_rate": 0.0,
+            "b_rate": 0.03333333333333333,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "custom_8812c954569447e784a7dd7b644d0d23",
+            "custom_9dfe35b118c2413fb9d50e5db680afe5"
+          ]
+        ]
+      },
+      "test_accuracy": 0.7142857142857143,
+      "provenance": {
+        "legacy_samples": 372,
+        "group_count": 383,
+        "note": "Los históricos sin participante/sesión no permiten comprobar independencia entre personas."
+      },
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "636ffcdba3fb4e45b815321de963f05b",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_a11b0e3c636d4c37b26960943807a593",
+            "a_text": "B",
+            "b_text": "C",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.16666666666666666,
+            "b_rate": 0.0,
+            "errors": 1
+          },
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "a_text": "B",
+            "b_text": "E",
+            "a_to_b": 0,
+            "b_to_a": 1,
+            "a_rate": 0.0,
+            "b_rate": 0.125,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "custom_a11b0e3c636d4c37b26960943807a593"
+          ]
+        ]
+      },
+      "test_accuracy": 0.9285714285714286,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "e6f0e38cb8e44fd8a01d2b3a1bfd90d6",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F",
+        "G"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_a11b0e3c636d4c37b26960943807a593",
+            "a_text": "B",
+            "b_text": "C",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.16666666666666666,
+            "b_rate": 0.0,
+            "errors": 1
+          },
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "a_text": "B",
+            "b_text": "E",
+            "a_to_b": 0,
+            "b_to_a": 1,
+            "a_rate": 0.0,
+            "b_rate": 0.125,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "custom_a11b0e3c636d4c37b26960943807a593"
+          ]
+        ]
+      },
+      "test_accuracy": 0.9545454545454546,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "4db397ee8e8c42649fe67a12ff5c0d70",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_a11b0e3c636d4c37b26960943807a593",
+            "a_text": "B",
+            "b_text": "C",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.16666666666666666,
+            "b_rate": 0.0,
+            "errors": 1
+          },
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "a_text": "B",
+            "b_text": "E",
+            "a_to_b": 0,
+            "b_to_a": 1,
+            "a_rate": 0.0,
+            "b_rate": 0.125,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "custom_a11b0e3c636d4c37b26960943807a593"
+          ]
+        ]
+      },
+      "test_accuracy": 0.9285714285714286,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "d75ccf444ae94ef0b495431fada45cf6",
+      "active": false,
+      "preprocessing": "stable-finger-geometry-v4",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_193b1d3cc07f4430b4850a0a83cbcba0",
+            "b": "custom_1dd9530e21df4a24a7162cca61cb65a3",
+            "a_text": "G",
+            "b_text": "H",
+            "a_to_b": 0,
+            "b_to_a": 29,
+            "a_rate": 0.0,
+            "b_rate": 0.7435897435897436,
+            "errors": 29
+          }
+        ],
+        "groups": [
+          [
+            "custom_193b1d3cc07f4430b4850a0a83cbcba0",
+            "custom_1dd9530e21df4a24a7162cca61cb65a3"
+          ]
+        ]
+      },
+      "test_accuracy": 0.6627906976744186,
+      "provenance": {
+        "legacy_samples": 372,
+        "group_count": 379,
+        "note": "Los históricos sin participante/sesión no permiten comprobar independencia entre personas."
+      },
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "cac26b665c194a0c8acd5bb825edaee8",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B",
+        "C",
+        "E",
+        "F",
+        "G"
+      ],
+      "confusions": {
+        "pairs": [
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_a11b0e3c636d4c37b26960943807a593",
+            "a_text": "B",
+            "b_text": "C",
+            "a_to_b": 1,
+            "b_to_a": 0,
+            "a_rate": 0.16666666666666666,
+            "b_rate": 0.0,
+            "errors": 1
+          },
+          {
+            "a": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "b": "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "a_text": "B",
+            "b_text": "E",
+            "a_to_b": 0,
+            "b_to_a": 1,
+            "a_rate": 0.0,
+            "b_rate": 0.125,
+            "errors": 1
+          }
+        ],
+        "groups": [
+          [
+            "custom_ad6591580eb14cd5b35f9cd533efc97a",
+            "custom_9dfe35b118c2413fb9d50e5db680afe5",
+            "custom_a11b0e3c636d4c37b26960943807a593"
+          ]
+        ]
+      },
+      "test_accuracy": 0.9545454545454546,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "4e12539c93c54a318aa9f9b58c887b30",
+      "active": false,
+      "preprocessing": "body-hand-relative-v2",
+      "labels": [
+        "A",
+        "B"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    },
+    {
+      "language": "lsm",
+      "version": "b6405f0a78fa41548912b8976ba01626",
+      "active": false,
+      "preprocessing": "body-relative-v1",
+      "labels": [
+        "A",
+        "B"
+      ],
+      "confusions": {
+        "pairs": [],
+        "groups": []
+      },
+      "test_accuracy": 1.0,
+      "provenance": null,
+      "note": "Las pruebas históricas de distintos modelos no son directamente comparables."
+    }
+  ]
+}

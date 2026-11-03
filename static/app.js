@@ -1,17 +1,39 @@
 'use strict';
-const $ = id => document.getElementById(id);
-let state, language = 'lsm', mode = 'test', session = null, stream = null;
-let generation = 0, timer = null, countdown = false, recording = false, frameReady = false;
-let history = [], lastSpoken = null, checks = 0, correct = 0, lastJobState = '';
+const $ = (id) => document.getElementById(id);
+let state,
+  language = ['lsm', 'dgs', 'asl', 'jsl', 'csl', 'lsf', 'libras'].includes(
+    localStorage.getItem('sena-profile'),
+  )
+    ? localStorage.getItem('sena-profile')
+    : 'lsm',
+  mode = 'test',
+  session = null,
+  stream = null;
+let generation = 0,
+  timer = null,
+  countdown = false,
+  recording = false,
+  frameReady = false;
+let history = [],
+  lastSpoken = null,
+  checks = 0,
+  correct = 0,
+  lastJobState = '';
 let stateRequest = null;
-let selectedDraft = null, displayedDraft = null, savingDraft = false;
-let selectedLetter = null, addingAlphabet = false;
+let selectedDraft = null,
+  displayedDraft = null,
+  savingDraft = false;
+let selectedLetter = null,
+  addingAlphabet = false;
 const batch = new ContinuousCapture();
-const rigOverlay = new RigOverlay($('rig-overlay'));
+
 let batchPause = 3;
-let cameraStarting = false, cameraListing = false;
-let deletingRecordings = false, adminLanguage = null, displayedModelKey = null;
-const profile = () => state?.profiles.find(p => p.id === language);
+let cameraStarting = false,
+  cameraListing = false;
+let deletingRecordings = false,
+  adminLanguage = null,
+  displayedModelKey = null;
+const profile = () => state?.profiles.find((p) => p.id === language);
 
 function notice(message, error = false) {
   $('notice').textContent = message;
@@ -19,100 +41,202 @@ function notice(message, error = false) {
   $('notice').hidden = !message;
 }
 async function api(path, body) {
-  const options = body === undefined ? {} : {method: 'POST', headers: {'Content-Type':'application/json', 'X-LSM-Token':state?.token || ''}, body:JSON.stringify(body)};
+  const options =
+    body === undefined
+      ? {}
+      : {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-LSM-Token': state?.token || '' },
+          body: JSON.stringify(body),
+        };
   const response = await fetch(path, options);
   const data = await response.json();
   if (!response.ok) {
+    if (response.status === 401 && typeof lockAccount === 'function') lockAccount();
     if (response.status === 404 && path.startsWith('/api/admin/')) {
-      throw new Error('El servidor activo es una versión anterior sin administración. Detén web_app.py con Ctrl+C, vuelve a ejecutarlo y recarga la página.');
+      throw new Error(
+        'El servidor activo es una versión anterior sin administración. Detén web_app.py con Ctrl+C, vuelve a ejecutarlo y recarga la página.',
+      );
     }
     throw new Error(data.error || 'No se pudo completar la solicitud.');
   }
   return data;
 }
 function makeOption(value, text) {
-  const element = document.createElement('option'); element.value = value; element.textContent = text; return element;
+  const element = document.createElement('option');
+  element.value = value;
+  element.textContent = text;
+  return element;
 }
 function render() {
   const p = profile();
   if (!p) return;
   const modelKey = `${language}:${p.model?.created_at || 'disabled'}`;
-  if (displayedModelKey !== modelKey) { displayedModelKey = modelKey; clearHistory(); }
+  if (displayedModelKey !== modelKey) {
+    displayedModelKey = modelKey;
+    clearHistory();
+  }
   $('languages').replaceChildren();
   for (const item of state.profiles) {
     const button = document.createElement('button');
-    button.type = 'button'; button.className = 'language-button'; button.setAttribute('aria-current', String(item.id === language));
-    const code = document.createElement('span'); code.className = 'lang-code'; code.textContent = item.code;
-    const copy = document.createElement('span'); copy.className = 'lang-copy'; copy.textContent = item.written;
-    const region = document.createElement('small'); region.textContent = item.region; copy.append(region);
-    const dot = document.createElement('span'); dot.className = 'ready-dot' + (item.model ? ' ready' : ''); dot.title = item.model ? 'Modelo entrenado' : 'Sin modelo';
-    button.append(code, copy, dot); button.addEventListener('click', () => selectLanguage(item.id)); $('languages').append(button);
+    button.type = 'button';
+    button.className = 'language-button';
+    button.setAttribute('aria-current', String(item.id === language));
+    const code = document.createElement('span');
+    code.className = 'lang-code';
+    code.textContent = item.code;
+    const copy = document.createElement('span');
+    copy.className = 'lang-copy';
+    copy.textContent = item.written;
+    const region = document.createElement('small');
+    region.textContent = item.region;
+    copy.append(region);
+    const dot = document.createElement('span');
+    dot.className = 'ready-dot' + (item.model ? ' ready' : '');
+    dot.title = item.model ? 'Modelo entrenado' : 'Sin modelo';
+    button.append(code, copy, dot);
+    button.addEventListener('click', () => selectLanguage(item.id));
+    $('languages').append(button);
   }
   $('breadcrumb').textContent = p.code;
   $('language-name').textContent = p.name;
   $('language-detail').textContent = `${p.region} · Texto de salida en ${p.written.toLowerCase()}`;
   $('output-language').textContent = p.written.toUpperCase();
-  $('model-badge').textContent = p.model ? 'Modelo entrenado' : (p.model_error ? 'Modelo no disponible' : 'Necesita entrenamiento');
+  $('model-badge').textContent = p.model
+    ? 'Modelo entrenado'
+    : p.model_error
+      ? 'Modelo no disponible'
+      : 'Necesita entrenamiento';
   $('model-badge').className = 'badge' + (p.model ? ' ready' : '');
   $('legacy-note').hidden = !state.legacy_model;
   const drafts = p.drafts || [];
-  if (!drafts.some(d => d.id === selectedDraft)) selectedDraft = drafts[0]?.id || null;
+  if (!drafts.some((d) => d.id === selectedDraft)) selectedDraft = drafts[0]?.id || null;
   const draftKey = `${language}:${selectedDraft || ''}`;
-  if (draftKey !== displayedDraft) { $('sign-name').value = selectedLetter || ''; displayedDraft = draftKey; }
+  if (draftKey !== displayedDraft) {
+    $('sign-name').value = selectedLetter || '';
+    displayedDraft = draftKey;
+  }
   $('name-capture').hidden = !selectedDraft;
-  $('draft-language').textContent = `Esta grabación pertenece a ${p.code} · ${p.name}. Se conservará pendiente hasta que la guardes o descartes.`;
-  $('draft-picker').replaceChildren(...drafts.map(d => makeOption(d.id, new Date(d.created_at * 1000).toLocaleString())));
+  $('draft-language').textContent =
+    `Esta grabación pertenece a ${p.code} · ${p.name}. Se conservará pendiente hasta que la guardes o descartes.`;
+  $('draft-picker').replaceChildren(
+    ...drafts.map((d) => makeOption(d.id, new Date(d.created_at * 1000).toLocaleString())),
+  );
   if (selectedDraft) $('draft-picker').value = selectedDraft;
   $('draft-picker').hidden = drafts.length < 2;
   $('draft-picker-label').hidden = drafts.length < 2;
-  $('sign-suggestions').replaceChildren(...p.labels.map(item => makeOption(item.text, item.text)));
+  $('sign-suggestions').replaceChildren(
+    ...p.labels.map((item) => makeOption(item.text, item.text)),
+  );
   const expected = $('expected-label').value;
-  $('expected-label').replaceChildren(makeOption('', 'Práctica libre'), ...(p.model?.labels || []).map(item => makeOption(item.id, item.text)));
-  if (p.model?.labels.some(x => x.id === expected)) $('expected-label').value = expected;
+  $('expected-label').replaceChildren(
+    makeOption('', 'Sin seña esperada'),
+    ...(p.model?.labels || []).map((item) => makeOption(item.id, item.text)),
+  );
+  if (p.model?.labels.some((x) => x.id === expected)) $('expected-label').value = expected;
   $('sample-list').replaceChildren();
   for (const item of p.labels) {
-    const row = document.createElement('div'); row.className = 'sample-row' + (item.samples >= state.minimum_samples ? ' enough' : '');
-    const label = document.createElement('span'); label.textContent = item.text;
-    const count = document.createElement('strong'); count.textContent = `${item.samples} / ${state.minimum_samples} mín. · recomendado 30–${state.recommended_samples}`;
-    if (item.samples > 0 && !p.model?.labels.some(x => x.id === item.id)) {
-      const status = document.createElement('small'); status.className = 'pending-label'; status.textContent = 'Por entrenar'; label.append(status);
+    const row = document.createElement('div');
+    row.className = 'sample-row' + (item.samples >= state.minimum_samples ? ' enough' : '');
+    const label = document.createElement('span');
+    label.textContent = item.text;
+    const count = document.createElement('strong');
+    count.textContent = `${item.samples} / ${state.minimum_samples} mín. · recomendado 30–${state.recommended_samples}`;
+    if (item.samples > 0 && !p.model?.labels.some((x) => x.id === item.id)) {
+      const status = document.createElement('small');
+      status.className = 'pending-label';
+      status.textContent = 'Por entrenar';
+      label.append(status);
     }
     row.append(label, count);
-    if (item.invalid) { const invalid = document.createElement('small'); invalid.textContent = ` ${item.invalid} inválidos`; row.append(invalid); }
+    if (item.invalid) {
+      const invalid = document.createElement('small');
+      invalid.textContent = ` ${item.invalid} inválidos`;
+      row.append(invalid);
+    }
     $('sample-list').append(row);
   }
-  const populated = p.labels.filter(x => x.samples > 0);
-  const eligible = populated.length >= 2 && populated.every(x => x.samples >= state.minimum_samples);
+  const populated = selectedTrainingClasses(p);
+  const eligible =
+    populated.length >= 2 && populated.every((x) => x.samples >= state.minimum_samples);
   const busy = state.job?.state === 'running';
   renderAdmin();
-  $('train-model').disabled = !eligible || busy || recording || countdown || batch.active || !!selectedDraft || savingDraft;
-  $('train-reason').textContent = selectedDraft ? 'Pon nombre y guarda tu grabación pendiente antes de entrenar.' : busy ? 'Hay un entrenamiento en curso. Puedes seguir viendo su avance.' : eligible ? `Se entrenarán ${populated.length} señas de ${p.code}. Recomendamos entre 30 y ${state.recommended_samples} ejemplos variados por palabra o letra. Las tandas pueden ser de 5 tomas; el entrenamiento requiere 30 por palabra o letra.` : `Completa al menos ${state.minimum_samples} ejemplos de cada seña que empezaste y reúne 2 señas diferentes. Recomendado: 30–${state.recommended_samples} por palabra o letra.`;
+  $('train-model').disabled =
+    !eligible || busy || recording || countdown || batch.active || !!selectedDraft || savingDraft;
+  $('train-reason').textContent = selectedDraft
+    ? 'Pon nombre y guarda tu grabación pendiente antes de entrenar.'
+    : busy
+      ? 'Hay un entrenamiento en curso. Puedes seguir viendo su avance.'
+      : eligible
+        ? `Se entrenarán ${populated.length} señas de ${p.code}. Recomendamos entre 30 y ${state.recommended_samples} ejemplos variados por palabra o letra. Las tandas pueden ser de 5 tomas; el entrenamiento requiere 30 por palabra o letra.`
+        : `Completa al menos ${state.minimum_samples} ejemplos de cada seña que empezaste y reúne 2 señas diferentes. Recomendado: 30–${state.recommended_samples} por palabra o letra.`;
   $('start-camera').disabled = busy || cameraStarting;
-  $('toggle-rig').disabled = !stream || cameraStarting;
+
   $('camera-device').disabled = busy || cameraStarting || savingDraft;
   $('refresh-cameras').disabled = cameraListing || cameraStarting;
-  $('record').disabled = !stream || !frameReady || countdown || recording || batch.active || busy || !!selectedDraft || savingDraft;
+  $('record').disabled =
+    !stream ||
+    !frameReady ||
+    countdown ||
+    recording ||
+    batch.active ||
+    busy ||
+    !!selectedDraft ||
+    savingDraft;
   $('save-capture').disabled = savingDraft || busy || batch.active;
   $('discard-capture').disabled = savingDraft || batch.active;
   $('sign-name').disabled = savingDraft || busy || batch.active;
   $('draft-picker').disabled = batch.active;
-  $('start-batch').disabled = !stream || !frameReady || countdown || recording || batch.active || savingDraft || busy;
+  $('start-batch').disabled =
+    !stream || !frameReady || countdown || recording || batch.active || savingDraft || busy;
   $('stop-batch').disabled = !batch.active;
   $('batch-limit').disabled = batch.active;
   $('batch-pause').disabled = batch.active;
-  $('batch-status').textContent = batch.active ? `Tanda en curso: ${batch.count} / ${batch.limit} tomas completas. Ponles nombre al terminar o pulsa “Detener tanda”.` : batch.count ? `Tanda detenida: ${batch.count} tomas completas conservadas. Nombra y guarda cada una usando “Grabaciones pendientes”.` : 'Activa la cámara para iniciar. No necesitas pulsar “Grabar una seña” entre tomas.';
+  renderBatchCounter();
+  $('batch-status').textContent = batch.active
+    ? 'Repite la seña después de cada cuenta atrás.'
+    : batch.count
+      ? 'Ponles nombre en Grabaciones pendientes.'
+      : 'Elige cuántas tomas quieres y empieza la tanda.';
   $('expected-label').disabled = !p.model;
   if (!stream && !history.length) resetResult();
-  const summary = $('model-summary'); summary.replaceChildren();
+  $('recognition-vocabulary').textContent = p.model
+    ? `Este modelo aprendió: ${p.model.labels.map(label => label.text).join(', ')}. Otras señas pueden confundirse; primero debes entrenarlas.`
+    : 'Este perfil todavía no tiene señas aprendidas.';
+  const summary = $('model-summary');
+  summary.replaceChildren();
   if (p.model) {
-    const strong = document.createElement('strong'); strong.textContent = `${p.code}: ${p.model.labels.length} señas entrenadas. `;
-    summary.append(strong, `Aciertos en prueba reservada: ${(100 * p.model.test_accuracy).toFixed(1)}% (${p.model.split.test} ejemplos). ${p.model.evaluation_note}`);
+    const strong = document.createElement('strong');
+    strong.textContent = `${p.code}: ${p.model.labels.length} señas entrenadas. `;
+    const learned = new Set(p.model.labels.map(label => label.id));
+    const untrained = p.labels.filter(label => label.samples > 0 && !learned.has(label.id));
+    if (untrained.length) {
+      const warning = document.createElement('p');
+      warning.className = 'model-warning';
+      warning.textContent = `Aún no aprendió: ${untrained.map(label => label.text).join(', ')}. Inclúyelas en un nuevo entrenamiento antes de probarlas.`;
+      summary.append(warning);
+    }
+    summary.append(
+      strong,
+      `Aciertos en prueba reservada: ${(100 * p.model.test_accuracy).toFixed(1)}% (${p.model.split.test} ejemplos). ${p.model.evaluation_note}`,
+    );
   } else {
-    summary.textContent = p.model_error || `Este perfil está preparado para aprender. Todavía no tiene un modelo de ${p.code}; activar la cámara no generará detecciones inventadas.`;
+    summary.textContent =
+      p.model_error ||
+      `Este perfil está preparado para aprender. Todavía no tiene un modelo de ${p.code}; activar la cámara no generará detecciones inventadas.`;
   }
   $('model-metrics').replaceChildren();
+  if (p.model?.validation_by_class) {
+    for (const item of p.model.validation_by_class) {
+      const row = document.createElement('p');
+      row.textContent = `${item.text} · Validación: recuperación ${(100 * item.recall).toFixed(0)}%, cobertura ${(100 * item.coverage).toFixed(0)}%, precisión confirmada ${item.precision == null ? 'sin confirmaciones' : (100 * item.precision).toFixed(0) + '%'}.`;
+      $('model-metrics').append(row);
+    }
+  }
   if (p.model?.report) {
-    const title = document.createElement('h3'); title.textContent = 'Resultados por seña en la prueba reservada'; $('model-metrics').append(title);
+    const title = document.createElement('h3');
+    title.textContent = 'Resultados por seña en la prueba reservada';
+    $('model-metrics').append(title);
     for (const label of p.model.labels) {
       const metric = p.model.report[label.id] || p.model.report[label.text];
       if (!metric) continue;
@@ -133,50 +257,69 @@ function render() {
       $('model-metrics').append(row);
     }
     if (!p.model.preprocessing) {
-      const row = document.createElement('p'); row.textContent = 'Modelo anterior: reúne al menos 30 ejemplos por palabra o letra (recomendado: 30–60) y reentrena para aplicar la normalización y el entrenamiento mejorado.'; $('model-metrics').append(row);
+      const row = document.createElement('p');
+      row.textContent =
+        'Modelo anterior: reúne al menos 30 ejemplos por palabra o letra (recomendado: 30–60) y reentrena para aplicar la normalización y el entrenamiento mejorado.';
+      $('model-metrics').append(row);
     }
   }
   renderAlphabet();
   renderJob();
+  if (typeof renderStudio === 'function') renderStudio();
+  if (typeof renderTeam === 'function') renderTeam();
 }
 function renderAlphabet() {
-  const p = profile(), alphabet = p.alphabet;
+  const p = profile(),
+    alphabet = p.alphabet;
   if (!alphabet) return;
   $('alphabet-title').textContent = `${alphabet.title} · ${p.code}`;
   $('alphabet-note').textContent = alphabet.note;
   $('alphabet-count').textContent = `${alphabet.symbols.length} entradas básicas`;
-  const registered = alphabet.symbols.filter(x => x.label_id).length;
-  const trained = alphabet.symbols.filter(x => x.trained).length;
-  $('alphabet-progress').textContent = `${registered} / ${alphabet.symbols.length} añadidas al vocabulario · ${trained} incluidas en el modelo. Pulsa una letra para grabar sus ejemplos.`;
+  const registered = alphabet.symbols.filter((x) => x.label_id).length;
+  const trained = alphabet.symbols.filter((x) => x.trained).length;
+  $('alphabet-progress').textContent =
+    `${registered} / ${alphabet.symbols.length} añadidas al vocabulario · ${trained} incluidas en el modelo. Pulsa una letra para grabar sus ejemplos.`;
   const busy = addingAlphabet || batch.active || state.job?.state === 'running';
   $('add-alphabet').disabled = busy || registered === alphabet.symbols.length;
-  $('add-alphabet').textContent = registered === alphabet.symbols.length ? 'Abecedario añadido' : 'Añadir todo el abecedario';
+  $('add-alphabet').textContent =
+    registered === alphabet.symbols.length ? 'Abecedario añadido' : 'Añadir todo el abecedario';
   $('add-all-alphabets').disabled = busy;
-  $('add-alphabet-extras').disabled = busy || alphabet.extras.every(x => x.label_id);
+  $('add-alphabet-extras').disabled = busy || alphabet.extras.every((x) => x.label_id);
   $('alphabet-extras').hidden = !alphabet.extras.length;
   const buildGrid = (id, entries) => {
     $(id).replaceChildren();
     for (const entry of entries) {
-      const button = document.createElement('button'); button.type = 'button';
+      const button = document.createElement('button');
+      button.type = 'button';
       button.className = 'letter-tile' + (entry.trained ? ' trained' : '');
       button.setAttribute('aria-pressed', String(selectedLetter === entry.symbol));
-      button.setAttribute('aria-label', `${entry.symbol}: ${entry.samples} ejemplos${entry.trained ? ', incluida en el modelo' : ''}`);
+      button.setAttribute(
+        'aria-label',
+        `${entry.symbol}: ${entry.samples} ejemplos${entry.trained ? ', incluida en el modelo' : ''}`,
+      );
       button.disabled = recording || countdown || savingDraft || batch.active;
-      const symbol = document.createElement('span'); symbol.textContent = entry.symbol;
-      const count = document.createElement('small'); count.textContent = `${entry.samples} / ${state.minimum_samples}`;
+      const symbol = document.createElement('span');
+      symbol.textContent = entry.symbol;
+      const count = document.createElement('small');
+      count.textContent = `${entry.samples} / ${state.minimum_samples}`;
       button.append(symbol, count);
       button.addEventListener('click', () => {
         selectedLetter = entry.symbol;
         if (selectedDraft) $('sign-name').value = entry.symbol;
         renderAlphabet();
-        if (selectedDraft) { $('name-capture').scrollIntoView({behavior:'smooth',block:'center'}); $('sign-name').focus({preventScroll:true}); }
-        else $('camera-workspace').scrollIntoView({behavior:'smooth',block:'start'});
+        if (selectedDraft) {
+          $('name-capture').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          $('sign-name').focus({ preventScroll: true });
+        } else $('camera-workspace').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       $(id).append(button);
     }
   };
-  buildGrid('alphabet-grid', alphabet.symbols); buildGrid('alphabet-extra-grid', alphabet.extras);
-  $('alphabet-selection').textContent = selectedLetter ? `Letra seleccionada: ${selectedLetter} · ${p.code}. Al terminar la captura, confirma ese nombre y guarda el ejemplo.` : 'Selecciona una letra para preparar su nombre al terminar la grabación.';
+  buildGrid('alphabet-grid', alphabet.symbols);
+  buildGrid('alphabet-extra-grid', alphabet.extras);
+  $('alphabet-selection').textContent = selectedLetter
+    ? `Letra seleccionada: ${selectedLetter} · ${p.code}. Al terminar la captura, confirma ese nombre y guarda el ejemplo.`
+    : 'Selecciona una letra para preparar su nombre al terminar la grabación.';
   $('clear-alphabet-selection').hidden = !selectedLetter;
   $('alphabet-source').hidden = !alphabet.source;
   if (alphabet.source) $('alphabet-source').href = alphabet.source;
@@ -184,68 +327,125 @@ function renderAlphabet() {
 async function addAlphabet(scope, extras = false) {
   if (addingAlphabet) return;
   const chosenLanguage = language;
-  addingAlphabet = true; renderAlphabet();
+  addingAlphabet = true;
+  renderAlphabet();
   try {
-    const result = await api('/api/alphabet', {language:chosenLanguage, scope, extras});
+    const result = await api('/api/alphabet', { language: chosenLanguage, scope, extras });
     await refresh();
-    const added = result.results ? result.results.reduce((total, item) => total + item.added, 0) : result.added;
-    notice(`${added} letras o caracteres añadidos${scope === 'all' ? ' a los vocabularios de las siete lenguas' : ' al vocabulario seleccionado'}. Ahora puedes grabar ejemplos y entrenarlos.`);
-  } catch (error) { notice(error.message, true); }
-  finally { addingAlphabet = false; renderAlphabet(); }
+    const added = result.results
+      ? result.results.reduce((total, item) => total + item.added, 0)
+      : result.added;
+    notice(
+      `${added} letras o caracteres añadidos${scope === 'all' ? ' a los vocabularios de las siete lenguas' : ' al vocabulario seleccionado'}. Ahora puedes grabar ejemplos y entrenarlos.`,
+    );
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    addingAlphabet = false;
+    renderAlphabet();
+  }
 }
 
 function renderJob() {
-  const job = state.job; $('job-panel').hidden = !job;
+  const job = state.job;
+  $('job-panel').hidden = !job;
   if (!job) return;
-  const code = state.profiles.find(p => p.id === job.language)?.code || '';
-  $('job-title').textContent = job.state === 'completed' ? (job.activated === false ? `${code} · Se conservó el modelo anterior` : `${code} · Modelo listo para probar`) : job.state === 'failed' ? `${code} · El entrenamiento no se completó` : `${code} · Época ${job.epoch || 0} de ${job.epochs || '…'}`;
-  $('job-description').textContent = job.message || '';
-  $('job-progress').max = job.epochs || 40; $('job-progress').value = job.state === 'completed' ? (job.epochs || 40) : (job.epoch || 0);
-  $('job-metrics').textContent = job.result ? `Prueba reservada: ${(100 * job.result.test_accuracy).toFixed(1)}% de aciertos` : job.metrics ? `Validación: ${(100 * (job.metrics.val_accuracy || 0)).toFixed(1)}% · Pérdida: ${(job.metrics.val_loss || 0).toFixed(3)}` : 'Preparando el modelo…';
+  const code = state.profiles.find((p) => p.id === job.language)?.code || '';
+  $('job-title').textContent =
+    job.state === 'completed'
+      ? job.activated === false
+        ? `${code} · Versión guardada sin activar`
+        : `${code} · Modelo listo para probar`
+      : job.state === 'failed'
+        ? `${code} · El entrenamiento no se completó`
+        : `${code} · Época ${job.epoch || 0} de ${job.epochs || '…'}`;
+  const weak = (job.result?.validation_by_class || []).filter(item =>
+    item.recall < .6 || item.accepted < 2 || (item.precision || 0) < .9 || item.coverage < .25);
+  $('job-description').textContent = (job.message || '') +
+    (weak.length ? ` Necesitan revisión: ${weak.map(item => item.text).join(', ')}.` : '');
+  $('job-progress').max = job.epochs || 40;
+  $('job-progress').value = job.state === 'completed' ? job.epochs || 40 : job.epoch || 0;
+  $('job-metrics').textContent = job.result
+    ? `Prueba reservada: ${(100 * job.result.test_accuracy).toFixed(1)}% de aciertos`
+    : job.metrics
+      ? `Validación: ${(100 * (job.metrics.val_accuracy || 0)).toFixed(1)}% · F1: ${job.metrics.val_macro_f1 == null ? '—' : (100 * job.metrics.val_macro_f1).toFixed(1) + '%'} · Peor letra: ${job.metrics.val_min_recall == null ? '—' : (100 * job.metrics.val_min_recall).toFixed(1) + '%'} · Pérdida: ${(job.metrics.val_loss || 0).toFixed(3)}`
+      : 'Preparando el modelo…';
   const fingerprint = `${job.id}:${job.state}`;
-  if (fingerprint !== lastJobState && job.state === 'completed') notice(job.activated === false ? job.message : 'Entrenamiento terminado. Abre “Probar modelo” y activa la cámara para comprobarlo.');
-  if (fingerprint !== lastJobState && job.state === 'failed') notice(job.message, true);
+  if (lastJobState && fingerprint !== lastJobState && job.state === 'completed')
+    notice(
+      job.activated === false
+        ? job.message
+        : 'Entrenamiento terminado. Abre “Reconocimiento” y activa la cámara para comprobarlo.',
+    );
+  if (lastJobState && fingerprint !== lastJobState && job.state === 'failed')
+    notice(job.message, true);
   lastJobState = fingerprint;
 }
 async function refresh() {
   if (stateRequest) return stateRequest;
-  stateRequest = api('/api/state').then(data => { const changed = JSON.stringify(data) !== JSON.stringify(state); state = data; if (changed) render(); }).finally(() => { stateRequest = null; });
+  const accountIdentity = typeof accountState !== 'undefined' ? accountState?.user?.id : null;
+  stateRequest = api('/api/state')
+    .then((data) => {
+      if (typeof accountState !== 'undefined' && accountIdentity !== accountState?.user?.id) return;
+      const changed = JSON.stringify(data) !== JSON.stringify(state);
+      state = data;
+      if (changed) render();
+    })
+    .finally(() => {
+      stateRequest = null;
+    });
   return stateRequest;
 }
 async function selectLanguage(id) {
   if (id === language) return;
-  await stopCamera(); language = id; selectedLetter = null; batch.count = 0; clearHistory(); notice(''); render();
+  await stopCamera();
+  language = id;
+  localStorage.setItem('sena-profile', id);
+  selectedLetter = null;
+  batch.count = 0;
+  clearHistory();
+  notice('');
+  render();
+  if (typeof loadVersions === 'function' && currentView === 'training') await loadVersions();
 }
 async function selectMode(next) {
-  if (next === mode) return;
-  await stopCamera(); mode = next;
-  for (const button of document.querySelectorAll('[data-mode]')) button.setAttribute('aria-selected', String(button.dataset.mode === mode));
-  $('alphabet-panel').hidden = mode !== 'train';
-  $('camera-workspace').hidden = mode === 'guide'; $('guide').hidden = mode !== 'guide';
-  $('capture-controls').hidden = mode !== 'train'; $('training-results').hidden = mode !== 'train';
-  $('test-controls').hidden = mode !== 'test'; $('test-results').hidden = mode !== 'test';
-  notice(''); render();
+  return navigateStudio(
+    next === 'train' ? 'dataset' : next === 'guide' ? 'settings' : 'recognition',
+  );
 }
 function resetResult() {
-  $('result-word').textContent = profile()?.model ? 'Listo para practicar.' : 'Todo empieza con un gesto.';
-  $('result-description').textContent = profile()?.model ? 'Activa la cámara y realiza una de las señas entrenadas.' : 'Primero necesitas un modelo entrenado para esta lengua.';
-  $('confidence').textContent = '—'; $('confidence-progress').value = 0; $('stability').textContent = 'Esperando una secuencia';
+  $('result-word').textContent = profile()?.model ? 'Esperando una seña.' : 'Sin modelo activo.';
+  $('result-description').textContent = profile()?.model
+    ? 'Activa la cámara y realiza una de las señas entrenadas.'
+    : 'Primero necesitas un modelo entrenado para esta lengua.';
+  $('confidence').textContent = '—';
+  $('confidence-progress').value = 0;
+  $('stability').textContent = 'Esperando una secuencia';
 }
 function renderAdmin() {
   const p = profile();
   const previous = adminLanguage === language ? $('admin-label').value : '';
   if (adminLanguage !== language) {
-    $('admin-password').value = ''; $('admin-confirm').checked = false; $('admin-message').textContent = '';
+    $('admin-password').value = '';
+    $('admin-confirm').checked = false;
+    $('admin-message').textContent = '';
   }
   adminLanguage = language;
-  const available = p.labels.filter(item => item.samples + item.invalid > 0);
-  $('admin-label').replaceChildren(makeOption('', 'Selecciona una palabra o letra'),
-    ...available.map(item => makeOption(item.id, `${item.text} · ${item.samples + item.invalid} grabaciones`)));
-  if (available.some(item => item.id === previous)) $('admin-label').value = previous;
+  const available = p.labels.filter((item) => item.samples + item.invalid > 0);
+  $('admin-label').replaceChildren(
+    makeOption('', 'Selecciona una palabra o letra'),
+    ...available.map((item) =>
+      makeOption(item.id, `${item.text} · ${item.samples + item.invalid} grabaciones`),
+    ),
+  );
+  if (available.some((item) => item.id === previous)) $('admin-label').value = previous;
   else $('admin-confirm').checked = false;
-  const selected = available.find(item => item.id === $('admin-label').value);
-  $('admin-target').textContent = selected ? `${p.code} · ${selected.text}: se retirarán ${selected.samples + selected.invalid} grabaciones del conjunto de entrenamiento.` : `${p.code} · Elige la palabra o letra cuyos ejemplos quieres borrar.`;
-  const blocked = deletingRecordings || state.job?.state === 'running' || recording || countdown || batch.active;
+  const selected = available.find((item) => item.id === $('admin-label').value);
+  $('admin-target').textContent = selected
+    ? `${p.code} · ${selected.text}: se retirarán ${selected.samples + selected.invalid} grabaciones del conjunto de entrenamiento.`
+    : `${p.code} · Elige la palabra o letra cuyos ejemplos quieres borrar.`;
+  const blocked =
+    deletingRecordings || state.job?.state === 'running' || recording || countdown || batch.active;
   $('admin-label').disabled = blocked;
   $('admin-password').disabled = blocked;
   $('admin-confirm').disabled = blocked;
@@ -254,18 +454,26 @@ function renderAdmin() {
 async function deleteRecordings(event) {
   event.preventDefault();
   if (deletingRecordings) return;
-  const selectedLanguage = language, label = $('admin-label').value;
-  const password = $('admin-password').value, confirmed = $('admin-confirm').checked;
+  const selectedLanguage = language,
+    label = $('admin-label').value;
+  const password = $('admin-password').value,
+    confirmed = $('admin-confirm').checked;
   if (!label || !password || !confirmed) return;
   deletingRecordings = true;
   $('admin-password').value = '';
   renderAdmin();
   try {
     await stopCamera();
-    const result = await api('/api/admin/delete-recordings', {language:selectedLanguage, label, password, confirmed});
+    const result = await api('/api/admin/delete-recordings', {
+      language: selectedLanguage,
+      label,
+      password,
+      confirmed,
+    });
     if (language === selectedLanguage) {
       $('admin-confirm').checked = false;
-      $('admin-message').textContent = `Se retiraron ${result.deleted} grabaciones. Se conservaron en la carpeta de recuperación. ${result.model_invalidated ? 'El modelo anterior se desactivó para que no siga reconociendo la seña borrada. Reentrena con los ejemplos restantes.' : 'Los ejemplos de esta seña no pertenecían al modelo activo.'}`;
+      $('admin-message').textContent =
+        `Se retiraron ${result.deleted} grabaciones. Se conservaron en la carpeta de recuperación. ${result.model_invalidated ? 'El modelo anterior se desactivó para que no siga reconociendo la seña borrada. Reentrena con los ejemplos restantes.' : 'Los ejemplos de esta seña no pertenecían al modelo activo.'}`;
     }
     await refresh();
   } catch (error) {
@@ -280,18 +488,27 @@ async function refreshCameras() {
   cameraListing = true;
   $('refresh-cameras').disabled = true;
   try {
-    if (!navigator.mediaDevices?.enumerateDevices) throw new Error('Este navegador no permite consultar las cámaras. Usa la dirección local y permite el acceso a la cámara.');
+    if (!navigator.mediaDevices?.enumerateDevices)
+      throw new Error(
+        'Este navegador no permite consultar las cámaras. Usa la dirección local y permite el acceso a la cámara.',
+      );
     const selected = $('camera-device').value;
-    const devices = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'videoinput');
+    const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
+      (device) => device.kind === 'videoinput',
+    );
     const active = stream?.getVideoTracks()[0]?.getSettings().deviceId;
-    $('camera-device').replaceChildren(makeOption('', 'Cámara predeterminada'),
-      ...devices.map((device, index) => makeOption(device.deviceId, device.label || `Cámara ${index + 1}`)));
+    $('camera-device').replaceChildren(
+      makeOption('', 'Cámara predeterminada'),
+      ...devices.map((device, index) =>
+        makeOption(device.deviceId, device.label || `Cámara ${index + 1}`),
+      ),
+    );
     const choice = active || selected;
-    if (devices.some(device => device.deviceId === choice)) $('camera-device').value = choice;
+    if (devices.some((device) => device.deviceId === choice)) $('camera-device').value = choice;
     $('camera-device-status').textContent = devices.length
-      ? `${devices.length} cámara(s) disponible(s). ${devices.some(device => !device.label) ? 'Activa la cámara para mostrar sus nombres.' : 'Selecciona la que quieras usar.'}`
+      ? `${devices.length} cámara(s) disponible(s). ${devices.some((device) => !device.label) ? 'Activa la cámara para mostrar sus nombres.' : 'Selecciona la que quieras usar.'}`
       : 'No hay cámaras visibles para el navegador. Conecta una cámara y permite el acceso.';
-    if (active && !devices.some(device => device.deviceId === active)) {
+    if (active && !devices.some((device) => device.deviceId === active)) {
       await stopCamera();
       notice('La cámara activa se desconectó. Selecciona otra y actívala.', true);
     }
@@ -304,62 +521,152 @@ async function refreshCameras() {
 }
 async function startCamera() {
   if (stream || cameraStarting) return;
+  if (!$('shared-camera-consent').checked) return notice('Acepta el procesamiento en el servidor antes de activar la cámara.', true);
   cameraStarting = true;
   $('start-camera').disabled = true;
   $('camera-device').disabled = true;
   const mark = ++generation;
   try {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Abre esta página en http://127.0.0.1:8765 con un navegador que permita cámara.');
+    if (!navigator.mediaDevices?.getUserMedia)
+      throw new Error(
+        'La cámara necesita HTTPS o localhost. Abre la dirección segura de Seña.',
+      );
     const deviceId = $('camera-device').value;
-    const acquired = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},
-      ...(deviceId ? {deviceId:{exact:deviceId}} : {facingMode:'user'})},audio:false});
-    if (mark !== generation) { acquired.getTracks().forEach(t => t.stop()); return; }
+    const acquired = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }),
+      },
+      audio: false,
+    });
+    if (mark !== generation) {
+      acquired.getTracks().forEach((t) => t.stop());
+      return;
+    }
     stream = acquired;
-    acquired.getVideoTracks()[0].addEventListener('ended', () => {
-      if (stream === acquired) { stopCamera(); notice('La cámara se desconectó. Selecciona otra cámara.', true); }
-    }, {once:true});
-    const created = await api('/api/session', {language});
-    if (mark !== generation) { await api('/api/close', {session:created.session}); return; }
+    acquired.getVideoTracks()[0].addEventListener(
+      'ended',
+      () => {
+        if (stream === acquired) {
+          stopCamera();
+          notice('La cámara se desconectó. Selecciona otra cámara.', true);
+        }
+      },
+      { once: true },
+    );
+    const created = await api('/api/session', {
+      language,
+      participant: $('capture-participant').value.trim(),
+      camera: deviceId ? await cameraFingerprint(deviceId) : '',
+      quality_gate: true,
+      shared_consent: $('shared-camera-consent').checked,
+    });
+    if (mark !== generation) {
+      await api('/api/close', { session: created.session });
+      return;
+    }
     session = created.session;
-    $('camera').srcObject = stream; await $('camera').play();
-    $('camera').hidden = false; $('camera-placeholder').hidden = true; $('stop-camera').disabled = false;
+    $('camera').srcObject = stream;
+    await $('camera').play();
+    $('camera').hidden = false;
+    $('camera-placeholder').hidden = true;
+    $('stop-camera').disabled = false;
     $('camera-state').textContent = 'Preparando detección…';
-    $('capture-instruction').textContent = mode === 'train' ? 'Pulsa “Grabar una seña”. Le pondrás nombre al terminar.' : profile().model ? 'Realiza una seña dentro del encuadre.' : 'Vista previa · Esta lengua todavía no tiene modelo.';
-    notice(''); sendFrame(mark); await refreshCameras();
+    $('capture-instruction').textContent =
+      mode === 'train'
+        ? 'Pulsa “Grabar una seña”. Le pondrás nombre al terminar.'
+        : profile().model
+          ? 'Realiza una seña dentro del encuadre.'
+          : 'Vista previa · Esta lengua todavía no tiene modelo.';
+    notice('');
+    sendFrame(mark);
+    await refreshCameras();
   } catch (error) {
     await stopCamera();
-    notice(error.name === 'NotAllowedError' ? 'Permite la cámara para este sitio y para tu navegador en la configuración de privacidad de macOS.' : error.name === 'OverconstrainedError' || error.name === 'NotFoundError' ? 'La cámara seleccionada no está disponible. Pulsa Detectar cámaras y elige otra.' : error.message, true);
-  } finally { cameraStarting = false; render(); }
+    notice(
+      error.name === 'NotAllowedError'
+        ? 'Permite la cámara para este sitio y para tu navegador en la configuración de privacidad de macOS.'
+        : error.name === 'OverconstrainedError' || error.name === 'NotFoundError'
+          ? 'La cámara seleccionada no está disponible. Pulsa Detectar cámaras y elige otra.'
+          : error.message,
+      true,
+    );
+  } finally {
+    cameraStarting = false;
+    render();
+  }
 }
 async function stopCamera() {
-  rigOverlay.clear();
+  clearHandRig();
   batch.stop();
-  ++generation; clearTimeout(timer); countdown = false; recording = false; frameReady = false;
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  stream = null; $('camera').srcObject = null; $('camera').hidden = true; $('camera-placeholder').hidden = false;
-  $('stop-camera').disabled = true; $('record').disabled = true; $('record').textContent = 'Grabar una seña';
-  $('camera-state').textContent = 'Cámara apagada'; $('capture-instruction').textContent = 'La cámara se activa solo cuando tú lo decides.';
-  $('frame-progress').value = 0; $('frame-counter').textContent = '0 / 30'; $('hands-status').textContent = 'Tu mano derecha aparecerá a la derecha.';
-  const previous = session; session = null;
-  if (previous) { try { await api('/api/close', {session:previous}); } catch (_) {} }
+  ++generation;
+  clearTimeout(timer);
+  countdown = false;
+  recording = false;
+  frameReady = false;
+  if (stream) stream.getTracks().forEach((track) => track.stop());
+  stream = null;
+  $('camera').srcObject = null;
+  $('camera').hidden = true;
+  $('camera-placeholder').hidden = false;
+  if ($('quality-message'))
+    $('quality-message').textContent = 'Activa la cámara para comprobar el encuadre.';
+  $('stop-camera').disabled = true;
+  $('record').disabled = true;
+  $('record').textContent = 'Grabar una seña';
+  $('camera-state').textContent = 'Cámara apagada';
+  $('capture-instruction').textContent = 'La cámara se activa solo cuando tú lo decides.';
+  $('frame-progress').value = 0;
+  $('frame-counter').textContent = '0 / 30';
+  $('hands-status').textContent = 'Tu mano derecha aparecerá a la derecha.';
+  const previous = session;
+  session = null;
+  if (previous) {
+    try {
+      await api('/api/close', { session: previous });
+    } catch (_) {}
+  }
   if (state) render();
 }
 async function sendFrame(mark) {
   if (!stream || mark !== generation || !session) return;
   const started = performance.now();
   try {
-    const canvas = $('frame-canvas'), video = $('camera');
+    const canvas = $('frame-canvas'),
+      video = $('camera');
     const width = Math.min(video.videoWidth || 640, 640);
-    canvas.width = width; canvas.height = Math.round(width * (video.videoHeight || 480) / (video.videoWidth || 640));
+    canvas.width = width;
+    canvas.height = Math.round((width * (video.videoHeight || 480)) / (video.videoWidth || 640));
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    const result = await api('/api/frame', {session, image:canvas.toDataURL('image/jpeg', .7).split(',')[1], mode, rig:rigOverlay.enabled});
+    const result = await api('/api/frame', {
+      session,
+      image: canvas.toDataURL('image/jpeg', 0.7).split(',')[1],
+      show_hand_rig: $('show-hand-rig').checked,
+      mode,
+      strict: localStorage.getItem('sena-confirmation') === 'strict',
+    });
     if (mark !== generation) return;
-    rigOverlay.draw(result.rig);
-    if (!frameReady) { frameReady = true; render(); }
+    drawHandRig(result.hand_rig, canvas.width, canvas.height);
+    const quality = result.quality;
+    if (quality) {
+      $('quality-status').dataset.quality = quality.usable ? 'good' : 'poor';
+      $('quality-message').textContent = quality.message;
+    }
+    $('frame-latency').textContent = `${Math.round(performance.now() - started)} ms`;
+    if (result.phase === 'waiting-for-hands')
+      $('capture-instruction').textContent = 'Esperando buen encuadre para iniciar la toma…';
+    if (!frameReady) {
+      frameReady = true;
+      render();
+    }
     $('camera-state').textContent = result.hands ? 'Manos visibles' : 'Buscando manos';
-    $('hands-status').textContent = result.hands ? 'Manos detectadas · Mantén el movimiento natural.' : 'Coloca ambas manos dentro del encuadre.';
+    $('hands-status').textContent = result.hands
+      ? 'Manos detectadas · Mantén el movimiento natural.'
+      : 'Coloca ambas manos dentro del encuadre.';
     const count = recording ? result.captured : result.buffer;
-    $('frame-progress').max = state.sequence_length; $('frame-progress').value = count;
+    $('frame-progress').max = state.sequence_length;
+    $('frame-progress').value = count;
     $('frame-counter').textContent = `${count} / ${state.sequence_length}`;
     if (result.draft_id) {
       selectedDraft = result.draft_id;
@@ -367,158 +674,274 @@ async function sendFrame(mark) {
       if (batch.active) {
         const serial = batch.serial;
         const progress = batch.complete(result.draft_id, serial);
+        renderBatchCounter();
         if (progress && !progress.done && batch.current(serial)) {
           await refresh();
           if (mark !== generation) return;
-          notice(`Toma ${progress.count} guardada. Prepárate: la siguiente empieza en ${batchPause} segundos.`);
+          notice(
+            `La siguiente toma empieza en ${batchPause} segundos.`,
+          );
           void recordExample(true, serial);
         } else {
           await stopCamera();
           await refresh();
-          notice(`Tanda terminada: ${batch.count} tomas completas. Nombra y guarda cada una en “Grabaciones pendientes”.`);
-          $('name-capture').scrollIntoView({behavior:'smooth', block:'center'});
-          $('sign-name').focus({preventScroll:true});
+          notice(
+            'Tanda completa. Ponles nombre en Grabaciones pendientes.',
+          );
+          $('name-capture').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          $('sign-name').focus({ preventScroll: true });
           return;
         }
       } else {
-      await stopCamera();
-      await refresh();
-      notice('Grabación completa. Escribe qué significa y pulsa “Guardar e integrar”.');
-      $('name-capture').scrollIntoView({behavior:'smooth', block:'center'});
-      $('sign-name').focus({preventScroll:true});
-      return;
+        await stopCamera();
+        await refresh();
+        notice(
+          result.capture_warning ||
+            'Grabación completa. Escribe qué significa y pulsa “Guardar e integrar”.',
+        );
+        $('name-capture').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        $('sign-name').focus({ preventScroll: true });
+        return;
       }
     }
-    if (mode === 'test') showPrediction(result);
+    if (mode === 'test' && !result.inference_skipped) showPrediction(result);
   } catch (error) {
     if (mark !== generation) return;
     notice(error.message, true);
     // Cerrar la sesión también descarta cualquier captura parcial en el servidor.
-    await stopCamera(); return;
+    await stopCamera();
+    return;
   }
-  if (mark === generation) timer = setTimeout(() => sendFrame(mark), Math.max(0, 1000 / state.target_fps - (performance.now() - started)));
+  if (mark === generation)
+    timer = setTimeout(
+      () => sendFrame(mark),
+      Math.max(0, 1000 / state.target_fps - (performance.now() - started)),
+    );
 }
 function showPrediction(result) {
-  if (!profile().model) return;
+  if (!profile().model) {
+    resetResult();
+    return;
+  }
+  renderAlternatives(result.alternatives || []);
   $('confidence').textContent = result.candidate ? `${(100 * result.confidence).toFixed(1)}%` : '—';
   $('confidence-progress').value = 100 * result.confidence;
-  $('stability').textContent = `${result.stability} / 5 confirmaciones estables`;
+  $('stability').textContent = `${result.stability} / ${result.stability_required || 5} confirmaciones estables`;
   if (result.candidate) {
-    $('result-word').textContent = result.candidate.text;
-    $('result-description').textContent = result.rejection_reason || (result.confirmed ? 'Seña confirmada y añadida a tu sesión.' : 'Candidata del modelo. Esperando confianza y estabilidad suficientes.');
+    $('result-word').textContent = (result.confirmed || result.phase === 'held')
+      ? result.candidate.text
+      : sessionConfirmedText(result);
+    $('result-description').textContent =
+      result.rejection_reason ||
+      (result.confirmed
+        ? 'Seña confirmada y añadida a tu sesión.'
+        : result.phase === 'held'
+          ? 'Puedes hacer otra seña sin retirar la mano.'
+        : 'Coincidencia provisional. Esperando estabilidad para confirmar.');
   } else {
-    $('result-word').textContent = result.hands ? 'Observando el movimiento…' : 'Esperando tus manos…';
-    $('result-description').textContent = 'Completa una secuencia con una de las señas entrenadas.';
+    $('result-word').textContent = result.hands ? 'Sin confirmación' : 'Esperando tus manos…';
+    $('result-description').textContent =
+      result.rejection_reason || 'Haz una seña del vocabulario entrenado y espera la confirmación.';
   }
   if (result.confirmed) {
     const expected = $('expected-label').value;
-    if (expected) { checks++; if (expected === result.confirmed.id) correct++; }
-    history.push({...result.confirmed, confidence:result.confidence, expected, time:new Date().toISOString()});
+    if (expected) {
+      checks++;
+      if (expected === result.confirmed.id) correct++;
+    }
+    history.push({
+      ...result.confirmed,
+      confidence: result.confidence,
+      expected,
+      time: new Date().toISOString(),
+    });
     lastSpoken = result.confirmed.text;
     $('speak').disabled = !('speechSynthesis' in window);
+    if ('speechSynthesis' in window) speak();
     renderHistory();
   }
 }
 function renderHistory() {
   $('history').replaceChildren();
-  for (const item of history.slice(-12)) { const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = item.text; $('history').append(chip); }
+  for (const item of history.slice(-12)) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = item.text;
+    $('history').append(chip);
+  }
   $('history-empty').hidden = history.length > 0;
   $('practice-score').textContent = `${correct} / ${checks} aciertos`;
   $('download').disabled = !history.length;
 }
 function clearHistory() {
-  history = []; checks = correct = 0; lastSpoken = null; $('speak').disabled = true;
-  renderHistory(); resetResult();
+  history = [];
+  checks = correct = 0;
+  lastSpoken = null;
+  $('speak').disabled = true;
+  renderHistory();
+  resetResult();
 }
 async function recordExample(automatic = false, serial = null) {
-  if (!stream || !frameReady || recording || countdown || (automatic ? !batch.current(serial) : (selectedDraft || batch.active))) return;
-  countdown = true; render();
+  if (
+    !stream ||
+    !frameReady ||
+    recording ||
+    countdown ||
+    (automatic ? !batch.current(serial) : selectedDraft || batch.active)
+  )
+    return;
+  countdown = true;
+  render();
   const mark = generation;
   try {
     for (let n = automatic ? batchPause : 3; n > 0; n--) {
       if (mark !== generation || (automatic && !batch.current(serial))) return;
-      $('record').textContent = `Prepárate… ${n}`; $('capture-instruction').textContent = `La grabación empieza en ${n}…`;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      $('record').textContent = `Prepárate… ${n}`;
+      $('capture-instruction').textContent = `La grabación empieza en ${n}…`;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     if (mark !== generation || (automatic && !batch.current(serial))) return;
-    await api('/api/capture', {session, consecutive: automatic});
+    await api('/api/capture', {
+      session,
+      consecutive: automatic,
+      batch_id: automatic ? `batch-${batch.serial}` : '',
+    });
     if (mark !== generation || (automatic && !batch.current(serial))) return;
-    recording = true; $('record').textContent = 'Grabando…'; $('capture-instruction').textContent = 'Haz la seña completa ahora.';
-  } catch (error) { notice(error.message, true); if (automatic) await stopCamera(); }
-  finally { if (mark === generation) { countdown = false; render(); } }
+    recording = true;
+    $('record').textContent = 'Grabando…';
+    $('capture-instruction').textContent = 'Haz la seña completa ahora.';
+  } catch (error) {
+    notice(error.message, true);
+    if (automatic) await stopCamera();
+  } finally {
+    if (mark === generation) {
+      countdown = false;
+      render();
+    }
+  }
+}
+function renderBatchCounter() {
+  const visible = mode === 'train' && batch.limit > 0 && (batch.active || batch.count > 0);
+  const counter = $('batch-counter');
+  counter.hidden = !visible;
+  counter.textContent = `${batch.count}/${batch.limit}`;
+  counter.setAttribute('aria-label', `${batch.count} de ${batch.limit} tomas completas`);
+  $('camera-state').hidden = visible;
 }
 async function startContinuous() {
   if (!stream || !frameReady || recording || countdown || batch.active || savingDraft) return;
   try {
     const pause = Number($('batch-pause').value);
-    if (!Number.isInteger(pause) || pause < 1 || pause > 10) throw new Error('Elige una pausa de 1 a 10 segundos.');
+    if (!Number.isInteger(pause) || pause < 1 || pause > 10)
+      throw new Error('Elige una pausa de 1 a 10 segundos.');
     batchPause = pause;
     const serial = batch.start(Number($('batch-limit').value));
-    notice('Tanda iniciada. Repite la seña después de cada cuenta atrás; podrás nombrar las tomas al terminar.');
+    renderBatchCounter();
+    notice(
+      'Tanda iniciada. Repite la seña después de cada cuenta atrás; podrás nombrar las tomas al terminar.',
+    );
     await recordExample(true, serial);
-  } catch (error) { notice(error.message, true); }
-  finally { render(); }
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    render();
+  }
 }
 async function stopContinuous() {
   await stopCamera();
   await refresh();
-  notice('Tanda detenida. Las tomas completas están conservadas; la toma incompleta se descartó. Puedes nombrarlas y guardarlas ahora.');
+  notice(
+    'Tanda detenida. Ponles nombre en Grabaciones pendientes; la toma incompleta se descartó.',
+  );
 }
 async function saveNamedCapture(event) {
   event.preventDefault();
   if (!selectedDraft || savingDraft) return;
   const name = $('sign-name').value.trim();
   if (!name) return notice('Escribe el nombre o significado de la seña.', true);
-  const capturedLanguage = language, draft = selectedDraft;
-  savingDraft = true; render();
+  const capturedLanguage = language,
+    draft = selectedDraft;
+  savingDraft = true;
+  render();
   try {
-    const result = await api('/api/capture/save', {language:capturedLanguage, draft_id:draft, name});
+    const result = await api('/api/capture/save', {
+      language: capturedLanguage,
+      draft_id: draft,
+      name,
+    });
     selectedDraft = null;
     await refresh();
-    if (language === capturedLanguage) notice(`“${result.label.text}” se integró al vocabulario de ${profile().code}. Puedes grabar más ejemplos con ese nombre y actualizar el modelo al completar los requisitos.`);
-  } catch (error) { notice(error.message, true); }
-  finally { savingDraft = false; render(); }
+    if (language === capturedLanguage)
+      notice(
+        `“${result.label.text}” se integró al vocabulario de ${profile().code}. Puedes grabar más ejemplos con ese nombre y actualizar el modelo al completar los requisitos.`,
+      );
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    savingDraft = false;
+    render();
+  }
 }
 async function discardCapture() {
   if (!selectedDraft || savingDraft) return;
-  savingDraft = true; render();
+  savingDraft = true;
+  render();
   try {
-    await api('/api/capture/discard', {language, draft_id:selectedDraft});
-    selectedDraft = null; await refresh(); notice('Grabación descartada. Ya puedes activar la cámara y repetirla.');
-  } catch (error) { notice(error.message, true); }
-  finally { savingDraft = false; render(); }
+    await api('/api/capture/discard', { language, draft_id: selectedDraft });
+    selectedDraft = null;
+    await refresh();
+    notice('Grabación descartada. Ya puedes activar la cámara y repetirla.');
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    savingDraft = false;
+    render();
+  }
 }
 
 async function trainModel() {
   const epochs = Number($('epochs').value);
-  if (!Number.isInteger(epochs) || epochs < 5 || epochs > 200) return notice('Elige entre 5 y 200 épocas.', true);
+  if (!Number.isInteger(epochs) || epochs < 5 || epochs > 200)
+    return notice('Elige entre 5 y 200 épocas.', true);
   $('train-model').disabled = true;
   try {
-    await stopCamera(); await api('/api/train', {language, epochs});
-    notice('Entrenamiento iniciado. El progreso aparecerá debajo; puedes dejar esta página abierta.'); await refresh();
-  } catch (error) { notice(error.message, true); render(); }
+    await stopCamera();
+    await api('/api/train', {
+      language,
+      epochs,
+      labels: selectedTrainingClasses(profile()).map((x) => x.id),
+      strategy: $('training-strategy').value,
+    });
+    notice(
+      'Entrenamiento iniciado. El progreso aparecerá debajo; puedes dejar esta página abierta.',
+    );
+    await refresh();
+  } catch (error) {
+    notice(error.message, true);
+    render();
+  }
 }
+const automaticSpeech = new SenaSpeechQueue(window.speechSynthesis, window.SpeechSynthesisUtterance,
+  () => notice('No se pudo reproducir la voz. Revisa el sonido y los permisos del navegador.', true));
 function speak() {
-  if (!lastSpoken || !window.speechSynthesis) return;
-  const locale = profile().locale;
-  const voices = speechSynthesis.getVoices();
-  const voice = voices.find(v => v.lang === locale) || voices.find(v => v.lang.split('-')[0] === locale.split('-')[0]);
-  if (!voice) return notice(`Tu navegador no tiene una voz de ${profile().written.toLowerCase()} disponible. El texto sigue disponible.`, true);
-  speechSynthesis.cancel(); const speech = new SpeechSynthesisUtterance(lastSpoken); speech.lang = locale; speech.voice = voice; speechSynthesis.speak(speech);
+  if (lastSpoken) automaticSpeech.enqueue(lastSpoken, profile().locale);
 }
 $('start-camera').addEventListener('click', startCamera);
-$('toggle-rig').addEventListener('click', () => {
-  rigOverlay.setEnabled(!rigOverlay.enabled);
-  $('toggle-rig').setAttribute('aria-pressed', String(rigOverlay.enabled));
-  $('toggle-rig').textContent = rigOverlay.enabled ? 'Ocultar rig' : 'Activar rig';
-});
 $('admin-delete-form').addEventListener('submit', deleteRecordings);
-$('admin-label').addEventListener('change', () => { $('admin-confirm').checked = false; $('admin-message').textContent = ''; renderAdmin(); });
+$('admin-label').addEventListener('change', () => {
+  $('admin-confirm').checked = false;
+  $('admin-message').textContent = '';
+  renderAdmin();
+});
 $('refresh-cameras').addEventListener('click', refreshCameras);
 $('camera-device').addEventListener('change', async () => {
-   if (stream) { await stopCamera(); await startCamera(); }
- });
-if (navigator.mediaDevices?.addEventListener) navigator.mediaDevices.addEventListener('devicechange', refreshCameras);
+  if (stream) {
+    await stopCamera();
+    await startCamera();
+  }
+});
+if (navigator.mediaDevices?.addEventListener)
+  navigator.mediaDevices.addEventListener('devicechange', refreshCameras);
 refreshCameras();
 $('stop-camera').addEventListener('click', stopCamera);
 $('record').addEventListener('click', () => recordExample());
@@ -527,21 +950,107 @@ $('stop-batch').addEventListener('click', stopContinuous);
 $('add-alphabet').addEventListener('click', () => addAlphabet('language'));
 $('add-all-alphabets').addEventListener('click', () => addAlphabet('all'));
 $('add-alphabet-extras').addEventListener('click', () => addAlphabet('language', true));
-$('clear-alphabet-selection').addEventListener('click', () => { selectedLetter = null; renderAlphabet(); });
+$('clear-alphabet-selection').addEventListener('click', () => {
+  selectedLetter = null;
+  renderAlphabet();
+});
 $('name-capture').addEventListener('submit', saveNamedCapture);
 $('discard-capture').addEventListener('click', discardCapture);
-$('draft-picker').addEventListener('change', () => { selectedDraft = $('draft-picker').value; render(); });
+$('draft-picker').addEventListener('change', () => {
+  selectedDraft = $('draft-picker').value;
+  render();
+});
 $('train-model').addEventListener('click', trainModel);
 $('clear-history').addEventListener('click', async () => {
-  clearHistory(); if (session) { try { await api('/api/reset', {session}); } catch (e) { notice(e.message, true); } }
+  clearHistory();
+  if (session) {
+    try {
+      await api('/api/reset', { session });
+    } catch (e) {
+      notice(e.message, true);
+    }
+  }
 });
 $('speak').addEventListener('click', speak);
 $('download').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({language, name:profile().name, records:history, checked:checks, correct}, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = `sesion-${language}-${Date.now()}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const blob = new Blob(
+    [
+      JSON.stringify(
+        { language, name: profile().name, records: history, checked: checks, correct },
+        null,
+        2,
+      ),
+    ],
+    { type: 'application/json' },
+  );
+  const url = URL.createObjectURL(blob),
+    link = document.createElement('a');
+  link.href = url;
+  link.download = `sesion-${language}-${Date.now()}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-for (const tab of document.querySelectorAll('[data-mode]')) tab.addEventListener('click', () => selectMode(tab.dataset.mode));
-document.addEventListener('visibilitychange', () => { if (document.hidden && stream) stopCamera(); });
-window.addEventListener('pagehide', () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
-refresh().catch(error => notice(`No se pudo conectar con el servidor local: ${error.message}`, true));
-setInterval(() => refresh().catch(error => notice(`No se pudo actualizar el estado: ${error.message}`, true)), 4000);
+for (const tab of document.querySelectorAll('[data-mode]'))
+  tab.addEventListener('click', () => selectMode(tab.dataset.mode));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && stream) stopCamera();
+});
+window.addEventListener('pagehide', () => {
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+});
+window.addEventListener('DOMContentLoaded', () => {
+  bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
+  setInterval(() => {
+    if (accountState?.user) refresh().catch(error => notice(error.message, true));
+  }, 4000);
+});
+
+// The server detects the mirrored image; do not mirror these coordinates again.
+const handRigEdges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
+  [13,17],[0,17],[17,18],[18,19],[19,20]];
+let handRigExpiry;
+function clearHandRig() {
+  clearTimeout(handRigExpiry);
+  const canvas = $('hand-rig');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  canvas.hidden = true;
+}
+function drawHandRig(hands, width, height) {
+  clearHandRig();
+  if (!$('show-hand-rig').checked || !stream || !hands?.length) return;
+  const canvas = $('hand-rig');
+  canvas.width = width; canvas.height = height; canvas.hidden = false;
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 2; ctx.strokeStyle = '#c5ef73'; ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#10251b'; ctx.shadowBlur = 3;
+  for (const hand of hands) {
+    if (hand.length !== 21 || !hand.every(p => p.length === 2 && p.every(Number.isFinite))) continue;
+    ctx.beginPath();
+    for (const [a,b] of handRigEdges) {
+      ctx.moveTo(hand[a][0]*width, hand[a][1]*height);
+      ctx.lineTo(hand[b][0]*width, hand[b][1]*height);
+    }
+    ctx.stroke();
+    for (const [x,y] of hand) {
+      ctx.beginPath(); ctx.arc(x*width,y*height,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+  handRigExpiry = setTimeout(clearHandRig, 800);
+}
+function setHandRig(enabled, persist = true) {
+  $('show-hand-rig').checked = enabled;
+  const toggle = $('camera-rig-toggle');
+  toggle.setAttribute('aria-pressed', String(enabled));
+  toggle.setAttribute('aria-label', enabled ? 'Ocultar rig de manos' : 'Mostrar rig de manos');
+  toggle.textContent = enabled ? 'Rig de manos · activo' : 'Rig de manos · apagado';
+  clearHandRig();
+  if (persist) {
+    try { localStorage.setItem('sena.hand-rig', String(enabled)); } catch (_) {}
+  }
+}
+let savedHandRig = false;
+try { savedHandRig = localStorage.getItem('sena.hand-rig') === 'true'; } catch (_) {}
+setHandRig(savedHandRig, false);
+$('show-hand-rig').addEventListener('change', () => setHandRig($('show-hand-rig').checked));
+$('camera-rig-toggle').addEventListener('click', () => setHandRig(!$('show-hand-rig').checked));

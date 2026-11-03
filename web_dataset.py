@@ -17,7 +17,7 @@ def validate_sequence(points):
         raise ValueError('Faltan detecciones en demasiados fotogramas. Repite la captura.')
     return points
 
-def save_sequence(language, label, points, sample_id=None):
+def save_sequence(language, label, points, sample_id=None, metadata=None):
     validate_label(language, label)
     points = validate_sequence(points)
     path = dataset_dir(language) / label
@@ -27,7 +27,7 @@ def save_sequence(language, label, points, sample_id=None):
     target = path / f'{identifier}.npz'
     temp = target.with_suffix('.tmp')
     with temp.open('wb') as stream:
-        np.savez_compressed(stream, points=points, pipeline=json.dumps(pipeline_spec()))
+        np.savez_compressed(stream, points=points, pipeline=json.dumps(pipeline_spec()), metadata=json.dumps(metadata or {}))
     os.replace(temp, target)
     return target.name
 
@@ -139,7 +139,7 @@ def draft_dir(language):
     return dataset_dir(language).parent.parent / 'drafts' / language
 
 
-def save_draft(language, points):
+def save_draft(language, points, metadata=None):
     points = validate_sequence(points)
     folder = draft_dir(language)
     folder.mkdir(parents=True, exist_ok=True)
@@ -147,7 +147,7 @@ def save_draft(language, points):
     path = folder / f'{identifier}.npz'
     temp = path.with_suffix('.tmp')
     with temp.open('wb') as stream:
-        np.savez_compressed(stream, points=points, pipeline=json.dumps(pipeline_spec()))
+        np.savez_compressed(stream, points=points, pipeline=json.dumps(pipeline_spec()), metadata=json.dumps(metadata or {}))
     os.replace(temp, path)
     return identifier
 
@@ -170,8 +170,8 @@ def commit_draft(language, identifier, name):
         raise ValueError('La grabación no existe en esta lengua. Vuelve a grabar la seña.')
     points = load_sequence(path)
     label = register_label(language, name)
-    sample = save_sequence(language, label['id'], points, sample_id=identifier)
-    result = {'label': label, 'sample': sample, 'language': language}
+    sample = save_sequence(language, label['id'], points, sample_id=identifier, metadata=sequence_metadata(path))
+    result = {'label': label, 'sample': sample, 'language': language, 'owner_id': sequence_metadata(path).get('owner_id')}
     temp = receipt.with_suffix('.tmp')
     temp.write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')
     os.replace(temp, receipt)
@@ -187,3 +187,11 @@ def discard_draft(language, identifier):
         discarded = path.parent / 'discarded'
         discarded.mkdir(exist_ok=True)
         os.replace(path, discarded / path.name)
+
+
+def sequence_metadata(path):
+    with np.load(path, allow_pickle=False) as record:
+        metadata = json.loads(str(record['metadata'].item())) if 'metadata' in record else {}
+    if not isinstance(metadata, dict):
+        raise ValueError('Metadatos de ejemplo inválidos.')
+    return metadata

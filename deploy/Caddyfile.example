@@ -1,0 +1,7 @@
+# Sustituye este dominio por el que apunte al servidor.
+senas.ejemplo.com {
+    request_body {
+        max_size 48MB
+    }
+    reverse_proxy 127.0.0.1:8765
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Sena - espacio compartido de lenguas de senas
+After=network.target
+
+[Service]
+Type=simple
+User=sena
+Group=sena
+WorkingDirectory=/srv/sena
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/sena/.venv/bin/python /srv/sena/web_app.py --host 127.0.0.1 --port 8765 --public-url https://senas.ejemplo.com
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

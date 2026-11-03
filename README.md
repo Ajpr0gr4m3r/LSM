@@ -1,529 +1,208 @@
-# Sistema de Reconocimiento de LSM Dinámica en Tiempo Real
-
-### Modelo web v3: forma de la mano y comparación antes de activarlo
-
-Los nuevos entrenamientos añaden 128 características por fotograma: coordenadas
-de los dedos relativas a su muñeca, escaladas por el tamaño de la palma, y dos
-indicadores de presencia. Se conserva la orientación de las manos y el contexto
-temporal; no se refleja ni gira el gesto. Esto permite representar la forma
-de los dedos con menor dependencia de dónde está la persona en el encuadre.
-
-También se guardan referencias de forma tomadas exclusivamente del entrenamiento.
-Su tolerancia se comprueba con validación. Si una predicción se aleja de esas
-referencias, la página la muestra como dudosa y explica el rechazo, aunque la
-red dé una confianza alta. No demuestra reconocimiento de todas las señas
-desconocidas: hay que comprobarlo con nuevos ejemplos reales.
-
-Antes de activar una versión con el mismo vocabulario, se comparan ambas sobre
-las mismas secuencias de validación: aciertos, F1, precisión de predicciones
-aceptadas y cobertura. Si cualquiera empeora, se conserva el modelo anterior.
-La prueba reservada se usa para el informe, nunca para decidir qué versión activar.
-Los modelos v1/v2 y los ejemplos ya guardados permanecen compatibles.
-
-### Requisitos actuales y mejoras de entrenamiento
-
-Puedes grabar tandas desde **5 tomas** y acumularlas. Para **entrenar y probar**
-se requieren **30 ejemplos completos por palabra o letra** y al menos
-**dos señas distintas**. Se recomiendan **30 a 60 ejemplos por palabra o letra**.
-Las tandas consecutivas admiten de 5 a 60 tomas (30 por defecto). Puedes superar 60 ejemplos
-acumulando más tandas. Incluye distintas personas, días, velocidades y posiciones;
-repetir tomas casi idénticas aporta menos variedad que recoger ejemplos nuevos.
-
-Los nuevos modelos web usan una BiLSTM más compacta para limitar la memorización,
-coordenadas relativas al torso y escala de hombros, y normalización por característica
-calculada solo con el conjunto de entrenamiento. La misma transformación se aplica
-al reconocer. Los archivos de grabaciones originales no se transforman ni se borran.
-Solo el conjunto de entrenamiento recibe dos variaciones leves de escala y ruido,
-sin reflejar las manos ni invertir los movimientos. Validación y prueba quedan
-reservadas y sin aumento de datos. Las variantes artificiales no cuentan para
-cumplir el mínimo de grabaciones reales.
-
-El mejor punto del entrenamiento se elige por pérdida de validación. Se ajusta
-un umbral de confianza con validación y se exige margen entre las dos primeras
-clases. En directo también se promedian cinco predicciones y se mantiene la
-comprobación de estabilidad temporal. La captura requiere manos visibles en
-al menos el 80 % de los fotogramas.
-
-La página muestra precisión, recuperación y F1 por seña, además de cobertura y
-aciertos de predicciones aceptadas en la prueba reservada. Si el filtro rechaza
-todo, la precisión aceptada figura sin valor, nunca como 100 %. Estos cambios
-son medidas para mejorar la generalización; no demuestran una mejora hasta
-reentrenar y medir con datos reales. Los modelos anteriores siguen siendo
-compatibles, y necesitan reentrenarse para incorporar el nuevo preprocesamiento.
-
-### Grabación consecutiva y guía rápida de la página
-
-En **Capturar y entrenar**, activa la cámara y abre **Grabar ejemplos
-consecutivos**. Elige de 5 a 60 tomas (recomendado: 30 a 60) y una pausa de 1 a 10 segundos (por defecto,
-30 tomas con 3 segundos de preparación). Pulsa **Iniciar grabación consecutiva**
-una vez. Cada cuenta atrás da paso a otra secuencia completa, sin volver a
-pulsar “Grabar una seña”. Todas las tomas quedan pendientes en la lengua actual.
-
-Al terminar, usa **Grabaciones pendientes** para nombrar y guardar cada una. Para
-repeticiones de una misma seña, usa el mismo nombre. **Detener tanda**, apagar
-la cámara, cambiar de lengua o sección u ocultar la página detiene la captura;
-las tomas completas permanecen en disco y la captura parcial se descarta.
-Los errores de detección o conexión detienen la tanda para que puedas corregir
-el encuadre. Se admiten hasta 100 tomas pendientes por lengua antes de nombrar
-y guardar algunas. Se guardan puntos para entrenamiento, sin archivos de video
-ni audio.
-
-La sección **Guía rápida · ¿Cómo uso esta app?**, debajo del encabezado, explica
-el recorrido completo: elegir lengua, grabar, nombrar y guardar, entrenar y probar.
-### Laboratorio de Inteligencia Artificial (LIA) — CECyT 16, IPN
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-lsm_system/
-│
-├── main.py                ← 🚀 Reconocimiento en tiempo real (punto de entrada)
-├── data_collection.py     ← 📷 Recolección de datos de entrenamiento
-├── train.py               ← 🧠 Entrenamiento del modelo LSTM
-├── model.py               ← 🏗️  Arquitectura de la red neuronal
-├── config.py              ← ⚙️  Configuración global (editar aquí)
-├── utils.py               ← 🛠️  Funciones auxiliares
-├── requirements.txt       ← 📦 Dependencias de Python
-│
-├── assets/
-│   ├── logo_lia.png       ← Logo LIA  (colocar aquí tu PNG con alfa)
-│   └── logo_cecyt16.png   ← Logo CECyT 16 (colocar aquí tu PNG con alfa)
-│
-├── models/
-│   ├── lsm_model.h5       ← Modelo entrenado (generado por train.py)
-│   ├── label_map.json     ← Mapa índice→seña  (generado por train.py)
-│   ├── training_history.png
-│   └── confusion_matrix.png
-│
-├── LSM_Dataset/           ← Dataset de secuencias (generado por data_collection.py)
-│   ├── hola/
-│   │   ├── 0/
-│   │   │   ├── frame_000.npy   ← Keypoints del frame 0  (shape: 492 o 1662,)
-│   │   │   ├── frame_001.npy
-│   │   │   └── ...  (30 archivos por secuencia)
-│   │   ├── 1/
-│   │   └── ...  (30 carpetas por seña)
-│   ├── gracias/
-│   └── ...
-│
-└── sesiones/
-    └── sesion_20250101_120000.txt  ← Oraciones guardadas con 'S'
-```
-
----
-
-## ⚙️ Configuración Inicial (`config.py`)
-
-Antes de ejecutar cualquier script, abre `config.py` y ajusta:
-
-```python
-# 1. Señas que vas a reconocer
-ACTIONS = np.array(['hola', 'gracias', 'por_favor', ...])
-
-# 2. Extracción de landmarks
-USE_FULL_FACE = False   # False = 492 features (CPU)  |  True = 1662 features (GPU)
-
-# 3. Umbrales de predicción
-CONFIDENCE_THRESHOLD = 0.85   # Subir si hay muchos falsos positivos
-STABILITY_FRAMES     = 5      # Subir para exigir más consistencia
-
-# 4. Dataset
-SEQUENCE_LENGTH = 30     # Fotogramas por secuencia
-NUM_SEQUENCES   = 60     # Meta por clase (mínimo para entrenar: 30)
-```
-
----
-
-## 🚀 Flujo de Trabajo Completo
-
-### Paso 0 — Instalación
-```bash
-# Crear entorno virtual (recomendado)
-python -m venv venv_lsm
-source venv_lsm/bin/activate      # Linux/Mac
-venv_lsm\Scripts\activate         # Windows
-
-# Instalar dependencias
-pip install -r requirements.txt
-```
-
-### Paso 1 — Colocar los Logos
-Copia tus archivos PNG en la carpeta `assets/`:
-```
-assets/logo_lia.png
-assets/logo_cecyt16.png
-```
-> Los PNGs deben tener **canal alfa** (RGBA) para la transparencia.
-> Si no tienes logos, el sistema funciona sin ellos (solo muestra advertencia).
-
-### Paso 2 — Recolección de Datos
-```bash
-python data_collection.py
-```
-
-**Controles durante la recolección:**
-| Tecla | Acción |
-|-------|--------|
-| `SPACE` | Iniciar grabación de la siguiente secuencia |
-| `R` | Repetir la secuencia actual (si algo salió mal) |
-| `Q` / `ESC` | Abortar y guardar lo recolectado |
-
-**Consejos para buena recolección:**
-- Iluminación uniforme y fondo sin movimiento.
-- Realizar la seña de forma natural y completa dentro de los 30 frames.
-- Variar ligeramente la posición y velocidad en cada secuencia.
-- Mínimo 30 secuencias por seña; 60+ para mayor robustez.
-
-### Paso 3 — Entrenamiento
-```bash
-python train.py
-```
-
-El script generará automáticamente:
-- `models/lsm_model.h5` — Modelo LSTM entrenado.
-- `models/label_map.json` — Mapa de etiquetas.
-- `models/training_history.png` — Gráfica de accuracy/loss.
-- `models/confusion_matrix.png` — Matriz de confusión del test set.
-
-#### Cargar el modelo para detectar señas
-
-El proyecto no incluye un modelo preentrenado. Primero recolecta ejemplos para
-cada seña configurada en `ACTIONS` ejecutando `data_collection.py`. Después,
-entrena el modelo:
-
-```bash
-.venv/bin/python train.py
-```
-
-Al terminar, `train.py` guarda `models/lsm_model.h5` y
-`models/label_map.json`. `main.py` los busca automáticamente en esas rutas al
-arrancar; no necesitas cargar el archivo manualmente en el código:
-
-```bash
-.venv/bin/python main.py
-```
-
-Mantén `SEQUENCE_LENGTH` y `USE_FULL_FACE` iguales durante recolección,
-entrenamiento y detección. Si cambias la orientación, las señas o esas
-características, vuelve a recolectar y entrenar el modelo. Si falta el modelo,
-`main.py` avisa y entra en modo demo, sin detecciones.
-
-**Parámetros ajustables en `train.py`:**
-```python
-BATCH_SIZE           = 16      # Reducir si hay poca VRAM
-EPOCHS               = 200     # EarlyStopping detendrá antes si converge
-USE_ATTENTION_MODEL  = False   # True para el modelo con atención (más lento)
-USE_CLASS_WEIGHTS    = True    # True si tienes clases desbalanceadas
-```
-
-### Paso 4 — Reconocimiento en Tiempo Real
-```bash
-python main.py
-```
-
-**Controles durante el reconocimiento:**
-| Tecla | Acción |
-|-------|--------|
-| `Q` / `ESC` | Salir del sistema |
-| `R` | Resetear buffer y estado de predicción |
-| `C` | Limpiar la oración acumulada en pantalla |
-| `S` | Guardar la oración actual en `sesiones/` |
-
----
-
-## 🧠 Arquitectura del Modelo
-
-```
-Input (batch, 30, 492)
-  │
-  ├─ TimeDistributed(Dense 256)    ← Proyección: reduce features por frame
-  │  BatchNorm + Dropout(0.20)
-  │
-  ├─ BiLSTM(256, →→←←)            ← Contexto temporal bidireccional
-  │  BatchNorm + Dropout(0.30)
-  │
-  ├─ BiLSTM(128, →→←←)            ← Refinamiento temporal
-  │  BatchNorm + Dropout(0.30)
-  │
-  ├─ LSTM(64)                      ← Colapsa dimensión temporal
-  │  BatchNorm + Dropout(0.30)
-  │
-  ├─ Dense(256, relu)
-  │  BatchNorm + Dropout(0.40)
-  │
-  ├─ Dense(128, relu)
-  │
-  └─ Dense(num_clases, softmax)    ← Probabilidad por seña
-```
-
----
-
-## 🔍 Lógica de Predicción (Doble Umbral)
-
-```
-Por cada frame:
-  1. Extraer 492 keypoints (pose + cara key + manos)
-  2. Añadir al buffer circular de 30 frames
-
-Cuando el buffer está lleno:
-  3. Inferencia LSTM → probabilidades por clase
-
-  4. ¿Confianza ≥ 0.85?
-       NO  → Resetear estabilidad. Esperar.
-       SÍ  → Continuar...
-
-  5. ¿Es la misma seña que el frame anterior?
-       NO  → Reiniciar contador de estabilidad a 1.
-       SÍ  → Incrementar contador.
-
-  6. ¿Contador ≥ 5 frames consecutivos?
-       NO  → Mostrar indicador tentativo (gris). Esperar.
-       SÍ  → ¡Confirmar predicción! (verde + panel inferior)
-              Añadir a oración. Activar cooldown de 1.5s.
-```
-
----
-
-## 🔧 Dimensiones de Keypoints
-
-| Región | Puntos | Coords | Valores |
-|--------|--------|--------|---------|
-| Pose (esqueleto) | 33 | x,y,z,vis | 132 |
-| Cara (key points) | 78 | x,y,z | 234 |
-| Mano izquierda | 21 | x,y,z | 63 |
-| Mano derecha | 21 | x,y,z | 63 |
-| **Total (reducido)** | | | **492** |
-| Cara (completa) | 468 | x,y,z | 1404 |
-| **Total (completo)** | | | **1662** |
-
-> `USE_FULL_FACE = False` (recomendado para CPU)
-> `USE_FULL_FACE = True`  (recomendado con GPU, mayor precisión facial)
-
----
-
-## ❗ Solución de Problemas Frecuentes
-
-**El modelo no detecta nada:**
-- Verifica que `USE_FULL_FACE` en `config.py` sea igual al valor usado al recolectar datos.
-- Comprueba que haya suficiente iluminación.
-- Prueba ajustar `CONFIDENCE_THRESHOLD` a 0.70 para ser menos restrictivo.
-
-**Muchos falsos positivos / "parpadeos":**
-- Aumenta `CONFIDENCE_THRESHOLD` a 0.90.
-- Aumenta `STABILITY_FRAMES` a 7 o 10.
-- Aumenta `COOLDOWN_SECONDS` a 2.0 o 3.0.
-
-**Baja precisión en test:**
-- Aumenta `NUM_SEQUENCES` a 60+ secuencias por clase.
-- Verifica que todas las señas se graben con condiciones similares.
-- Usa `USE_ATTENTION_MODEL = True` si tienes GPU.
-
-**Error de dimensión (`FEATURE_DIM`):**
-- Asegúrate de que `USE_FULL_FACE` sea el mismo valor en `config.py`
-  al momento de recolectar datos, entrenar y ejecutar `main.py`.
-- Si cambias este valor, debes recolectar datos nuevamente.
-
-**MediaPipe no detecta las manos:**
-- Asegúrate de estar usando `mediapipe==0.10.14` (última versión con Holistic estable).
-- Verifica que no haya objetos brillantes o similares a manos en el fondo.
-
-
-## Página local: siete lenguas de señas
-
-Inicia la página usando el entorno del proyecto:
+> **Actualización: cuentas y equipo compartido.** La página ahora requiere iniciar
+> sesión. La primera cuenta administradora se crea desde localhost con usuario y contraseña nuevos; los demás usuarios entran por invitación. Consulta [Usuarios y alojamiento](docs/EQUIPO.md).
+> Los ejemplos guardados se comparten entre cuentas del mismo servidor. Las cámaras
+> envían imágenes al servidor para procesarlas en memoria; solo se guardan puntos.
+> Las referencias al modo local de las secciones históricas describen el funcionamiento
+> en localhost; para acceso remoto usa la configuración HTTPS de la guía.
+
+# Seña · Estudio local
+
+Aplicación para capturar ejemplos, gestionar datasets y entrenar/reconocer **señas
+individuales**. Procesamiento local, siete perfiles independientes y compatibilidad
+con los datasets NPZ y bundles Keras anteriores. No incluye siete modelos
+preentrenados ni traducción de conversaciones libres.
+
+## Ejecutar
+
+Desde esta carpeta, con el entorno Python 3.11 existente:
 
 ```bash
 .venv/bin/python web_app.py
 ```
 
-Abre http://127.0.0.1:8765 en tu navegador y permite la cámara cuando pulses
-**Activar cámara**. La página funciona localmente; no necesita Flask, servicios
-externos ni claves de API. Para cambiar el puerto usa `--port 8766`.
+Abre http://127.0.0.1:8765. Mantén la Terminal abierta. Ctrl+C detiene el servidor.
+Para usar otro puerto: `.venv/bin/python web_app.py --port 8877`.
+Si el puerto está ocupado, usa la instancia ya abierta o detén la anterior antes
+de iniciar otra. Tras actualizar código Python, reinicia el servidor y recarga la página.
 
-Los siete perfiles son **LSM (México), DGS (Alemania), ASL (Estados Unidos),
-JSL (Japón), CSL (China), LSF (Francia) y Libras (Brasil)**. Son lenguas de
-señas distintas. Los nombres español, alemán, inglés, japonés, chino mandarín,
-francés y portugués corresponden al texto de las etiquetas de salida. ASL no
-representa todas las lenguas de señas de países anglófonos; Libras es la variante
-brasileña seleccionada para este proyecto.
+## Cinco áreas
 
-### Capturar, entrenar y probar
+- **Inicio:** estadísticas reales de los siete perfiles, modelos activos, tomas pendientes y actividad reciente.
+- **Reconocimiento:** cámara en espejo, calidad del encuadre, confirmación estable, alternativas orientativas, historial, voz disponible en el navegador y exportación JSON de la sesión.
+- **Dataset:** grabación individual o tandas de 5–60, cuenta atrás, nombres después de capturar, vocabulario Unicode, abecedarios, búsqueda, revisión por archivo e importación/exportación ZIP.
+- **Entrenamiento:** selección de clases, épocas, progreso, curvas persistentes, matriz de confusión, precisión/recuperación/F1, versiones y activación administrativa de versiones anteriores.
+- **Configuración:** detección/selección de cámara, apariencia clara/oscura/sistema, reducción de movimiento y confirmación estricta opcional. La interfaz permanece en español; cada perfil tiene su idioma de salida propio.
 
-1. Elige una lengua en la barra lateral.
-2. En **Capturar y entrenar**, activa la cámara y pulsa **Grabar una seña**.
-   Graba la seña auténtica de esa lengua. Al terminar, escribe su nombre en
-   **¿Qué significa esta seña?** y pulsa **Guardar e integrar**. Si el nombre
-   ya existe, suma otro ejemplo; si es nuevo, se añade al vocabulario de esa
-   lengua automáticamente. La página hace una cuenta de tres
-   segundos y recoge 30 fotogramas a un objetivo de 10 por segundo. La velocidad
-   efectiva depende de tu computadora. No uses las señas de LSM como ejemplos
-   de ASL u otra lengua.
-3. Completa al menos **30 ejemplos por palabra o letra para dos señas distintas** (recomendado: **30–60 por palabra o letra**). Toda
-   seña que empezaste necesita ese mínimo antes de entrenar. El mínimo permite
-   dividir los datos; no garantiza precisión suficiente. Incluye distintas
-   personas, iluminación y sesiones para obtener mayor variedad.
-4. Pulsa **Entrenar modelo**. El progreso se muestra en la página. Se reserva
-   aproximadamente el 15 % para validación y otro 15 % para prueba, con un
-   mínimo de dos ejemplos por clase en cada conjunto. Las secuencias se separan
-   completas; no se mezclan sus fotogramas entre conjuntos.
-5. Al terminar, el modelo se activa solo para esa lengua. En **Probar modelo**,
-   realiza una seña del vocabulario entrenado. Puedes elegir la seña esperada
-   para contar aciertos y errores de la sesión, escuchar el resultado si tu
-   navegador dispone de la voz correspondiente y descargar las confirmaciones.
-6. Baja las manos unos instantes para repetir una misma seña. Al cambiar de
-   lengua o sección se apaga la cámara y se descarta la captura parcial.
+La fuente Manrope y los SVG Lucide se sirven desde `static/vendor/`. No hay CDN,
+telemetría ni peticiones a terceros durante el uso. Se retiró el rig de la interfaz
+y del protocolo activo conforme al requisito actual. No se muestran esqueletos
+ni puntos sobre la cámara; tampoco hay lecciones ni ejercicios educativos.
 
-La página no incluye siete modelos preentrenados ni interpreta conversaciones
-libres. Las etiquetas escritas son un vocabulario inicial, no demostraciones
-de los gestos. Cada perfil sin modelo lo indica explícitamente. Una precisión
-alta con el conjunto reservado de tus propios datos no demuestra precisión
-con nuevos usuarios, variantes regionales o conversaciones cotidianas.
+## Captura de calidad
 
-### Archivos de la página
+1. Selecciona la lengua real: LSM, DGS, ASL, JSL, CSL, LSF o Libras.
+2. Elige la cámara en Configuración y actívala desde Reconocimiento o Dataset.
+3. En Dataset puedes asignar un identificador opcional de participante, sin nombres personales.
+4. Graba una toma o una tanda. La captura espera manos visibles y buen encuadre;
+   no comienza a acumular cuadros mientras las manos estén fuera del encuadre.
+5. Haz la seña completa durante la toma y mantén los dedos visibles. Se rechazan
+   nuevas tomas con más del 20 % de cuadros insuficientes. El análisis de luz y
+   enfoque es orientativo: no demuestra que el gesto o su etiqueta sean correctos.
+6. Pon nombre y guarda. Repetir el nombre suma otro ejemplo. Las tomas completas
+   quedan pendientes si se detiene una tanda; la toma parcial se descarta.
 
-- `sign_languages.py`: perfiles, vocabulario y configuración de captura.
-- `web_app.py`: servidor local, captura desde navegador y reconocimiento.
-- `web_dataset.py`: validación de secuencias completas y división por clase.
-- `web_train.py`: entrenamiento independiente por lengua y progreso.
-- `static/`: interfaz de la página, sin dependencias remotas.
-- `web_data/datasets/<lengua>/<seña>/<id>.npz`: coordenadas de las secuencias.
-  No se guardan imágenes ni videos.
-- `web_data/jobs/<id>.json` y `.log`: progreso y errores del entrenamiento.
-- `models/<lengua>/<versión>/model.keras`: pesos entrenados.
-- `models/<lengua>/<versión>/metadata.json`: etiquetas, configuración y métricas.
-- `models/<lengua>/current.json`: versión activa; se publica solo después de
-  guardar el modelo y sus metadatos completos.
+No se guardan video, audio ni fotos. Se guardan **30 cuadros de puntos** con los
+metadatos de procedencia. Estos datos también representan movimientos personales:
+trátalos como datos privados al exportarlos. La captura mantiene clips de 30 cuadros para conservar el contrato de los modelos;
+la espera por encuadre no es un segmentador lingüístico universal. Se avisa si
+termina con movimiento marcado para revisar posibles recortes. La revisión por toma muestra curvas
+escalares de movimiento/calidad y sus metadatos, sin reconstruir un esqueleto.
 
-El modelo de escritorio `models/lsm_model.h5` y `LSM_Dataset/` se conservan.
-La página no activa ese modelo automáticamente: usa su propio ritmo de captura
-y requiere metadatos compatibles. Recolecta ejemplos en la página para entrenar
-un modelo web. El entrenador de escritorio también omite ahora las secuencias
-incompletas, en lugar de inventar ejemplos rellenándolos con ceros.
+## Datos y separación de evaluación
 
-### Recursos para ampliar las lenguas
+Se requieren **30 ejemplos completos por clase**, al menos **dos clases** y se
+recomiendan **30–60 ejemplos variados**. Elegir 5 tomas solo determina el tamaño de
+una tanda, no reduce el mínimo para entrenar. Puedes seleccionar las clases listas
+y dejar fuera las que todavía estás preparando.
 
-El [compendio de la Universidad de Hamburgo](https://www.sign-lang.uni-hamburg.de/lr/compendium/language/index.html)
-permite buscar datasets y diccionarios por lengua. [OpenHands](https://aclanthology.org/2022.acl-long.150/)
-presenta modelos basados en pose y transferencia entre lenguas. Estos recursos
-no constituyen un paquete de siete modelos compatibles con esta arquitectura:
-su uso requiere revisar la licencia y adaptar etiquetas, puntos y entrenamiento.
+Nuevas tomas conservan `session_id`, `batch_id`, participante opcional y un hash
+corto del identificador de cámara. El identificador de cámara en claro no se guarda.
+El commit desde tomas pendientes conserva la procedencia.
+
+- Con participante registrado, **todos sus ejemplos permanecen en el mismo conjunto**.
+- Sin participante, se agrupa la sesión completa; una tanda no se divide entre conjuntos.
+- Copias exactas se vinculan en el mismo grupo, incluso si aparecieron en sesiones distintas.
+- Ejemplos idénticos con etiquetas distintas bloquean el entrenamiento.
+- Cada clase debe aparecer en entrenamiento, validación y prueba. Si eso es imposible,
+  se pide grabar en al menos tres grupos independientes. No se recurre a separar
+  arbitrariamente la misma tanda para conseguir una puntuación favorable.
+- En archivos históricos sin procedencia se agrupan copias exactas por su hash,
+  pero **no se puede probar independencia entre personas o tandas**. Se advierte
+  tanto en los metadatos como en la interfaz. No se inventa esa información.
+
+Registra correctamente los participantes: abrir tres veces la cámara con la misma
+persona no equivale a evaluar tres personas independientes.
+
+## Reconocimiento y entrenamiento
+
+La BiLSTM compacta se conserva: una arquitectura más grande no tiene una mejora
+medida que justifique más recursos. Entrenamiento e inferencia comparten funciones
+y seleccionan el preprocesamiento por la versión guardada en cada modelo.
+
+Los **nuevos entrenamientos** usan `stable-finger-geometry-v4` (650 entradas por cuadro):
+filtrado causal leve sin rellenar manos ausentes, normalización corporal, forma de
+manos relativa a palma/muñeca y normalización facial local cuando hay referencia
+ocular suficiente. Conserva el orden temporal y no refleja manos. El filtro nuevo
+de rechazo usa forma y trayectoria temporal, incluida la muñeca en el marco corporal.
+Añade 30 medidas de extensión y separación de dedos, calculadas de los mismos
+landmarks durante entrenamiento e inferencia. El rechazo contrasta la clase
+predicha con las demás: una coincidencia más cercana con otra clase no se confirma.
+
+Las pequeñas variaciones de cámara y ruido se crean **después** de separar los datos
+y solo sobre entrenamiento. La normalización estadística se calcula solo con el
+entrenamiento original. Las variantes se generan sobre los puntos crudos y después
+se recalculan todas las características, evitando geometría incoherente. Validación ajusta confianza y margen; la estabilidad de
+cinco predicciones es una regla conservadora de ejecución, no una cifra validada
+con conversaciones reales. La prueba queda fuera del ajuste.
+
+Se rechazan candidatos ambiguos o alejados de las referencias. Se muestra una
+confirmación por gesto y se espera bajar las manos para iniciar otro. Inferencia
+limitada a aproximadamente 5 evaluaciones por segundo mientras se procesan cuadros
+a la frecuencia de captura. Referencias del filtro precargadas y consultas de dataset
+cacheadas reducen trabajo repetido.
+
+La mejor época se elige con 70% F1 macro y 30% recuperación de la peor clase
+en validación; la pérdida desempata. No se usa el test para elegir épocas.
+El reparto busca equilibrio por clase y conserva al menos el 40% de cada clase
+para entrenamiento, sin dividir sesiones ni participantes.
+
+La activación de un nuevo modelo exige F1 macro de validación >= 0,8, precisión de
+predicciones aceptadas >= 0,95 y cobertura >= 0,5. Además, cada letra necesita
+recuperación >= 0,6, al menos 2 predicciones aceptadas, precisión aceptada >= 0,9
+y cobertura >= 0,25 en validación. Estas cifras son criterios de aceptación, no
+garantías estadísticas con muestras pequeñas. Cuando hay una validación común
+independiente documentada, además no puede empeorar accuracy, F1, precisión aceptada
+ni cobertura frente al modelo previo. Si falta la trazabilidad del modelo histórico,
+no se presentan sus porcentajes como comparaciones equivalentes. Se guardan los
+hashes de cada partición para futuras comparaciones. Los modelos que no superan
+los criterios se guardan sin activar.
+
+Estos controles **no garantizan rechazo perfecto de todas las señas desconocidas**.
+No hay un corpus independiente de negativos ni una evaluación clínica o de uso
+cotidiano. Las puntuaciones pequeñas del dataset propio no prueban generalización.
+Usa grabaciones nuevas, otras personas, cámaras, días y ángulos para comprobarlo.
+La falta de manos o el mal encuadre reinicia la observación para no unir gestos separados.
+
+## Compatibilidad y versiones
+
+- Se conservan las entradas históricas crudas, `body-relative-v1`, `body-hand-relative-v2` y `stable-body-hand-v3`.
+- No se modifican pesos, vocabularios ni archivos de ejemplos durante la actualización.
+- Los nuevos filtros de preprocesamiento/guardia temporal requieren volver a entrenar.
+  El diseño, revisión, calidad de captura y control de confirmaciones no lo requieren.
+- Los modelos viejos sin historia de épocas muestran un aviso, no gráficas simuladas.
+- Activar una versión anterior exige la contraseña administrativa, comprobar su
+  serialización/dimensiones y al menos 30 ejemplos por cada clase. Así no se reactiva
+  silenciosamente una D u otra clase cuyos ejemplos se borraron.
+- Los scripts originales de escritorio (`main.py`, `train.py`, `data_collection.py`)
+  y su dataset se conservan; sus detalles están en `docs/LEGACY.md`.
+
+## Administración e intercambio
+
+La contraseña administrativa existente se conserva en `web_data/admin/auth.json`
+como PBKDF2 con sal; no aparece en los archivos estáticos ni se guarda en el navegador.
+Las rutas administrativas comprueban la contraseña en el servidor y mantienen el
+límite de intentos. Exportar o revisar no requiere contraseña; eliminar, reasignar
+muestras y activar modelos sí. Todas las mutaciones usan control de origen/token local.
+
+Puedes retirar toda una clase o seleccionar archivos. Los retirados pasan a
+`web_data/trash/<lengua>/<operación>/`; se guarda un registro. Las reasignaciones
+permanecen dentro de la misma lengua y registran sus etiquetas originales. Al
+modificar ejemplos de una clase entrenada, su modelo se desactiva hasta reentrenar.
+Para recuperar archivos retirados manualmente, detén el servidor y cópialos desde
+la carpeta de recuperación a su carpeta de dataset original. La protección web no
+impide que alguien con acceso al sistema de archivos modifique datos directamente.
+
+Exportación ZIP `sena-dataset-v1`: incluye manifiesto, perfil/pipeline, nombres,
+identificadores y ejemplos NPZ válidos con procedencia. No incluye modelos,
+contraseñas ni archivos inválidos. Importación valida todos los ejemplos antes de
+escribir, rechaza otra lengua/configuración, rutas inseguras, ZIP expansivos y
+etiquetas en conflicto; omite duplicados exactos. Límites: 32 MB comprimidos,
+128 MB expandidos y 2000 ejemplos por paquete. No se usa `pickle` ni `extractall`.
+
+## Archivos principales
+
+| Archivo | Responsabilidad |
+|---|---|
+| `web_app.py` | HTTP local, sesiones, captura e inferencia |
+| `capture_quality.py` | Encuadre, integridad de manos, luz y enfoque |
+| `recognition_features.py` | Preprocesamientos versionados y filtros de rechazo |
+| `web_dataset.py` | Persistencia compatible y tomas pendientes |
+| `dataset_tools.py` | Auditoría, intercambio, procedencia y particiones por grupos |
+| `studio_services.py` | Versiones, actividad y operaciones administrativas |
+| `web_train.py` | Entrenamiento aislado, calibración, métricas e historia |
+| `static/app.js` | Controlador de cámara y capturas |
+| `static/studio.js` | Navegación, dashboard, revisión, gráficas y versiones |
+
+La auditoría previa y decisiones están en `docs/AUDITORIA.md`; las licencias de
+assets se conservan en `docs/THIRD_PARTY.md`.
+
+## Pruebas
+
+```bash
+MPLBACKEND=Agg .venv/bin/python -m unittest discover -s tests -v
+node tests/test_continuous.js
+node tests/test_cameras.js
+node tests/test_studio_ui.js
+```
+
+Las pruebas de entrenamiento crean modelos sintéticos solo en carpetas temporales;
+no añaden ejemplos artificiales al dataset real ni sustituyen los modelos del usuario.
 
 
-### Grabar primero y poner nombre después
+### Contador de la tanda
 
-El flujo de la página es **elegir lengua → grabar → nombrar → guardar → entrenar**.
-Los nombres pueden escribirse en español, alemán, inglés, japonés, chino,
-francés o portugués, hasta 80 caracteres. El catálogo por lengua admite nuevas
-señas sin editar `ACTIONS` ni los archivos Python. Escribir de nuevo el mismo
-nombre (sin distinguir mayúsculas o espacios extra) añade otro ejemplo a esa
-clase dentro de esa lengua.
-
-Las capturas completas pendientes se guardan en `web_data/drafts/<lengua>/` y
-reaparecen al recargar o volver a seleccionar esa lengua. La captura incompleta
-se descarta al apagar la cámara. **Descartar y repetir** mueve una captura
-completa a la subcarpeta `discarded/`, fuera del entrenamiento.
-
-Al pulsar **Guardar e integrar**, el nombre se registra en
-`web_data/vocabulary/<lengua>.json` y el ejemplo pasa a
-`web_data/datasets/<lengua>/<id de seña>/`. Los nombres visibles nunca se usan
-como rutas de archivos. El vocabulario, el contador de ejemplos y el siguiente
-entrenamiento leen automáticamente ese catálogo. Reintentar el mismo guardado
-no duplica el ejemplo.
-
-Una seña guardada aparece como **Por entrenar** hasta formar parte de un modelo.
-Guardar un ejemplo no actualiza los pesos: reúne el mínimo indicado para las
-clases que empezaste y pulsa **Entrenar modelo**. Al terminar, la nueva versión
-se activa para esa lengua y la seña aparece en **Probar modelo**.
-
-
-### Abecedarios y caracteres por lengua
-
-En **Capturar y entrenar → Abecedario y caracteres** puedes añadir todas las
-entradas básicas de una lengua o las bases de las siete lenguas con un botón.
-El catálogo se guarda por lengua y reutiliza las letras existentes, sin duplicar
-ni borrar sus ejemplos. Las letras sin grabaciones no bloquean el entrenamiento.
-
-- LSM: A–Z y Ñ (27 letras); vocales acentuadas y Ü como variantes opcionales.
-- DGS: A–Z, Ä, Ö, Ü y ß (30 entradas escritas).
-- ASL, LSF y Libras: A–Z (26 letras). Francés y portugués ofrecen también
-  caracteres acentuados y variantes escritas opcionales.
-- JSL: 46 kana básicos; variantes sonoras, kana pequeños y marca de vocal larga
-  como catálogo adicional. No representa todos los kanji.
-- CSL: A–Z, ZH, CH, SH y NG para recolectar deletreo basado en pinyin;
-  Ü como variante escrita opcional. No representa todos los caracteres chinos.
-
-Pulsa una letra para seleccionarla, activa la cámara y graba su seña. Al terminar,
-se propondrá esa letra como nombre: confírmala con **Guardar e integrar**. Puedes
-repetir el proceso para sumar ejemplos o volver a grabar señas libres. La cuadrícula
-muestra ejemplos por letra y si ya pertenece al modelo activo. Entrenar sigue
-siendo necesario para reconocer las letras; las variantes escritas no implican
-que cada una tenga una configuración manual distinta.
-
-Referencias para el catálogo y las convenciones de deletreo:
-[SEP, abecedario en LSM](https://nuevaescuelamexicana.sep.gob.mx/contenido/recurso/40967/),
-[Deutsches Taubblindenwerk, Fingeralphabet](https://www.taubblindenwerk.de/haeufig-gestellte-fragen/fingeralphabet/),
-[Ciudad de Nara, 指文字](https://www.city.nara.lg.jp/soshiki/34/184979.html) y
-[Ministerio de Educación de China, 汉语手指字母方案](https://www.moe.gov.cn/jyb_sjzl/ziliao/A19/201404/t20140422_167548.html).
-
-### Cámaras y cambios moderados de encuadre
-
-La sección **Cámara**, encima de la vista previa, lista las cámaras que el navegador
-puede detectar. Usa **Detectar cámaras** para actualizarla. Tras autorizar el acceso,
-aparecen los nombres disponibles. Puedes elegir una cámara integrada o externa;
-si está encendida, cambiar de cámara detiene la toma parcial y la tanda, conserva
-las tomas completas pendientes y reinicia la vista con la cámara seleccionada.
-Desconectar la cámara activa detiene la captura. Los permisos del navegador y de
-macOS pueden limitar qué dispositivos aparecen.
-
-Los nuevos entrenamientos amplían solo el conjunto de entrenamiento con
-inclinaciones XY de 4–10 grados y escalas horizontales de 0,95–1,05, constantes
-durante cada toma. Después se calculan las características de cada variante,
-incluida la forma de las manos. El filtro de forma utiliza también estas variantes.
-No se reflejan manos ni se invierte el tiempo. Las estadísticas de normalización,
-validación y prueba siguen usando ejemplos originales; las variantes no cuentan
-para el mínimo de 30 grabaciones reales por palabra o letra. La comparación con
-el modelo anterior sigue evitando activar uno con peores métricas de validación.
-
-**Reentrena** para aplicar estas mejoras. No garantizan el mismo rendimiento desde
-cualquier ángulo: no reconstruyen manos ocultas ni simulan correctamente giros 3D.
-Graba ejemplos reales desde varios ángulos moderados, distancias y sesiones;
-comprueba después con tomas nuevas desde cada posición. Algunas orientaciones
-cambian el significado de la seña y deben conservarse.
-
-### Borrar ejemplos como administrador
-
-En **Capturar y entrenar**, abre **Administración · Borrar grabaciones**.
-Selecciona la palabra o letra, escribe la contraseña de administrador y marca la
-confirmación. Se borran del dataset todos sus ejemplos guardados, incluidos los
-archivos inválidos. El nombre de la seña y las tomas pendientes sin nombre se conservan. Si la seña
-pertenecía al modelo activo, este se desactiva inmediatamente y se limpia su caché
-para impedir que siga reconociéndola. La versión anterior queda guardada como
-respaldo. Reentrena con las clases restantes para actualizar su vocabulario
-(se mantienen los requisitos de al menos dos clases y 30 ejemplos por clase).
-
-El servidor verifica la contraseña en cada eliminación. Guarda únicamente un hash
-PBKDF2-SHA256 con sal en `web_data/admin/auth.json`; no publica ese archivo y no
-almacena la contraseña en el navegador. Cinco intentos incorrectos bloquean nuevos
-intentos durante cinco minutos. La carpeta de autenticación queda excluida de Git.
-No se permite borrar durante entrenamiento o captura activa.
-
-Los archivos se mueven a `web_data/trash/<lengua>/<id>/<etiqueta>/` junto con un
-registro `deletion.json`. Para recuperarlos manualmente, detén la aplicación y
-copia los archivos `.npz` a `web_data/datasets/<lengua>/<etiqueta>/`. No se necesita
-recuperar ni modificar el vocabulario. Esta protección corresponde a operaciones
-de la página local; una persona con acceso directo a los archivos del equipo puede
-modificarlos fuera de la aplicación.
-
-### Rig visible de detección
-
-Activa la cámara y pulsa **Activar rig** en su esquina superior derecha. Se
-superponen las conexiones de brazos, torso y dedos y los puntos faciales usados
-por el sistema. Las manos tienen colores distintos. **Ocultar rig** retira la
-superposición. Funciona tanto al grabar como al probar el modelo; no requiere
-reentrenar. El servidor devuelve los puntos del mismo fotograma procesado por
-MediaPipe y solo los envía cuando el rig está activado. La vista ya está reflejada,
-por lo que la capa no vuelve a invertir las coordenadas. El dibujo respeta las
-bandas del video y se limpia al detener la cámara o dejar de recibir detecciones.
-La visualización puede llevar un pequeño retraso respecto al video de la cámara.
+En Dataset, el contador superior derecho de la cámara muestra `completas/objetivo`
+(por ejemplo `30/60`). Avanza solo al recibir una toma completa; las respuestas
+repetidas, cuentas atrás o capturas fallidas no suman. Conserva el valor al detener
+la tanda y se reinicia al empezar otra. Las tomas siguen pendientes de nombrar y
+guardar; son secuencias de puntos, no archivos de video.

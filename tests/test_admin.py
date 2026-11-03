@@ -148,7 +148,8 @@ class AdminTests(unittest.TestCase):
             handler.rfile = io.BytesIO(body)
             responses = []
             handler.send_data = lambda status, data: responses.append((status, data))
-            with patch.object(web_app, 'RUNTIME', self.runtime):
+            with patch.object(web_app, 'RUNTIME', self.runtime), \
+                 patch.object(web_app.team_access, 'authenticate', return_value={'user':{'id':'owner','role':'admin'},'csrf':web_app.TOKEN}):
                 handler.do_POST()
             return responses[0]
         self.assertEqual(request(self.payload, 'wrong-csrf')[0], 403)

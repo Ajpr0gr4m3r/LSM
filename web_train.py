@@ -10,15 +10,58 @@ from pathlib import Path
 from sign_languages import WEB_DATA, MIN_SAMPLES, language_info, model_dir, pipeline_spec
 from web_dataset import read_dataset, split_per_class
 from recognition_features import (prepare_sequence, augment_training, augment_viewpoints, validation_threshold, decision_metrics,
-                                  HAND_PREPROCESSING, fit_hand_guard, hand_guard_accept)
+                                  HAND_PREPROCESSING, STABLE_PREPROCESSING, FINGER_PREPROCESSING, fit_hand_guard, hand_guard_accept,
+                                  fit_temporal_guard, temporal_guard_accept, calibrate_decision)
+from dataset_tools import training_provenance, grouped_split, persistent_split
+from motion_features import fit_motion_profile, augment_timing, motion_challenges
+from validation_protocol import calibration_split, validation_support
+from recognition_decision import batch_evidence, calibrate_joint_policy, policy_allowed, rejection_report, decision_details
+from recognition_features import DISCRIMINATIVE_PREPROCESSING, augment_articulation
+from recognition_analysis import (evaluate, temperature_probabilities, fit_temperature, calibrate_policy,
+    dataset_summary, deduplicate, regression_check, preprocessing_probe, label_review_candidates)
 
 
-def validation_summary(probabilities, targets, allowed, threshold):
+def retained_label_ids(language, label_ids):
+    """Rehearsal uses all retained classes from the active model, never just new ones."""
+    if label_ids is None: return None
+    manifest=model_dir(language)/'current.json'
+    if not manifest.exists():return label_ids
+    selection=json.loads(manifest.read_text())
+    from web_dataset import validate_identifier, inventory
+    version=selection.get('version');validate_identifier(version)
+    meta=json.loads((model_dir(language)/version/'metadata.json').read_text())
+    if meta['pipeline'] != pipeline_spec():return label_ids
+    counts={r['id']:r['samples'] for r in inventory(language)}
+    retained=[l['id'] for l in meta['labels'] if counts.get(l['id'],0)>0]
+    return list(dict.fromkeys(list(label_ids)+retained))
+
+
+
+def validation_summary(probabilities, targets, allowed, threshold, margin=.15):
     import numpy as np
     from sklearn.metrics import f1_score
-    return {**decision_metrics(probabilities, targets, threshold, allowed=allowed),
+    return {**decision_metrics(probabilities, targets, threshold, margin, allowed=allowed),
             'accuracy': float(np.mean(np.argmax(probabilities, axis=1) == targets)),
             'macro_f1': float(f1_score(targets, np.argmax(probabilities, axis=1), average='macro', zero_division=0))}
+
+
+def class_decisions(probabilities, targets, allowed, threshold, margin, labels):
+    """Accepted precision is by predicted class; recall/coverage by true class."""
+    import numpy as np
+    predicted = np.argmax(probabilities, axis=1)
+    order = np.sort(probabilities, axis=1)
+    accepted = (np.asarray(allowed, bool) & (order[:, -1] >= threshold)
+                & ((order[:, -1] - order[:, -2]) >= margin))
+    output = []
+    for i, label in enumerate(labels):
+        true = targets == i
+        chosen = accepted & (predicted == i)
+        output.append({'id': label['id'], 'text': label['text'],
+                       'support': int(true.sum()), 'accepted': int(chosen.sum()),
+                       'recall': float(np.mean(predicted[true] == i)) if true.any() else 0.,
+                       'coverage': float(np.mean(accepted[true])) if true.any() else 0.,
+                       'precision': float(np.mean(targets[chosen] == i)) if chosen.any() else None})
+    return output
 
 
 def candidate_is_not_worse(candidate, previous):
@@ -36,24 +79,38 @@ def write_json(path, payload):
     os.replace(temp, path)
 
 
-def train_language(language, epochs, job_id, label_ids=None):
+def train_language(language, epochs, job_id, label_ids=None, strategy="baseline", activate=True):
     language_info(language)
     if len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
         raise ValueError('Identificador de entrenamiento inválido.')
     progress_path = WEB_DATA / 'jobs' / f'{job_id}.json'
     status = {'id': job_id, 'language': language, 'state': 'running', 'epoch': 0,
-              'epochs': epochs, 'message': 'Cargando ejemplos completos…'}
+              'epochs': epochs, 'pid': os.getpid(), 'message': 'Cargando ejemplos completos…'}
     write_json(progress_path, status)
     try:
         import numpy as np
         import tensorflow as tf
-        from sklearn.metrics import classification_report, confusion_matrix
+        from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
         from model import build_web_model
 
         tf.keras.utils.set_random_seed(42)
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory'):
+            raise ValueError('Estrategia de entrenamiento desconocida.')
+        label_ids = retained_label_ids(language, label_ids)
         raw, y, labels = read_dataset(language, MIN_SAMPLES, label_ids)
-        train, validation, test = split_per_class(y)
-        X = np.stack([prepare_sequence(sequence) for sequence in raw])
+        raw, y, removed_duplicates = deduplicate(raw, y)
+        if np.min(np.bincount(y)) < MIN_SAMPLES:
+            raise ValueError('Faltan ejemplos únicos por clase después de quitar duplicados.')
+        groups, provenance = training_provenance(language, raw, y, labels)
+        train, validation, test = persistent_split(y, groups, model_dir(language)/'evaluation_split.json', fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw])
+        selection, calibration_indices, protocol = calibration_split(y, groups, validation,
+            model_dir(language)/'calibration_split.json',
+            fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw])
+        protocol.update(independent_calibration=protocol['independent'],
+                        selection_samples=len(selection), calibration_samples=len(calibration_indices))
+        dataset_diagnostics = dataset_summary(raw, y, labels, groups, provenance)
+        preprocessing = FINGER_PREPROCESSING if strategy == 'baseline' else DISCRIMINATIVE_PREPROCESSING
+        X = np.stack([prepare_sequence(sequence, preprocessing) for sequence in raw])
         onehot = tf.keras.utils.to_categorical(y, len(labels))
         directory = model_dir(language) / job_id
         directory.mkdir(parents=True, exist_ok=False)
@@ -70,73 +127,177 @@ def train_language(language, epochs, job_id, label_ids=None):
                       loss='categorical_crossentropy', metrics=['accuracy'])
         # Separar primero: ninguna variante puede filtrarse a validación/prueba.
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
-        view_features = np.stack([prepare_sequence(sequence) for sequence in view_points])
-        X_fit, y_fit = augment_training(view_features, view_targets)
+        # Derive every feature from the SAME augmented landmarks. Never perturb
+        # normalized coordinates independently of finger geometry.
+        fit_points, y_fit = (augment_timing if strategy == 'trajectory' else augment_training if strategy == 'baseline' else augment_articulation)(view_points, view_targets)
+        X_fit = np.stack([prepare_sequence(sequence, preprocessing) for sequence in fit_points])
+
+        from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
+        contrastive_history = []
+        if strategy == 'contrastive':
+            status['message'] = 'Separando representaciones con aprendizaje contrastivo (solo entrenamiento).'
+            write_json(progress_path, status)
+            embedding_core = tf.keras.Model(core.input, core.layers[-3].output)
+            encoder = tf.keras.Model(inputs, embedding_core(normalized))
+            contrastive_history = contrastive_warmup(encoder, X[train], y[train], epochs=min(4, max(1, epochs//4)))
+        history = []
+
+        class BalancedValidation(tf.keras.callbacks.Callback):
+            def on_epoch_end(self, epoch, logs=None):
+                probabilities = self.model(X[selection], training=False).numpy()
+                predicted = np.argmax(probabilities, axis=1)
+                macro = float(f1_score(y[selection], predicted, average='macro', zero_division=0))
+                worst = float(np.min(recall_score(y[selection], predicted,
+                                                  labels=np.arange(len(labels)), average=None, zero_division=0)))
+                logs['val_macro_f1'] = macro
+                logs['val_min_recall'] = worst
+                # Tiny loss term breaks metric ties; worst class cannot hide
+                # behind high accuracy in the easy or overrepresented classes.
+                logs['val_balanced_score'] = .7 * macro + .3 * worst - 1e-4 * min(float(logs['val_loss']), 100)
 
         class Progress(tf.keras.callbacks.Callback):
             def on_epoch_end(self, epoch, logs=None):
                 status.update(epoch=epoch + 1, message='Entrenando y evaluando la validación.',
                               metrics={k: float(v) for k, v in (logs or {}).items()})
+                history.append({'epoch': epoch + 1, **status['metrics']})
+                status['history'] = history
                 write_json(progress_path, status)
 
         counts = np.bincount(y[train], minlength=len(labels))
         weights = {i: float(len(train) / (len(labels) * n)) for i, n in enumerate(counts)}
-        model.fit(X_fit, y_fit, validation_data=(X[validation], onehot[validation]),
-                  epochs=epochs, batch_size=min(16, len(train)), verbose=2, class_weight=weights,
-                  callbacks=[
-                      tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_loss', save_best_only=True),
-                      tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True),
-                      tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5),
-                      Progress(),
-                  ])
+        callbacks = [BalancedValidation(),
+            tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_balanced_score', mode='max', save_best_only=True),
+            tf.keras.callbacks.EarlyStopping(monitor='val_balanced_score', mode='max', min_delta=1e-6, patience=16, restore_best_weights=True),
+            tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5)]
+        if strategy in ('baseline', 'trajectory'):
+            model.fit(X_fit, y_fit, validation_data=(X[selection], onehot[selection]), epochs=epochs,
+                      batch_size=min(16,len(train)), verbose=2, class_weight=weights, callbacks=callbacks+[Progress()])
+        else:
+            fit_data=HardExampleSequence(X_fit,y_fit,min(16,len(train)))
+            model.fit(fit_data, validation_data=(X[selection],onehot[selection]),epochs=epochs,verbose=2,
+                      workers=1, use_multiprocessing=False, callbacks=callbacks+[MineHardExamples(fit_data),Progress()])
         model = tf.keras.models.load_model(checkpoint, compile=False, safe_mode=True)
         val_probs = model(X[validation], training=False).numpy()
-        calibration = validation_threshold(val_probs, y[validation])
-        guard = fit_hand_guard(view_points, np.argmax(view_targets, axis=1), raw[validation], y[validation])
-        val_allowed = [hand_guard_accept(p, i, guard) for p, i in zip(raw[validation], np.argmax(val_probs, axis=1))]
-        candidate_validation = validation_summary(val_probs, y[validation], val_allowed, calibration['threshold'])
+        cal_probs = model(X[calibration_indices], training=False).numpy()
+        guard = fit_hand_guard(view_points, np.argmax(view_targets, axis=1), raw[calibration_indices], y[calibration_indices], contrastive=True)
+        temporal_guard = fit_temporal_guard(raw[train], y[train], raw[calibration_indices], y[calibration_indices], descriptor_version='trajectory-v2' if strategy == 'trajectory' else None)
+        motion_profile = fit_motion_profile(raw[train], y[train])
+        temperature = fit_temperature(cal_probs, y[calibration_indices])
+        cal_probs = temperature_probabilities(cal_probs, temperature)
+        val_probs = temperature_probabilities(val_probs, temperature)
+        guard_metadata = {'hand_guard': guard, 'temporal_guard': temporal_guard}
+        cal_scores = batch_evidence(raw[calibration_indices], cal_probs, guard_metadata)
+        policy = calibrate_joint_policy(cal_probs, y[calibration_indices], cal_scores, guard, groups[calibration_indices], motion_guard=temporal_guard)
+        val_scores = batch_evidence(raw[validation], val_probs, guard_metadata)
+        val_allowed = policy_allowed(val_probs, policy, val_scores)
+        calibration = {'threshold': policy['threshold'], 'margin': policy['margin']}
+        validation_evaluation = evaluate(val_probs, y[validation], labels, policy, val_allowed)
+        candidate_validation = validation_summary(val_probs, y[validation], val_allowed, calibration['threshold'], calibration['margin'])
         previous_validation, previous_version = None, None
         comparison_note = 'Primer modelo para este vocabulario.'
+        previous_bundle = None
         manifest = model_dir(language) / 'current.json'
         if manifest.exists():
-            previous_version = json.loads(manifest.read_text())['version']
-            if len(previous_version) != 32 or any(c not in '0123456789abcdef' for c in previous_version):
-                raise ValueError('Versión previa de modelo inválida; se conserva sin reemplazar.')
-            previous_path = model_dir(language) / previous_version
-            old_meta = json.loads((previous_path / 'metadata.json').read_text())
-            if ([label['id'] for label in old_meta['labels']] == [label['id'] for label in labels]
-                    and old_meta['pipeline'] == pipeline_spec()):
-                old_model = tf.keras.models.load_model(previous_path / 'model.keras', compile=False, safe_mode=True)
-                old_input = np.stack([prepare_sequence(p, old_meta.get('preprocessing')) for p in raw[validation]])
-                old_probs = old_model(old_input, training=False).numpy()
-                old_allowed = [hand_guard_accept(p, i, old_meta.get('hand_guard')) for p, i in zip(raw[validation], np.argmax(old_probs, axis=1))]
-                previous_validation = validation_summary(old_probs, y[validation], old_allowed, old_meta.get('decision_threshold', .85))
-                comparison_note = 'Ambas versiones evaluadas en las mismas secuencias de validación; prueba excluida de la selección.'
-            else:
-                comparison_note = 'Vocabulario o configuración distintos: no se comparan porcentajes entre versiones.'
-        activated = candidate_is_not_worse(candidate_validation, previous_validation)
-        probabilities = model(X[test], training=False).numpy()
+            previous_version = json.loads(manifest.read_text()).get('version')
+            from web_dataset import validate_identifier
+            if previous_version:
+                validate_identifier(previous_version)
+                previous_path = model_dir(language) / previous_version
+                old_meta = json.loads((previous_path / 'metadata.json').read_text())
+                if old_meta['pipeline'] == pipeline_spec():
+                    old_model = tf.keras.models.load_model(previous_path / 'model.keras', compile=False, safe_mode=True)
+                    previous_bundle = (old_model, old_meta)
+                comparison_note = 'Se comparan clases comunes solo en ejemplos ajenos al entrenamiento y calibración anteriores.'
+        class_validation = [{**row, 'precision': row['accepted_precision']} for row in validation_evaluation['by_class']]
+        activated = False  # Set only after the independent regression checks below.
+        probabilities = temperature_probabilities(model(X[test], training=False).numpy(), temperature)
         pred = np.argmax(probabilities, axis=1)
-        test_allowed = [hand_guard_accept(p, i, guard) for p, i in zip(raw[test], pred)]
+        test_scores = batch_evidence(raw[test], probabilities, guard_metadata)
+        test_allowed = policy_allowed(probabilities, policy, test_scores)
         report = classification_report(y[test], pred, labels=list(range(len(labels))),
                                        target_names=[x['id'] for x in labels],
                                        output_dict=True, zero_division=0)
+        test_evaluation = evaluate(probabilities, y[test], labels, policy, test_allowed)
+        train_probs = temperature_probabilities(model(X[train], training=False).numpy(), temperature)
+        train_evaluation = evaluate(train_probs, y[train], labels, policy)
+        comparison = {'previous_version':previous_version,'note':comparison_note,'comparable':False,'passed':False}
+        test_comparison = {'comparable':False,'note':'No hay una prueba independiente común documentada.'}
+        if previous_bundle:
+            old_model,old_meta=previous_bundle
+            old_ids=[l['id'] for l in old_meta['labels']]
+            def compare_previous(indices_set, candidate_probs, candidate_allowed, final_test=False):
+                excluded_splits=('train','validation') if final_test else ('train',)
+                excluded=set(h for part in excluded_splits for h in old_meta.get('split_hashes',{}).get(part,[]))
+                old_groups=set(g for part in excluded_splits for g in old_meta.get('split_groups',{}).get(part,[]))
+                common=[j for j,k in enumerate(indices_set) if labels[y[k]]['id'] in old_ids
+                        and hashlib.sha256(raw[k].tobytes()).hexdigest() not in excluded and str(groups[k]) not in old_groups]
+                if not excluded or not old_meta.get('split_groups') or not common:
+                    return {'comparable':False,'passed':False,'note':'Falta procedencia o reserva común independiente suficiente.'}
+                indices=indices_set[common];old_y=np.array([old_ids.index(labels[y[k]]['id']) for k in indices])
+                old_x=np.stack([prepare_sequence(raw[k],old_meta.get('preprocessing')) for k in indices])
+                old_p=temperature_probabilities(old_model(old_x,training=False).numpy(),old_meta.get('temperature',1.))
+                old_allowed=[decision_details(raw[k],p,old_meta)['accepted'] for k,p in zip(indices,old_p)]
+                previous_result=evaluate(old_p,old_y,old_meta['labels'],old_meta.get('decision_policy',{'threshold':old_meta.get('decision_threshold',.85),'margin':old_meta.get('decision_margin',.15)}),old_allowed)
+                candidate_result=evaluate(candidate_probs[common],y[indices],labels,policy,np.asarray(candidate_allowed)[common])
+                common_rows=[row for row in candidate_result['by_class'] if row['id'] in old_ids]
+                candidate_result['macro_f1']=float(np.mean([row['f1-score'] for row in common_rows]))
+                result=regression_check(candidate_result,previous_result)
+                result['passed'] &= all(row['support']>=3 for row in previous_result['by_class'])
+                return {**result,'candidate':candidate_result,'previous':previous_result,'samples':len(common),
+                        'split':'test' if final_test else 'validation',
+                        'note':'Prueba excluida del ajuste y selección.' if final_test else 'Validación ajena al ajuste de pesos; se reutiliza para calibración y selección.'}
+            comparison.update(compare_previous(validation,val_probs,val_allowed))
+            test_comparison=compare_previous(test,probabilities,test_allowed,True)
+        diagnostics = {
+            'dataset':dataset_diagnostics, 'duplicates_removed':removed_duplicates,
+            'preprocessing_probe':preprocessing_probe(raw,y,train,validation),
+            'label_review':label_review_candidates(raw,y,labels,train),
+            'train_macro_f1':train_evaluation['macro_f1'],
+            'generalization_gap':train_evaluation['macro_f1']-validation_evaluation['macro_f1'],
+            'causes':[{'area':'datos','evidence':provenance['note']},
+                      {'area':'preprocesamiento','evidence':'Se conserva lateralidad y orientación; nuevas articulaciones y velocidades con versión independiente.'},
+                      {'area':'arquitectura','evidence':'La diferencia entrenamiento/validación y las alternativas ayudan a distinguir capacidad de sobreajuste; no prueban causalidad.'},
+                      {'area':'inferencia','evidence':'Rechazos y errores aceptados se evalúan por separado; falta un conjunto real de señas desconocidas.'}],
+            'needs_more_data': [r['id'] for r in validation_evaluation['by_class'] if r['recall']<.8 or r['coverage']<.5 or r['support']<5],
+        }
+        reliable = (validation_evaluation['macro_f1'] >= .8 and (validation_evaluation['accepted_accuracy'] or 0)>=.95
+                    and all(r['recall']>=.6 and r['coverage']>=.25 and r['accepted']>=3 for r in validation_evaluation['by_class']))
+        # Historical data may be evaluated exploratorily but never establish new-person accuracy.
+        activated = bool(activate and reliable and protocol['independent'] and not provenance.get('legacy_samples')
+                         and (not previous_version or comparison['passed']))
         metadata = {
             'language': language, 'pipeline': pipeline_spec(), 'labels': labels,
             'created_at': datetime.now(timezone.utc).isoformat(),
+            'split_hashes': {name: [hashlib.sha256(p.tobytes()).hexdigest() for p in raw[indices]] for name, indices in (('train',train),('validation',validation),('test',test))},
             'samples': len(y), 'split': {'train': len(train), 'validation': len(validation), 'test': len(test)},
             'test_accuracy': float(np.mean(pred == y[test])), 'report': report,
-            'preprocessing': HAND_PREPROCESSING, 'architecture': 'compact-bilstm-hand-v3',
+            'preprocessing': preprocessing, 'architecture': 'compact-bilstm-articulation-v6',
+            'strategy': strategy, 'temperature':temperature, 'decision_policy':policy,
+            'decision_input': 'single-window-v1', 'validation_protocol': protocol,
+            'recognition_diagnostics': {
+                'validation': rejection_report(val_probs, y[validation], labels, policy, val_scores),
+                'calibration': rejection_report(cal_probs, y[calibration_indices], labels, policy, cal_scores),
+                'test': rejection_report(probabilities, y[test], labels, policy, test_scores)},
+            'evaluation_support': validation_support(y[test], groups[test], labels, pred,
+                __import__('recognition_analysis').accepted_mask(probabilities, policy, test_allowed)),
+            'validation_evaluation':validation_evaluation, 'test_evaluation':test_evaluation,
+            'diagnostics':diagnostics, 'contrastive_history':contrastive_history,
+            'split_groups':{name:sorted(set(groups[indices].tolist())) for name,indices in (('train',train),('validation',validation),('test',test))},
+            'provenance': provenance, 'history': history, 'temporal_guard': temporal_guard, 'motion_profile': motion_profile,
+            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy == 'trajectory' else None,
             'input_dim': int(X.shape[-1]), 'hand_guard': guard,
             'dataset_sha256': hashlib.sha256(raw.tobytes()).hexdigest(),
             'augmentation': {'training_only': True, 'variants_per_original': 8,
+                             'jitter': 'ordered-time-warp' if strategy == 'trajectory' else 'legacy-independent' if strategy == 'baseline' else 'palm-scaled-temporally-correlated',
+                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy == 'trajectory' else None,
                              'camera_roll_degrees': [4, 10], 'horizontal_scale': [.95, 1.05]},
-            'validation_decisions': candidate_validation,
-            'test_decisions': decision_metrics(probabilities, y[test], calibration['threshold'], allowed=test_allowed),
-            'model_comparison': {'previous_version': previous_version, 'previous_validation': previous_validation,
-                                 'candidate_validation': candidate_validation, 'note': comparison_note},
+            'validation_decisions': validation_evaluation,
+            'validation_by_class': class_validation,
+            'checkpoint_selection': '0.7 * validation macro F1 + 0.3 * minimum class recall; loss breaks ties',
+            'test_decisions': test_evaluation,
+            'model_comparison': comparison, 'independent_test_comparison':test_comparison,
             'activated': activated,
-            'decision_threshold': calibration['threshold'], 'decision_margin': .15,
+            'decision_threshold': calibration['threshold'], 'decision_margin': calibration['margin'], 'stability_frames': 5,
             'confusion_matrix': confusion_matrix(y[test], pred, labels=list(range(len(labels)))).tolist(),
             'evaluation_note': 'Prueba con secuencias reservadas del mismo dataset; no demuestra rendimiento con nuevos usuarios.',
         }
@@ -146,7 +307,7 @@ def train_language(language, epochs, job_id, label_ids=None):
             write_json(manifest, {'version': job_id})
         status.update(state='completed', activated=activated,
                       message='Modelo entrenado, comparado y activado. Ya puedes probarlo.' if activated else
-                      'Se conserva el modelo anterior: la nueva versión empeoró al menos una métrica de validación.', result=metadata)
+                      'Versión guardada sin activar: revisa las letras con baja recuperación, precisión o cobertura en validación.', result=metadata)
         write_json(progress_path, status)
     except Exception as exc:
         status.update(state='failed', message=str(exc))
@@ -161,7 +322,9 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=40)
     parser.add_argument('--job-id', required=True)
     parser.add_argument('--labels', nargs='+', help='IDs de las señas seleccionadas; cada una requiere el mínimo real.')
+    parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory'], default='baseline')
+    parser.add_argument('--no-activate', action='store_true', help='Guardar evaluación sin cambiar el modelo activo.')
     args = parser.parse_args()
     if not 5 <= args.epochs <= 200:
         parser.error('Las épocas deben estar entre 5 y 200.')
-    train_language(args.language, args.epochs, args.job_id, args.labels)
+    train_language(args.language, args.epochs, args.job_id, args.labels, args.strategy, not args.no_activate)
