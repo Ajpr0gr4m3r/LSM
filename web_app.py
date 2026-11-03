@@ -1,5 +1,6 @@
-"""Página local para recolectar, entrenar y probar siete lenguas de señas.
-Ejecutar: .venv/bin/python web_app.py — abrir http://127.0.0.1:8765
+"""Página local para recopilar ejemplos, entrenar y probar el modelo de LSM.
+Ejecución local: .venv/bin/python web_app.py
+Acceso HTTPS temporal: .venv/bin/python web_app.py --quick-tunnel
 """
 from __future__ import annotations
 import argparse
@@ -9,11 +10,15 @@ from collections import deque
 import json
 import os
 from pathlib import Path
+import queue
+import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
 import time
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 import uuid
@@ -32,6 +37,47 @@ from capture_quality import landmark_quality, image_quality, sequence_quality, h
 from studio_services import versions, activate_version, recent_activity, dataset_operation
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
+
+
+QUICK_TUNNEL_URL = re.compile(r'https://[a-z0-9-]+\.trycloudflare\.com', re.IGNORECASE)
+
+
+def start_quick_tunnel(port):
+    """Abre un túnel HTTPS temporal a localhost y devuelve su proceso y URL."""
+    executable = shutil.which('cloudflared')
+    if not executable:
+        raise RuntimeError('No encuentro cloudflared. Instálalo o inicia Seña solo en modo local.')
+    process = subprocess.Popen(
+        [executable, 'tunnel', '--url', f'http://127.0.0.1:{port}', '--no-autoupdate'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    lines = queue.Queue()
+
+    def read_output():
+        for line in process.stdout:
+            lines.put(line.rstrip())
+
+    threading.Thread(target=read_output, daemon=True).start()
+    deadline = time.monotonic() + 45
+    recent = deque(maxlen=8)
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError('cloudflared terminó antes de crear el enlace. ' + ' | '.join(recent))
+        try:
+            line = lines.get(timeout=0.25)
+        except queue.Empty:
+            continue
+        if line:
+            print(f'[cloudflared] {line}', flush=True)
+            recent.append(line)
+            match = QUICK_TUNNEL_URL.search(line)
+            if match:
+                return process, match.group(0)
+    process.terminate()
+    raise RuntimeError('No se obtuvo un enlace temporal de Cloudflare en 45 segundos. ' + ' | '.join(recent))
 
 ROOT = Path(BASE_DIR)
 TOKEN = secrets.token_urlsafe(32)
@@ -971,13 +1017,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1', help='Escucha interna; usa un proxy HTTPS para acceso remoto.')
-    parser.add_argument('--public-url', help='Origen HTTPS del proxy autenticado, por ejemplo https://senas.ejemplo.com')
-    parser.add_argument('--phone-origin', help='Origen HTTPS privado para los enlaces temporales de teléfono (Tailscale Serve).')
+    parser.add_argument('--public-url', help='Origen HTTPS del proxy; el acceso remoto exige una cuenta del equipo.')
+    parser.add_argument('--phone-origin', help='Origen HTTPS para los enlaces temporales del teléfono; puede coincidir con --public-url.')
+    parser.add_argument('--quick-tunnel', action='store_true', help='Crea una URL HTTPS temporal con cloudflared para compartir la app sin Tailscale.')
+    parser.add_argument('--no-open', action='store_true', help='No abras el navegador automáticamente al iniciar.')
     args = parser.parse_args()
     cache = WEB_DATA / 'cache' / 'matplotlib'
     cache.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault('MPLCONFIGDIR', str(cache))
     os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
+    if args.quick_tunnel and (args.public_url or args.phone_origin):
+        parser.error('--quick-tunnel crea su propio origen; no lo combines con --public-url ni --phone-origin.')
+    if args.quick_tunnel and args.host not in ('127.0.0.1', 'localhost', '::1'):
+        parser.error('--quick-tunnel solo debe enlazar el servidor a localhost.')
     if args.public_url:
         parsed = urlsplit(args.public_url)
         if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ('', '/') or parsed.query or parsed.fragment:
@@ -988,23 +1040,41 @@ def main():
         if parsed_phone.scheme != 'https' or not parsed_phone.hostname or parsed_phone.username or parsed_phone.password or parsed_phone.path not in ('', '/') or parsed_phone.query or parsed_phone.fragment:
             parser.error('--phone-origin debe ser un origen HTTPS sin ruta, credenciales ni parámetros.')
         args.phone_origin = 'https://' + parsed_phone.netloc
-    if args.public_url and args.phone_origin:
-        parser.error('Usa --phone-origin para enlazar teléfonos en modo local; no combines los dos modos.')
+    if args.public_url and args.phone_origin and args.public_url != args.phone_origin:
+        parser.error('Si combinas --public-url y --phone-origin, ambos deben usar el mismo origen HTTPS.')
     if args.host not in ('127.0.0.1', 'localhost', '::1') and not args.public_url:
         parser.error('Para escuchar fuera de localhost configura --public-url y un proxy HTTPS.')
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    server.public_origin = args.public_url
-    server.phone_origin = args.phone_origin
-    server.local_mode = not args.public_url
-    server.local_csrf = secrets.token_urlsafe(32)
-    address = args.public_url or f'http://127.0.0.1:{args.port}'
-    print(f'\nPágina de señas: {address}\nCtrl+C para cerrar.\n', flush=True)
+    tunnel = None
     try:
+        if args.quick_tunnel:
+            print('Creando enlace HTTPS temporal…', flush=True)
+            tunnel, args.public_url = start_quick_tunnel(args.port)
+            args.phone_origin = args.public_url
+        server.public_origin = args.public_url
+        server.phone_origin = args.phone_origin
+        server.local_mode = not args.public_url
+        server.local_csrf = secrets.token_urlsafe(32)
+        address = args.public_url or f'http://127.0.0.1:{args.port}'
+        print(f'\nPágina de Seña: {address}', flush=True)
+        print('Modo: acceso remoto con cuenta.' if args.public_url else 'Modo: solo esta computadora, sin inicio de sesión.', flush=True)
+        if args.quick_tunnel:
+            print('La URL es temporal y deja de funcionar al cerrar esta ventana. Compártela solo con quien corresponda.', flush=True)
+        if not args.no_open:
+            threading.Timer(0.6, webbrowser.open, args=(address,)).start()
+        print('Ctrl+C para cerrar.\n', flush=True)
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        if tunnel and tunnel.poll() is None:
+            tunnel.terminate()
+            try:
+                tunnel.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                tunnel.kill()
+                tunnel.wait()
         with RUNTIME.lock:
             for item in RUNTIME.sessions.values():
                 item.close()

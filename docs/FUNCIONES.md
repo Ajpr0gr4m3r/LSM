@@ -407,7 +407,7 @@ Este catálogo complementa los comentarios junto al código: permite ubicar cada
 
 ### `static/phone.js`
 
-- `async function phoneApi(route, body =` — Envía peticiones móviles con la llave temporal de la sala sin utilizar cuentas del estudio.
+- `async function phoneApi(route, body = {})` — Envía peticiones móviles con la llave temporal de la sala sin utilizar cuentas del estudio.
 - `function phoneError(text)` — Muestra o limpia el error de la página móvil.
 - `function drawPhoneMessages(data)` — Actualiza mensajes y borrador solo cuando cambian y lee respuestas recibidas una sola vez.
 - `async function pollPhoneState()` — Consulta la sala cuando no se están enviando fotogramas y avisa si dejó de estar disponible.
@@ -450,7 +450,7 @@ Este catálogo complementa los comentarios junto al código: permite ubicar cada
 ### `static/speech.js`
 
 - `class SenaSpeechQueue` — Gestiona la voz con una cola breve y sin cortar el mensaje que ya está sonando.
-- `constructor(synthesis, Utterance, onError = () =>` — Conserva el sintetizador y prepara la consulta de voces instaladas.
+- `constructor(synthesis, Utterance, onError = () => {})` — Conserva el sintetizador y prepara la consulta de voces instaladas.
 - `enqueue(text, locale)` — Añade un texto no repetido y limita la cola para no acumular retraso de anuncios.
 - `playNext()` — Selecciona voz e idioma y reproduce el siguiente mensaje al terminar el anterior.
 
