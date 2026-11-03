@@ -2,7 +2,7 @@
 
 Seña permite conversar entre una computadora y un teléfono. La persona del teléfono puede hacer señas frente a la cámara o escribir; la persona de la computadora puede responder por texto. Los mensajes aparecen en ambas pantallas y se leen en voz alta si el navegador dispone de una voz compatible.
 
-El teléfono envía fotogramas a la Mac para ejecutar el modelo de la lengua elegida al crear la sala. Solo se reconocen las señas aprendidas por ese modelo. Los siete perfiles mantienen sus datos y modelos separados.
+El teléfono envía fotogramas a la Mac para ejecutar el modelo LSM activo. La salida se muestra en español y solo se reconocen las señas aprendidas por ese modelo.
 
 ## 1. Conectar el teléfono a Tailscale
 
@@ -69,7 +69,7 @@ Si necesitas reiniciar Seña, detén su instancia desde la terminal donde se eje
 
 ## 4. Crear la sala y abrir la cámara
 
-1. En la Mac, selecciona la lengua de señas que van a usar.
+1. En la Mac, confirma el perfil LSM (Lengua de Señas Mexicana), con salida en español.
 2. Entra en **Conversación**. También puedes pulsar **¿No tienes cámara? Usar teléfono** desde Reconocimiento.
 3. Acepta compartir los mensajes y señas en la sala temporal y pulsa **Crear conversación**.
 4. Escanea el QR con el teléfono o copia su enlace completo y ábrelo en Safari o Chrome.

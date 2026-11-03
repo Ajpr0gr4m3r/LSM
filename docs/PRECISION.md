@@ -1,6 +1,6 @@
 # Reconocimiento discriminativo de Seña
 
-La versión nueva conserva los siete perfiles, los archivos NPZ y los modelos anteriores. Los cambios de representación se identifican como `articulation-motion-v5`; solo los modelos nuevos usan esos canales. Los modelos antiguos siguen usando su preprocesamiento guardado.
+La aplicación activa actualmente solo el perfil LSM con salida en español. Los archivos NPZ y modelos históricos de otros perfiles se conservan en disco, pero no se cargan ni se ofrecen desde la interfaz. Los cambios de representación se identifican como `articulation-motion-v5`; solo los modelos nuevos usan esos canales. Los modelos antiguos siguen usando su preprocesamiento guardado.
 
 ## Problemas comprobados
 

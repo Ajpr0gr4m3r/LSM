@@ -1,4 +1,4 @@
-"""Perfiles de lenguas de señas: cada uno requiere datos y pesos propios."""
+"""Perfil LSM con etiquetas de salida en español y rutas de datos independientes."""
 import json
 import os
 import re
@@ -15,25 +15,20 @@ RECOMMENDED_SAMPLES = 60
 CAPTURE_FPS = 10
 LANGUAGES = [
     {'id': 'lsm', 'code': 'LSM', 'name': 'Lengua de Señas Mexicana', 'region': 'México', 'written': 'Español', 'locale': 'es-MX'},
-    {'id': 'dgs', 'code': 'DGS', 'name': 'Deutsche Gebärdensprache', 'region': 'Alemania', 'written': 'Alemán', 'locale': 'de-DE'},
-    {'id': 'asl', 'code': 'ASL', 'name': 'American Sign Language', 'region': 'Estados Unidos', 'written': 'Inglés', 'locale': 'en-US'},
-    {'id': 'jsl', 'code': 'JSL', 'name': '日本手話', 'region': 'Japón', 'written': 'Japonés', 'locale': 'ja-JP'},
-    {'id': 'csl', 'code': 'CSL', 'name': '中国手语', 'region': 'China', 'written': 'Chino mandarín', 'locale': 'zh-CN'},
-    {'id': 'lsf', 'code': 'LSF', 'name': 'Langue des signes française', 'region': 'Francia', 'written': 'Francés', 'locale': 'fr-FR'},
-    {'id': 'libras', 'code': 'Libras', 'name': 'Língua Brasileira de Sinais', 'region': 'Brasil', 'written': 'Portugués', 'locale': 'pt-BR'},
 ]
+
 # Estas son etiquetas de significado; NO son ejemplos ni modelos de las señas.
 WORDS = {
-    'hola': ['Hola', 'Hallo', 'Hello', 'こんにちは', '你好', 'Bonjour', 'Olá'],
-    'gracias': ['Gracias', 'Danke', 'Thank you', 'ありがとう', '谢谢', 'Merci', 'Obrigado / Obrigada'],
-    'por_favor': ['Por favor', 'Bitte', 'Please', 'お願いします', '请', "S’il vous plaît", 'Por favor'],
-    'me_llamo': ['Me llamo', 'Ich heiße', 'My name is', '私の名前は', '我叫', "Je m’appelle", 'Meu nome é'],
-    'mucho_gusto': ['Mucho gusto', 'Freut mich', 'Nice to meet you', 'はじめまして', '很高兴认识你', 'Enchanté / Enchantée', 'Prazer em conhecer você'],
-    'buenos_dias': ['Buenos días', 'Guten Morgen', 'Good morning', 'おはようございます', '早上好', 'Bonjour', 'Bom dia'],
-    'adios': ['Adiós', 'Auf Wiedersehen', 'Goodbye', 'さようなら', '再见', 'Au revoir', 'Tchau'],
-    'si': ['Sí', 'Ja', 'Yes', 'はい', '是', 'Oui', 'Sim'],
-    'no': ['No', 'Nein', 'No', 'いいえ', '不', 'Non', 'Não'],
-    'ayuda': ['Ayuda', 'Hilfe', 'Help', '助けて', '帮助', 'Aide', 'Ajuda'],
+    'hola': ['Hola'],
+    'gracias': ['Gracias'],
+    'por_favor': ['Por favor'],
+    'me_llamo': ['Me llamo'],
+    'mucho_gusto': ['Mucho gusto'],
+    'buenos_dias': ['Buenos días'],
+    'adios': ['Adiós'],
+    'si': ['Sí'],
+    'no': ['No'],
+    'ayuda': ['Ayuda'],
 }
 
 # Valida el identificador y devuelve los datos del perfil de lengua de señas.
@@ -43,7 +38,7 @@ def language_info(language):
             return item
     raise ValueError('Lengua de señas desconocida.')
 
-# Combina el vocabulario predeterminado traducido con las etiquetas personalizadas de ese perfil.
+# Combina las etiquetas predeterminadas en español con el vocabulario personalizado de LSM.
 def labels_for(language):
     language_info(language)
     index = next(i for i, item in enumerate(LANGUAGES) if item['id'] == language)

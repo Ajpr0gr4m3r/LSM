@@ -1,7 +1,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let state,
-  language = ['lsm', 'dgs', 'asl', 'jsl', 'csl', 'lsf', 'libras'].includes(
+  language = ['lsm'].includes(
     localStorage.getItem('sena-profile'),
   )
     ? localStorage.getItem('sena-profile')
@@ -336,7 +336,7 @@ function renderAlphabet() {
   $('alphabet-source').hidden = !alphabet.source;
   if (alphabet.source) $('alphabet-source').href = alphabet.source;
 }
-// Solicita registrar símbolos del perfil o de los siete perfiles, sin crear ejemplos ficticios.
+// Solicita registrar símbolos del perfil LSM, sin crear ejemplos ficticios.
 async function addAlphabet(scope, extras = false) {
   if (addingAlphabet) return;
   const chosenLanguage = language;
@@ -349,7 +349,7 @@ async function addAlphabet(scope, extras = false) {
       ? result.results.reduce((total, item) => total + item.added, 0)
       : result.added;
     notice(
-      `${added} letras o caracteres añadidos${scope === 'all' ? ' a los vocabularios de las siete lenguas' : ' al vocabulario seleccionado'}. Ahora puedes grabar ejemplos y entrenarlos.`,
+      `${added} letras o caracteres añadidos al vocabulario español. Ahora puedes grabar ejemplos y entrenarlos.`,
     );
   } catch (error) {
     notice(error.message, true);

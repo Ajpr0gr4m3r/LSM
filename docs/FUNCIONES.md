@@ -38,7 +38,7 @@ Este catálogo complementa los comentarios junto al código: permite ubicar cada
 - `alphabet_status(language, rows, model)` — Combina símbolos, ejemplos y vocabulario aprendido para mostrar el progreso del abecedario.
 - `entries(symbols)` — Construye las filas de símbolos con su etiqueta, cantidad de ejemplos y estado entrenado.
 - `add_alphabet(language, extras=False)` — Registra los símbolos de un perfil sin inventar ejemplos ni modificar sus modelos.
-- `add_all_alphabets()` — Registra las bases de los siete abecedarios manteniendo separados sus vocabularios.
+- `add_all_alphabets()` — Registra los símbolos del perfil español sin crear ejemplos de entrenamiento.
 
 ### `capture_quality.py`
 
@@ -195,7 +195,7 @@ Este catálogo complementa los comentarios junto al código: permite ubicar cada
 ### `sign_languages.py`
 
 - `language_info(language)` — Valida el identificador y devuelve los datos del perfil de lengua de señas.
-- `labels_for(language)` — Combina el vocabulario predeterminado traducido con las etiquetas personalizadas de ese perfil.
+- `labels_for(language)` — Combina las etiquetas predeterminadas en español con el vocabulario personalizado de LSM.
 - `validate_label(language, label)` — Rechaza etiquetas que no pertenecen al vocabulario de la lengua seleccionada.
 - `dataset_dir(language)` — Devuelve la carpeta de ejemplos de un perfil validado.
 - `model_dir(language)` — Devuelve la carpeta de versiones de modelos de un perfil validado.
@@ -349,7 +349,7 @@ Este catálogo complementa los comentarios junto al código: permite ubicar cada
 - `function makeOption(value, text)` — Crea una opción de selector usando texto seguro, sin interpretar HTML.
 - `function render()` — Actualiza vocabulario, controles y estados habilitados según cámara, perfil y operaciones en curso.
 - `function renderAlphabet()` — Dibuja los símbolos y su progreso y permite elegir una letra para nombrar la siguiente toma.
-- `async function addAlphabet(scope, extras = false)` — Solicita registrar símbolos del perfil o de los siete perfiles, sin crear ejemplos ficticios.
+- `async function addAlphabet(scope, extras = false)` — Solicita registrar símbolos del perfil LSM, sin crear ejemplos ficticios.
 - `function renderJob()` — Muestra estado, época y métricas del trabajo real de entrenamiento.
 - `async function refresh()` — Reutiliza la consulta de estado en curso y solo vuelve a dibujar cuando cambian sus datos.
 - `async function selectLanguage(id)` — Detiene la cámara, cambia el perfil y limpia estados que no deben cruzarse entre lenguas.

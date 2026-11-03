@@ -330,7 +330,11 @@ Cuando el buffer está lleno:
 - Verifica que no haya objetos brillantes o similares a manos en el fondo.
 
 
-## Página local: siete lenguas de señas
+## Página local histórica: siete perfiles (ya no disponibles)
+
+Esta sección documenta una versión anterior. La aplicación actual solo ofrece LSM con salida en español; las carpetas históricas de los otros perfiles se conservan, pero no se cargan ni se muestran.
+
+## Página local anterior: siete lenguas de señas
 
 Inicia la página usando el entorno del proyecto:
 

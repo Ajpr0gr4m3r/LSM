@@ -2,7 +2,7 @@
 
 Seña es una aplicación local para recopilar ejemplos de lenguas de señas, entrenar modelos con esos datos y reconocer señas en una cámara. También ofrece una sala temporal para conversar desde una computadora y un teléfono.
 
-> Los siete perfiles son **LSM**, **DGS**, **ASL**, **JSL**, **CSL**, **LSF** y **Libras**. Cada perfil conserva su propio vocabulario, dataset y modelos. Tener un perfil disponible no significa que incluya un modelo entrenado: el sistema solo reconoce las clases para las que se grabaron ejemplos y se entrenó un modelo.
+> La aplicación ofrece únicamente **LSM (Lengua de Señas Mexicana)** y texto de salida en español. El perfil y el vocabulario LSM son los únicos que aparecen y se pueden usar desde la interfaz. Los datos y modelos históricos de otros perfiles se conservan en disco, pero la aplicación ya no los carga ni los muestra.
 
 ## Diagrama del flujo
 
@@ -118,7 +118,7 @@ Las pruebas de entrenamiento usan modelos y datos sintéticos en ubicaciones tem
 
 ## Límites que conviene tener presentes
 
-- No hay modelos preentrenados completos para las siete lenguas ni traducción automática de cualquier conversación. El vocabulario traducido es texto de salida; cada perfil requiere sus propios ejemplos y entrenamiento.
+- No hay un modelo preentrenado universal ni traducción automática de conversaciones libres. El modelo LSM reconoce únicamente las clases entrenadas con ejemplos de LSM.
 - Más ejemplos ayudan solo si son correctos y variados. La evaluación con pocas sesiones no prueba rendimiento en la vida diaria.
 - La detección depende de una cámara, iluminación, distancia y manos visibles suficientes. La función de recuperación de seguimiento no elimina todas las pérdidas de MediaPipe.
 - La síntesis de voz depende de las voces instaladas en el navegador/dispositivo.

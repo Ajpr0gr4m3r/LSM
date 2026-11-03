@@ -20,7 +20,7 @@
 <rect width="100%" height="100%" fill="url(#bg)"/>
 <circle cx="1780" cy="70" r="220" fill="#cccccc" opacity=".14"/><circle cx="70" cy="2180" r="200" fill="#cccccc" opacity=".12"/>
 <text x="65" y="72" class="title">Seña · arquitectura y flujo del código</text>
-<text x="68" y="106" class="subtitle">Mapa del repositorio: quién llama a quién, qué datos circulan y dónde se guardan · perfiles y modelos independientes</text>
+<text x="68" y="106" class="subtitle">Mapa del repositorio: quién llama a quién, qué datos circulan y dónde se guardan · un perfil activo LSM y sus modelos</text>
 
 <rect x="50" y="140" width="1800" height="235" rx="22" class="section"/><text x="78" y="172" class="sectionTitle">1 · INTERFACES Y PUNTOS DE ENTRADA</text>
 <rect x="80" y="190" width="560" height="145" rx="15" class="card"/>
@@ -68,9 +68,9 @@
 <rect x="50" y="670" width="1800" height="275" rx="22" class="section"/><text x="78" y="702" class="sectionTitle">3 · PERFILES, VOCABULARIO, CAPTURA Y DATASET</text>
 <rect x="80" y="725" width="390" height="155" rx="15" class="light"/>
 <text x="98" y="754" class="head dark">Perfiles · sign_languages.py</text>
-<text x="98" y="780" class="body dark">7 perfiles separados: LSM, DGS, ASL,</text>
-<text x="98" y="801" class="body dark">JSL, CSL, LSF y Libras</text>
-<text x="98" y="822" class="body dark">Etiquetas de salida ≠ modelos aprendidos</text>
+<text x="98" y="780" class="body dark">Único perfil activo: LSM,</text>
+<text x="98" y="801" class="body dark">salida escrita en español</text>
+<text x="98" y="822" class="body dark">solo clases entrenadas con datos LSM</text>
 <rect x="520" y="725" width="390" height="155" rx="15" class="card"/>
 <text x="538" y="754" class="head ">Configuración · config.py</text>
 <text x="538" y="780" class="body ">Longitud de secuencia y dimensiones</text>

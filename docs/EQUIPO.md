@@ -1,8 +1,8 @@
 # Usuarios y servidor compartido de Seña
 
-Cada servidor tiene un equipo. Sus cuentas comparten ejemplos guardados, etiquetas,
-modelos, métricas y actividad. Los siete perfiles permanecen separados. No hay
-sincronización entre servidores diferentes: todos deben abrir la misma URL.
+> Guía de una configuración anterior. El modo local actual no exige iniciar sesión y solo ofrece el perfil LSM con salida en español; consulta README.md para el uso vigente.
+
+En esta configuración anterior, cada servidor tenía un equipo que compartía ejemplos, etiquetas, modelos, métricas y actividad. El producto vigente está limitado a LSM con salida en español; los datos históricos de otros perfiles no se borran ni se cargan. No hay sincronización entre servidores diferentes.
 
 ## Comenzar en la computadora actual
 

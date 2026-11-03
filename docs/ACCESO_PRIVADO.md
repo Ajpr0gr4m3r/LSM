@@ -1,8 +1,8 @@
 # Acceso privado del laboratorio desde casa
 
-La opción preparada usa **Tailscale Serve** y la cuenta individual de cada persona
-en Seña. Los datos permanecen en esta Mac: todos entran al mismo servidor y los
-modelos/ejemplos guardados son compartidos, con las siete lenguas separadas.
+> Guía heredada de alojamiento con cuentas. La aplicación local actual ofrece LSM con salida en español; para enlazar su cámara móvil por Tailscale, sigue CAMARA_TELEFONO.md.
+
+Esta guía describe el despliegue anterior con Tailscale Serve y cuentas individuales. Los datos permanecen en esta Mac. La aplicación vigente usa modo local, ofrece LSM con salida en español y conserva sin cargar los datos históricos de otros perfiles.
 
 ## Activación que requiere al propietario
 
