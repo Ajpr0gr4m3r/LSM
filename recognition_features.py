@@ -296,6 +296,11 @@ def fit_temporal_guard(points, targets, validation, val_targets, descriptor_vers
         distances = np.array([[nearest_distance(d, item['references']) for item in classes] for d in val])
         for i,item in enumerate(classes):
             item['motion_required'] = i in moving
+            if i not in moving:
+                held = [temporal_descriptor(np.repeat(p[-1:], len(p), axis=0),
+                                            descriptor_version=descriptor_version)
+                        for p in points[targets == i]]
+                item['held_references'] = representative_references(np.stack(held)).tolist()
             # Una postura quieta compite con el movimiento; una trayectoria
             # también debe distinguirse de otras trayectorias aprendidas.
             rivals = [j for j in range(len(classes)) if j != i and (i in moving or j in moving)]
@@ -315,11 +320,27 @@ def fit_temporal_guard(points, targets, validation, val_targets, descriptor_vers
 
 
 # Compara la trayectoria con su clase y, si corresponde, con rivales de distinto movimiento.
-def temporal_guard_score(points,predicted,guard):
+def temporal_guard_score(points,predicted,guard,allow_held=True):
     if not guard: return 0.
     item=guard['classes'][int(predicted)]
     descriptor=temporal_descriptor(points,guard['preprocessing'],guard.get('descriptor_version'))
     own=nearest_distance(descriptor,item['references'])
+    if allow_held and not item.get('motion_required', True) and item.get('held_references') is not None:
+        # El descriptor guarda desplazamientos ordenados de muñeca y cinco puntas.
+        # Una postura sostenida debe ser realmente quieta en ambas manos.
+        blocks = descriptor.reshape(2, 391)
+        displacement = blocks[:, :192].reshape(2,16,6,2)
+        # La entrada a la postura puede ocupar la primera mitad de la ventana.
+        # Comprobar la parte final y exigir una mano visible evita interpretar
+        # como quietud los bloques vacíos del descriptor.
+        visible = blocks[:, -1] >= .8
+        if visible.any():
+            tail = displacement[visible, 8:]
+            extent = np.max(np.linalg.norm(np.ptp(tail, axis=1), axis=-1))
+            if extent <= item.get('held_motion_limit', .12):
+                # La forma ya pasó su control; comparar una postura inmóvil
+                # contra la trayectoria de otra letra no distingue su identidad.
+                return 0.
     score=own/max(item['max_distance'],1e-8)
     if item.get('rival_classes'):
         rival=min(nearest_distance(descriptor,guard['classes'][i]['references']) for i in item['rival_classes'])

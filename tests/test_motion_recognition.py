@@ -65,3 +65,48 @@ class MotionRecognitionTests(unittest.TestCase):
             present=np.any(r[...,:3]!=0,axis=-1)
             r[...,:2]=np.where(present[...,None],r[...,:2]*.8+.05,0)
         np.testing.assert_allclose(trajectory_descriptor(raw),trajectory_descriptor(varied),atol=1e-5)
+
+    def test_static_guard_accepts_a_held_pose_without_removing_dynamic_checks(self):
+        static = self.sequence()
+        moving = self.sequence(True)
+        raw = np.stack([static]*4+[moving]*4)
+        targets = np.repeat([0,1],4)
+        guard = fit_temporal_guard(raw,targets,raw,targets,descriptor_version='trajectory-v2')
+        self.assertIn('held_references',guard['classes'][0])
+        self.assertNotIn('held_references',guard['classes'][1])
+        self.assertTrue(temporal_guard_accept(static,0,guard))
+        self.assertFalse(temporal_guard_accept(static,1,guard))
+
+    def test_held_pose_fallback_cannot_accept_a_moving_gesture(self):
+        from motion_features import trajectory_descriptor
+        static = self.sequence()
+        moving = self.sequence(True)
+        guard = {
+            'preprocessing': 'stable-body-hand-v3', 'descriptor_version': 'trajectory-v2',
+            'classes': [{
+                'references': [trajectory_descriptor(moving).tolist()],
+                'held_references': [trajectory_descriptor(static).tolist()],
+                'max_distance': .001, 'motion_required': False,
+            }],
+        }
+        from recognition_features import temporal_guard_score
+        self.assertLessEqual(temporal_guard_score(static,0,guard,allow_held=True),1.)
+        self.assertGreater(temporal_guard_score(static,0,guard,allow_held=False),1.)
+        # Desplazar la trayectoria en orden inverso impide que coincida
+        # con la referencia original y debe superar el límite de quietud.
+        self.assertGreater(temporal_guard_score(moving[::-1],0,guard,allow_held=True),1.)
+
+    def test_entry_motion_does_not_veto_a_settled_static_pose(self):
+        from motion_features import trajectory_descriptor
+        from recognition_features import temporal_guard_score
+        static = self.sequence()
+        entry = static.copy()
+        regions(entry)[2][:12,:,:2] += np.linspace(.25,0,12)[:,None,None]
+        ref = trajectory_descriptor(static).tolist()
+        guard = dict(preprocessing='stable-body-hand-v3',descriptor_version='trajectory-v2',
+                     classes=[dict(references=[ref],held_references=[ref],max_distance=.001,
+                                   motion_required=False)])
+        self.assertGreater(temporal_guard_score(entry,0,guard,allow_held=False),1)
+        self.assertLessEqual(temporal_guard_score(entry,0,guard,allow_held=True),1)
+        guard['classes'][0]['motion_required']=True
+        self.assertGreater(temporal_guard_score(entry,0,guard,allow_held=True),1)

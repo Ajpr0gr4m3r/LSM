@@ -14,8 +14,10 @@ let generation = 0,
   countdown = false,
   recording = false,
   frameReady = false;
+const trialDiagnostics = new Map();
 let history = [],
   lastSpoken = null,
+  lastConfirmationId = null,
   checks = 0,
   correct = 0,
   lastJobState = '';
@@ -671,6 +673,7 @@ async function sendFrame(mark) {
     const result = await api('/api/frame', {
       session,
       image: canvas.toDataURL('image/jpeg', 0.82).split(',')[1],
+      confirmation_ack: lastConfirmationId,
       show_hand_rig: $('show-hand-rig').checked,
       mode: mode === 'test' && $('snapshot-mode').checked ? 'preview' : mode,
       strict: localStorage.getItem('sena-confirmation') === 'strict',
@@ -735,7 +738,7 @@ async function sendFrame(mark) {
         return;
       }
     }
-    if (mode === 'test' && !$('snapshot-mode').checked && !result.inference_skipped) showPrediction(result);
+    if (mode === 'test' && !$('snapshot-mode').checked && (!result.inference_skipped || result.confirmed)) showPrediction(result);
   } catch (error) {
     if (mark !== generation) return;
     notice(error.message, true);
@@ -755,13 +758,26 @@ function showPrediction(result) {
     resetResult();
     return;
   }
+  const trial = $('expected-label').value;
+  if (trial && !result.inference_skipped && (result.rejection_code || result.candidate)) {
+    const proposed = result.alternatives?.[0]?.text || result.candidate?.text || '—';
+    const outcome = result.rejection_code || result.phase;
+    const key = JSON.stringify([trial, proposed, outcome]);
+    const row = trialDiagnostics.get(key) || {
+      expected: profile().model.labels.find(l => l.id === trial)?.text || trial,
+      proposed, outcome, windows: 0,
+    };
+    row.windows++;
+    trialDiagnostics.set(key,row);
+    $('download').disabled = false;
+  }
   renderAlternatives(result.alternatives || []);
   $('confidence').textContent = result.candidate ? `${(100 * result.confidence).toFixed(1)}%` : '—';
-  $('confidence-progress').value = 100 * result.confidence;
+  $('confidence-progress').value = result.candidate ? 100 * result.confidence : 0;
   $('stability').textContent = `${result.stability} / ${result.stability_required || 5} confirmaciones estables`;
-  if (result.candidate) {
+  if (result.candidate || result.confirmed) {
     $('result-word').textContent = (result.confirmed || result.phase === 'held')
-      ? result.candidate.text
+      ? (result.confirmed || result.candidate).text
       : (result.stability >= 2 ? sessionConfirmedText(result) : 'Observando el gesto…');
     $('result-description').textContent =
       result.rejection_reason ||
@@ -775,7 +791,8 @@ function showPrediction(result) {
     $('result-description').textContent =
       result.rejection_reason || 'Haz una seña del vocabulario entrenado y espera la confirmación.';
   }
-  if (result.confirmed) {
+  if (result.confirmed && (!result.confirmation_id || result.confirmation_id !== lastConfirmationId)) {
+    if (result.confirmation_id) lastConfirmationId = result.confirmation_id;
     const expected = $('expected-label').value;
     if (expected) {
       checks++;
@@ -783,14 +800,14 @@ function showPrediction(result) {
     }
     history.push({
       ...result.confirmed,
-      confidence: result.confidence,
+      confidence: result.confirmed_confidence ?? result.confidence,
       expected,
       time: new Date().toISOString(),
     });
     lastSpoken = result.confirmed.text;
     $('speak').disabled = !('speechSynthesis' in window);
     if ('speechSynthesis' in window) speak();
-    if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(result.confirmed.text, result.confidence);
+    if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(result.confirmed.text, result.confirmed_confidence ?? result.confidence);
     renderHistory();
   }
 }
@@ -805,10 +822,11 @@ function renderHistory() {
   }
   $('history-empty').hidden = history.length > 0;
   $('practice-score').textContent = `${correct} / ${checks} aciertos`;
-  $('download').disabled = !history.length;
+  $('download').disabled = !history.length && !trialDiagnostics.size;
 }
 // Limpia historial, estadísticas locales y resultado visible de reconocimiento.
 function clearHistory() {
+  trialDiagnostics.clear();
   history = [];
   checks = correct = 0;
   lastSpoken = null;
@@ -1076,7 +1094,7 @@ $('download').addEventListener('click', () => {
   const blob = new Blob(
     [
       JSON.stringify(
-        { language, name: profile().name, records: history, checked: checks, correct },
+        { language, name: profile().name, records: history, checked: checks, correct, diagnostics: [...trialDiagnostics.values()] },
         null,
         2,
       ),

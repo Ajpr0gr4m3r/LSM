@@ -64,11 +64,24 @@ def fit_motion_profile(points, targets):
     extent = np.array([r['extent'] for r in summaries])
     tails = np.array([r['tail_speed'] for r in summaries])
     medians = [float(np.median(extent[targets == i])) for i in sorted(np.unique(targets))]
-    baseline = max(.04, float(np.quantile(medians, .2)))
-    moving = [i for i, value in enumerate(medians) if value > max(.12, 2.5*baseline)]
+    # El recorrido solo es obligatorio cuando distingue posturas parecidas.
+    # Una clase quieta nueva no debe desplazar un umbral global del vocabulario.
+    from recognition_features import hand_descriptor
+    descriptors = np.stack([hand_descriptor(p, True, 'finger-articulation-v3') for p in points])
+    centers, radii = [], []
+    for i in sorted(np.unique(targets)):
+        values = descriptors[targets == i]
+        center = np.median(values, axis=0)
+        centers.append(center)
+        radii.append(max(.035, float(np.quantile(np.sqrt(np.mean((values-center)**2, axis=1)), .9))))
+    moving = [i for i, extent in enumerate(medians)
+              if extent > .12 and any(
+                  i != j and extent > 2.5 * max(.04, medians[j])
+                  and np.sqrt(np.mean((centers[i]-centers[j])**2)) <= min(radii[i], radii[j])
+                  for j in range(len(medians)))]
     quiet = tails[tails <= np.quantile(tails, .4)]
     threshold = max(.02, float(np.median(quiet))*3)
-    return {'version': 'trajectory-profile-v1', 'moving_classes': moving,
+    return {'version': 'shape-motion-profile-v2', 'moving_classes': moving,
             'tail_speed_reference': threshold, 'class_extent_medians': medians,
             'note': 'Movimiento aprendido solo con entrenamiento; una postura inicial no permite anticipar un movimiento futuro.'}
 

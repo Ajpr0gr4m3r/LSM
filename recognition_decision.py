@@ -12,7 +12,7 @@ from recognition_features import (hand_descriptor, temporal_descriptor, nearest_
 
 
 # Mide distancia de forma, rival y trayectoria de una predicción respecto a sus referencias aprendidas.
-def evidence(points, predicted, metadata):
+def evidence(points, predicted, metadata, confidence=0.):
     hand = metadata.get('hand_guard')
     temporal = metadata.get('temporal_guard')
     result = {'hand': 0., 'rival': 0., 'temporal': 0.}
@@ -26,14 +26,30 @@ def evidence(points, predicted, metadata):
             rival = min(nearest_distance(descriptor, item['references'])
                         for i, item in enumerate(hand['classes']) if i != predicted)
             result['rival'] = distance / max(rival, 1e-8)
+        # Si la transición domina el resumen completo, verificar la postura
+        # más reciente con las mismas referencias y exigir separación del rival.
+        classes = (temporal or {}).get('classes', [])
+        if (confidence >= .98 and contrastive and len(hand['classes']) > 1
+                and classes and classes[predicted].get('motion_required') is False
+                and (result['hand'] > 1. or result['rival'] > (own.get('max_rival_ratio') or .98))):
+            tail = points[len(points)//2:]
+            recent = hand_descriptor(tail, True, hand.get('descriptor_version'))
+            distances = [nearest_distance(recent, item['references']) for item in hand['classes']]
+            tail_distance = distances[predicted]
+            competitor = min(d for j,d in enumerate(distances) if j != predicted)
+            ratio = tail_distance / max(competitor, 1e-8)
+            if tail_distance <= own['max_distance'] and ratio <= min(.9, own.get('max_rival_ratio') or .9):
+                result['hand'] = tail_distance / max(own['max_distance'], 1e-8)
+                result['rival'] = ratio
     if temporal:
-        result['temporal'] = temporal_guard_score(points, predicted, temporal)
+        allow_held = confidence >= .98 and result['hand'] <= 1.
+        result['temporal'] = temporal_guard_score(points, predicted, temporal, allow_held=allow_held)
     return result
 
 
 # Calcula las evidencias geométricas de todas las secuencias evaluadas.
 def batch_evidence(points, probabilities, metadata):
-    rows = [evidence(p, int(i), metadata) for p, i in zip(points, np.argmax(probabilities, axis=1))]
+    rows = [evidence(p, int(i), metadata, float(probabilities[j,i])) for j, (p, i) in enumerate(zip(points, np.argmax(probabilities, axis=1)))]
     return {key: np.array([row[key] for row in rows]) for key in ('hand', 'rival', 'temporal')}
 
 
@@ -145,11 +161,15 @@ def decision_details(points, probabilities, metadata, strict=False, test_mode=Fa
         policy = {**policy, 'classes': {**policy.get('classes', {}), str(index):
             {**row, 'threshold': min(float(row.get('threshold', policy.get('threshold', .85))), .90 - 1e-7)}}}
     if policy.get('version') == 2:
-        scores = {k: np.array([v]) for k, v in evidence(points, index, metadata).items()}
+        scores = {k: np.array([v]) for k, v in evidence(points, index, metadata, float(p[index])).items()}
         gates = gate_masks(p, policy, scores, strict)
+        temporal_classes = (metadata.get('temporal_guard') or {}).get('classes', [])
+        static_pose = bool(temporal_classes and temporal_classes[index].get('motion_required') is False)
+        temporal_message = ('La secuencia se aleja de las tomas aprendidas. Mantén la postura estable.'
+                            if static_pose else 'El movimiento no coincide con los ejemplos. Repite el gesto completo.')
         checks = [('hand', 'Forma de la mano fuera de los ejemplos aprendidos.'),
                   ('rival', 'La forma se parece a otra seña. Repite el gesto completo.'),
-                  ('temporal', 'El movimiento no coincide con los ejemplos. Repite el gesto completo.'),
+                  ('temporal', temporal_message),
                   ('confidence', 'Evidencia insuficiente o seña ambigua. Mantén el gesto o vuelve a empezar.')]
         for key, message in checks:
             if not gates[key][0]: return dict(accepted=False, code=key, reason=message)

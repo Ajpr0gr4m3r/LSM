@@ -1,0 +1,221 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="2360" viewBox="0 0 2000 2360"><rect width="100%" height="100%" fill="white"/><g fill="black" font-family="Arial,sans-serif">
+<text x="60" y="72" font-size="42">SEÑA · FLUJO COMPLETO DEL SISTEMA</text>
+<text x="60" y="117" font-size="25">Lengua de Señas Mexicana · funcionamiento actual · 4 de noviembre de 2026</text>
+<rect x="60" y="150" width="1880" height="158" fill="white" stroke="black" stroke-width="2"/>
+<text x="85" y="195" font-size="30">INICIO → web_app.py → servidor local → navegador</text>
+<text x="85" y="234" font-size="24">http://127.0.0.1:8765 · acceso local; HTTPS temporal opcional para otros dispositivos.</text>
+<text x="85" y="272" font-size="24">Inicio / Reconocimiento / Conversación / Dataset / Entrenamiento / Configuración</text>
+<text x="60" y="376" font-size="26">1. CÁMARA Y CAPTURA</text>
+<rect x="60" y="400" width="440" height="124" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="438" font-size="25">Permiso y dispositivo</text>
+<text x="76" y="476" font-size="22">Elegir cámara y aceptar el</text>
+<text x="76" y="505" font-size="22">procesamiento. Video en espejo.</text>
+<path d="M280 524 L280 554" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,554 273,542 287,542"/>
+<rect x="60" y="554" width="440" height="124" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="592" font-size="25">Fotograma actual</text>
+<text x="76" y="630" font-size="22">Navegador envía JPEG. Servidor</text>
+<text x="76" y="659" font-size="22">valida tamaño y sesión.</text>
+<path d="M280 678 L280 708" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,708 273,696 287,696"/>
+<rect x="60" y="708" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="746" font-size="25">Seguimiento de manos</text>
+<text x="76" y="784" font-size="22">Holistic detecta cuerpo, rostro</text>
+<text x="76" y="813" font-size="22">y manos. Si pierde la mano,</text>
+<text x="76" y="842" font-size="22">prueba Hands y giro de 180°.</text>
+<path d="M280 861 L280 891" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,891 273,879 287,879"/>
+<rect x="60" y="891" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="929" font-size="25">Mano hacia abajo</text>
+<text x="76" y="967" font-size="22">Recorte local girado refina los</text>
+<text x="76" y="996" font-size="22">dedos. Devuelve los puntos a</text>
+<text x="76" y="1025" font-size="22">las coordenadas originales.</text>
+<path d="M280 1044 L280 1074" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,1074 273,1062 287,1062"/>
+<rect x="60" y="1074" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="1112" font-size="25">¿Calidad suficiente?</text>
+<text x="76" y="1150" font-size="22">Revisar puntos, encuadre, luz y</text>
+<text x="76" y="1179" font-size="22">enfoque. No: informar y esperar</text>
+<text x="76" y="1208" font-size="22">o rechazar la toma.</text>
+<path d="M280 1227 L280 1257" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,1257 273,1245 287,1245"/>
+<rect x="60" y="1257" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="1295" font-size="25">Elegir operación</text>
+<text x="76" y="1333" font-size="22">Dataset → grabar secuencia.</text>
+<text x="76" y="1362" font-size="22">Reconocimiento → analizar</text>
+<text x="76" y="1391" font-size="22">ventana temporal.</text>
+<path d="M280 1410 L280 1440" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="280,1440 273,1428 287,1428"/>
+<rect x="60" y="1440" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="76" y="1478" font-size="25">Datos de captura</text>
+<text x="76" y="1516" font-size="22">Se conserva lateralidad,</text>
+<text x="76" y="1545" font-size="22">dirección y movimiento. El rig</text>
+<text x="76" y="1574" font-size="22">es una ayuda visual opcional.</text>
+<text x="540" y="376" font-size="26">2. DATASET</text>
+<rect x="540" y="400" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="438" font-size="25">Grabar una seña</text>
+<text x="556" y="476" font-size="22">Captura 30 fotogramas. Toma</text>
+<text x="556" y="505" font-size="22">individual o tanda de 5–60.</text>
+<text x="556" y="534" font-size="22">Cuenta regresiva y pausa con</text>
+<text x="556" y="563" font-size="22">Espacio.</text>
+<path d="M760 582 L760 612" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,612 753,600 767,600"/>
+<rect x="540" y="612" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="650" font-size="25">¿Toma completa y válida?</text>
+<text x="556" y="688" font-size="22">No: repetir. Sí: guardar como</text>
+<text x="556" y="717" font-size="22">pendiente con sesión,</text>
+<text x="556" y="746" font-size="22">participante y cámara.</text>
+<path d="M760 765 L760 795" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,795 753,783 767,783"/>
+<rect x="540" y="795" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="833" font-size="25">Nombrar e integrar</text>
+<text x="556" y="871" font-size="22">Asignar palabra o letra.</text>
+<text x="556" y="900" font-size="22">Guardar una toma o todas las</text>
+<text x="556" y="929" font-size="22">pendientes con el mismo nombre.</text>
+<path d="M760 948 L760 978" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,978 753,966 767,966"/>
+<rect x="540" y="978" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="1016" font-size="25">Almacenamiento local</text>
+<text x="556" y="1054" font-size="22">NPZ con landmarks y</text>
+<text x="556" y="1083" font-size="22">procedencia. Vocabulario por</text>
+<text x="556" y="1112" font-size="22">etiqueta. No se guarda video ni</text>
+<text x="556" y="1141" font-size="22">audio.</text>
+<path d="M760 1160 L760 1190" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,1190 753,1178 767,1178"/>
+<rect x="540" y="1190" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="1228" font-size="25">Revisar ejemplos</text>
+<text x="556" y="1266" font-size="22">Buscar, inspeccionar, importar</text>
+<text x="556" y="1295" font-size="22">y exportar. Detectar duplicados</text>
+<text x="556" y="1324" font-size="22">y ejemplos incompletos.</text>
+<path d="M760 1343 L760 1373" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,1373 753,1361 767,1361"/>
+<rect x="540" y="1373" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="1411" font-size="25">Administración</text>
+<text x="556" y="1449" font-size="22">Borrado con contraseña y</text>
+<text x="556" y="1478" font-size="22">recuperación en papelera. Los</text>
+<text x="556" y="1507" font-size="22">cambios pueden exigir</text>
+<text x="556" y="1536" font-size="22">reentrenar.</text>
+<path d="M760 1555 L760 1585" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="760,1585 753,1573 767,1573"/>
+<rect x="540" y="1585" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="556" y="1623" font-size="25">Preparar entrenamiento</text>
+<text x="556" y="1661" font-size="22">Mínimo 30 ejemplos únicos por</text>
+<text x="556" y="1690" font-size="22">clase, dos clases y grupos</text>
+<text x="556" y="1719" font-size="22">suficientes para separar los</text>
+<text x="556" y="1748" font-size="22">datos.</text>
+<text x="1020" y="376" font-size="26">3. ENTRENAMIENTO</text>
+<rect x="1020" y="400" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="438" font-size="25">Leer y comprobar datos</text>
+<text x="1036" y="476" font-size="22">Conservar clases anteriores.</text>
+<text x="1036" y="505" font-size="22">Auditar duplicados, calidad,</text>
+<text x="1036" y="534" font-size="22">desbalance y procedencia.</text>
+<path d="M1240 553 L1240 583" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,583 1233,571 1247,571"/>
+<rect x="1020" y="583" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="621" font-size="25">Separar grupos</text>
+<text x="1036" y="659" font-size="22">Entrenamiento / validación /</text>
+<text x="1036" y="688" font-size="22">prueba. Reservas históricas</text>
+<text x="1036" y="717" font-size="22">fijas. Si faltan sesiones:</text>
+<text x="1036" y="746" font-size="22">pedir nuevas tomas.</text>
+<path d="M1240 765 L1240 795" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,795 1233,783 1247,783"/>
+<rect x="1020" y="795" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="833" font-size="25">Preprocesar y aumentar</text>
+<text x="1036" y="871" font-size="22">Normalizar landmarks y extraer</text>
+<text x="1036" y="900" font-size="22">dedos, articulaciones y</text>
+<text x="1036" y="929" font-size="22">trayectoria. Aumentar solo</text>
+<text x="1036" y="958" font-size="22">entrenamiento.</text>
+<path d="M1240 977 L1240 1007" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,1007 1233,995 1247,995"/>
+<rect x="1020" y="1007" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="1045" font-size="25">Ajustar red temporal</text>
+<text x="1036" y="1083" font-size="22">Entrenar por épocas. Pesos</text>
+<text x="1036" y="1112" font-size="22">equilibrados, mejor checkpoint</text>
+<text x="1036" y="1141" font-size="22">y parada anticipada.</text>
+<text x="1036" y="1170" font-size="22">Estrategias comparables.</text>
+<path d="M1240 1189 L1240 1219" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,1219 1233,1207 1247,1207"/>
+<rect x="1020" y="1219" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="1257" font-size="25">Calibrar la decisión</text>
+<text x="1036" y="1295" font-size="22">Confianza, margen, forma y</text>
+<text x="1036" y="1324" font-size="22">movimiento. Voto lineal</text>
+<text x="1036" y="1353" font-size="22">opcional de postura. Distinguir</text>
+<text x="1036" y="1382" font-size="22">trayectoria y postura fija.</text>
+<path d="M1240 1401 L1240 1431" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,1431 1233,1419 1247,1419"/>
+<rect x="1020" y="1431" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="1469" font-size="25">Evaluar por clase</text>
+<text x="1036" y="1507" font-size="22">Accuracy, macro-F1, precisión,</text>
+<text x="1036" y="1536" font-size="22">recall, matriz de confusión,</text>
+<text x="1036" y="1565" font-size="22">rechazos y comparación con</text>
+<text x="1036" y="1594" font-size="22">versión anterior.</text>
+<path d="M1240 1613 L1240 1643" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1240,1643 1233,1631 1247,1631"/>
+<rect x="1020" y="1643" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1036" y="1681" font-size="25">Guardar y activar</text>
+<text x="1036" y="1719" font-size="22">Pesos, etiquetas, filtros y</text>
+<text x="1036" y="1748" font-size="22">métricas por versión. Activar</text>
+<text x="1036" y="1777" font-size="22">si cumple criterios; conservar</text>
+<text x="1036" y="1806" font-size="22">versiones recuperables.</text>
+<text x="1500" y="376" font-size="26">4. RECONOCIMIENTO</text>
+<rect x="1500" y="400" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="438" font-size="25">Cargar modelo activo</text>
+<text x="1516" y="476" font-size="22">Validar perfil, dimensiones y</text>
+<text x="1516" y="505" font-size="22">preprocesamiento. Sin modelo:</text>
+<text x="1516" y="534" font-size="22">pedir entrenamiento.</text>
+<path d="M1720 553 L1720 583" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,583 1713,571 1727,571"/>
+<rect x="1500" y="583" width="440" height="153" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="621" font-size="25">Ventana de 30 cuadros</text>
+<text x="1516" y="659" font-size="22">Usar el mismo preprocesamiento</text>
+<text x="1516" y="688" font-size="22">del entrenamiento. Red temporal</text>
+<text x="1516" y="717" font-size="22">y voto de postura, si existe.</text>
+<path d="M1720 736 L1720 766" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,766 1713,754 1727,754"/>
+<rect x="1500" y="766" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="804" font-size="25">¿Hay evidencia suficiente?</text>
+<text x="1516" y="842" font-size="22">Revisar soporte de clase,</text>
+<text x="1516" y="871" font-size="22">forma, rivales, trayectoria,</text>
+<text x="1516" y="900" font-size="22">confianza y margen. Porcentaje</text>
+<text x="1516" y="929" font-size="22">alto por sí solo no confirma.</text>
+<path d="M1720 948 L1720 978" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,978 1713,966 1727,966"/>
+<rect x="1500" y="978" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="1016" font-size="25">Si se rechaza</text>
+<text x="1516" y="1054" font-size="22">Mostrar causa y candidatos</text>
+<text x="1516" y="1083" font-size="22">orientativos. Si se eligió seña</text>
+<text x="1516" y="1112" font-size="22">esperada, resumir rechazos para</text>
+<text x="1516" y="1141" font-size="22">descargar diagnóstico.</text>
+<path d="M1720 1160 L1720 1190" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,1190 1713,1178 1727,1178"/>
+<rect x="1500" y="1190" width="440" height="211" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="1228" font-size="25">¿Resultado estable?</text>
+<text x="1516" y="1266" font-size="22">Acumular observaciones</text>
+<text x="1516" y="1295" font-size="22">aceptadas. Si cambia o falla:</text>
+<text x="1516" y="1324" font-size="22">seguir evaluando. Evitar</text>
+<text x="1516" y="1353" font-size="22">repeticiones del gesto</text>
+<text x="1516" y="1382" font-size="22">sostenido.</text>
+<path d="M1720 1401 L1720 1431" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,1431 1713,1419 1727,1419"/>
+<rect x="1500" y="1431" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="1469" font-size="25">Confirmar y entregar</text>
+<text x="1516" y="1507" font-size="22">Emitir evento con</text>
+<text x="1516" y="1536" font-size="22">identificador. Reenviar hasta</text>
+<text x="1516" y="1565" font-size="22">acuse del navegador. Evitar</text>
+<text x="1516" y="1594" font-size="22">duplicados en historial y voz.</text>
+<path d="M1720 1613 L1720 1643" fill="none" stroke="black" stroke-width="2"/>
+<polygon points="1720,1643 1713,1631 1727,1631"/>
+<rect x="1500" y="1643" width="440" height="182" fill="white" stroke="black" stroke-width="2"/>
+<text x="1516" y="1681" font-size="25">Mostrar y pronunciar</text>
+<text x="1516" y="1719" font-size="22">Actualizar letra o palabra,</text>
+<text x="1516" y="1748" font-size="22">historial y exportación. Leer</text>
+<text x="1516" y="1777" font-size="22">en voz alta con la cola de</text>
+<text x="1516" y="1806" font-size="22">síntesis del navegador.</text>
+<rect x="60" y="2040" width="1880" height="235" fill="white" stroke="black" stroke-width="2"/>
+<text x="85" y="2084" font-size="29">CONVERSACIÓN ENTRE COMPUTADORA Y TELÉFONO</text>
+<text x="85" y="2126" font-size="24">Crear sala con consentimiento → compartir enlace o QR → abrir en teléfono con acceso HTTPS.</text>
+<text x="85" y="2166" font-size="24">Texto o señas confirmadas → acumular letras → enviar tras una pausa → mostrar mensajes en ambas pantallas.</text>
+<text x="85" y="2206" font-size="24">La voz usa la síntesis del navegador. Sala temporal de una hora; mensajes en memoria hasta terminar o vencer.</text>
+<text x="85" y="2245" font-size="23">Foto experimental: vía aparte para posturas estáticas con referencias validadas; no evalúa el movimiento.</text>
+<text x="60" y="2320" font-size="20">Módulos principales: web_app · web_dataset · dataset_tools · web_train · recognition_features · recognition_decision · posture_vote</text>
+</g></svg>

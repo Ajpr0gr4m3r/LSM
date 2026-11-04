@@ -114,6 +114,7 @@ class Session:
         self.language = language
         self.owner_id = None
         self.holistic = None
+        self.detail_detector = None
         self.inverted_detector = None
         self.inverted_until = 0.
         self.hand_detector = None
@@ -123,6 +124,7 @@ class Session:
         self.last_hand_seen = 0.0
         self.hand_recovery_after = 0.0
         self.pose_recovery_after = 0.0
+        self.pending_confirmation = None
         self.capture = None
         self.provenance = {}
         self.quality_gate = False
@@ -143,6 +145,8 @@ class Session:
 
     # Libera los detectores de video e imagen independientes de esta sesión.
     def close(self):
+        if self.detail_detector is not None:
+            self.detail_detector.close()
         if self.inverted_detector is not None:
             self.inverted_detector.close()
         if self.hand_detector is not None:
@@ -513,12 +517,55 @@ class Runtime:
                                                                    min_detection_confidence=.5)
         return item.snapshot_detector
 
+    def refine_downward_hand(self, item, image, result):
+        """Refina dedos descendentes sobre el mismo cuadro y conserva su lado original."""
+        import cv2
+        import mediapipe as mp
+        from types import SimpleNamespace
+        from utils import extract_keypoints
+        height, width = image.shape[:2]
+        for side in ('left_hand_landmarks', 'right_hand_landmarks'):
+            hand = getattr(result, side, None)
+            if hand is None:
+                continue
+            xy = np.array([(p.x*width,p.y*height) for p in hand.landmark])
+            axis = xy[9] - xy[0]
+            if axis[1] < max(8, .5 * np.linalg.norm(axis)):
+                continue
+            low, high = xy.min(axis=0), xy.max(axis=0)
+            size = min(height, width, int(np.ceil(1.9 * max(high-low))))
+            if size < 32:
+                continue
+            x,y = np.clip(((low+high-size)/2).astype(int), 0, [width-size,height-size])
+            roi = image[y:y+size,x:x+size]
+            if item.detail_detector is None:
+                item.detail_detector = mp.solutions.hands.Hands(static_image_mode=True,max_num_hands=1)
+            rgb = cv2.cvtColor(cv2.rotate(roi,cv2.ROTATE_180),cv2.COLOR_BGR2RGB)
+            found = item.detail_detector.process(rgb).multi_hand_landmarks
+            if not found:
+                continue
+            candidate = found[0]
+            for point in candidate.landmark:
+                point.x = (x+(1-point.x)*size)/width
+                point.y = (y+(1-point.y)*size)/height
+                point.z *= size/width
+            wrist = candidate.landmark[0]
+            if np.linalg.norm([wrist.x*width-xy[0,0],wrist.y*height-xy[0,1]]) > .18*size:
+                continue
+            fields = {k:getattr(result,k) for k in ('pose_landmarks','face_landmarks','left_hand_landmarks','right_hand_landmarks')}
+            fields[side] = candidate
+            refined = SimpleNamespace(**fields)
+            if landmark_quality(extract_keypoints(refined))['usable']:
+                result = refined
+        return result
+
     # Reintenta una pérdida reciente sobre la misma imagen, con frecuencia acotada y sin inventar puntos.
     def recover_hand_tracking(self, item, mirrored, result, now):
         from utils import hands_detected, mediapipe_detection, extract_keypoints
         if hands_detected(result) and landmark_quality(extract_keypoints(result))['usable']:
             item.last_hand_seen = now
-            return result, False
+            refined = self.refine_downward_hand(item, mirrored, result)
+            return refined, refined is not result
         # Durante un giro Holistic puede perder la mano aunque siga viendo
         # la muñeca. Hands busca la palma directamente en el fotograma actual.
         pose = getattr(result, 'pose_landmarks', None)
@@ -577,7 +624,7 @@ class Runtime:
                     right_hand_landmarks=slots['right'][1] if 'right' in slots else result.right_hand_landmarks)
                 if landmark_quality(extract_keypoints(recovered))['usable']:
                     item.last_hand_seen = now
-                    return recovered, True
+                    return self.refine_downward_hand(item, mirrored, recovered), True
             # Reintentar en el próximo cuadro durante una toma o pérdida reciente.
             item.hand_recovery_after = now if item.capture or now-item.last_hand_seen < .8 else now + .10
         if not item.last_hand_seen or now-item.last_hand_seen > .8 or now < item.pose_recovery_after:
@@ -654,6 +701,24 @@ class Runtime:
 
     # Procesa un fotograma: seguimiento, calidad, captura o inferencia con filtros y confirmación temporal.
     def frame(self, payload):
+        if 'confirmation_ack' not in payload:
+            return self._frame(payload)
+        session = self.session(payload.get('session'))
+        pending = session.pending_confirmation
+        if pending and payload.get('confirmation_ack') == pending['confirmation_id']:
+            session.pending_confirmation = None
+        result = self._frame(payload)
+        if result.get('confirmed'):
+            session.pending_confirmation = {
+                'confirmation_id': uuid.uuid4().hex,
+                'confirmed': result['confirmed'],
+                'confirmed_confidence': result['confidence'],
+            }
+        if session.pending_confirmation:
+            result.update(session.pending_confirmation)
+        return result
+
+    def _frame(self, payload):
         if self.training():
             raise ValueError('Espera a que termine el entrenamiento antes de usar la cámara.')
         session = self.session(payload.get('session'))
