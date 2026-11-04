@@ -109,7 +109,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         if np.min(np.bincount(y)) < MIN_SAMPLES:
             raise ValueError('Faltan ejemplos únicos por clase después de quitar duplicados.')
         groups, provenance = training_provenance(language, raw, y, labels)
-        train, validation, test = persistent_split(y, groups, model_dir(language)/'evaluation_split.json', fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw])
+        train, validation, test = persistent_split(y, groups, model_dir(language)/'evaluation_split.json', fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw], label_names=[label['text'] for label in labels])
         selection, calibration_indices, protocol = calibration_split(y, groups, validation,
             model_dir(language)/'calibration_split.json',
             fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw])

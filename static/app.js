@@ -190,6 +190,10 @@ function render() {
     savingDraft;
   $('save-capture').disabled = savingDraft || busy || batch.active;
   $('discard-capture').disabled = savingDraft || batch.active;
+  $('save-all-captures').hidden = drafts.length < 2;
+  $('save-all-description').hidden = drafts.length < 2;
+  $('save-all-captures').disabled = savingDraft || busy || batch.active;
+  $('save-all-captures').textContent = savingDraft ? 'Guardando…' : `Guardar las ${drafts.length} tomas con este nombre`;
   $('sign-name').disabled = savingDraft || busy || batch.active;
   $('draft-picker').disabled = batch.active;
   $('start-batch').disabled =
@@ -935,6 +939,34 @@ async function saveNamedCapture(event) {
     render();
   }
 }
+// Conserva una lista fija para no incluir tomas que lleguen durante el guardado.
+async function saveAllCaptures() {
+  if (savingDraft || batch.active || state.job?.state === 'running') return;
+  const name = $('sign-name').value.trim();
+  if (!name) return notice('Escribe la palabra o letra para estas tomas.', true);
+  const capturedLanguage = language;
+  const drafts = [...(profile().drafts || [])];
+  if (!drafts.length || !$('name-capture').reportValidity()) return;
+  savingDraft = true;
+  let saved = 0;
+  render();
+  try {
+    for (const draft of drafts) {
+      await api('/api/capture/save', {language: capturedLanguage, draft_id: draft.id, name});
+      saved++;
+      $('save-all-captures').textContent = `Guardando ${saved}/${drafts.length}…`;
+    }
+    await refresh();
+    notice(`Se guardaron ${saved} tomas en “${name}”.`);
+  } catch (error) {
+    await refresh().catch(() => {});
+    if (language === capturedLanguage) $('sign-name').value = name;
+    notice(`Se guardaron ${saved} de ${drafts.length} en “${name}”. Las restantes siguen pendientes. ${error.message}`, true);
+  } finally {
+    savingDraft = false;
+    render();
+  }
+}
 // Retira una toma pendiente sin incorporarla al entrenamiento.
 async function discardCapture() {
   if (!selectedDraft || savingDraft) return;
@@ -1023,6 +1055,7 @@ $('clear-alphabet-selection').addEventListener('click', () => {
 });
 $('name-capture').addEventListener('submit', saveNamedCapture);
 $('discard-capture').addEventListener('click', discardCapture);
+$('save-all-captures').addEventListener('click', saveAllCaptures);
 $('draft-picker').addEventListener('change', () => {
   selectedDraft = $('draft-picker').value;
   render();

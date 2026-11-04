@@ -256,7 +256,7 @@
                     </p>
                     <form id="name-capture" class="name-capture" hidden>
                       <span class="small-label">GRABACIÓN COMPLETA · PASO 2</span>
-                      <h3>Prueba en vivo</h3>
+                      <h3>Guardar grabaciones</h3>
                       <p id="draft-language" class="help"></p>
                       <label id="draft-picker-label" for="draft-picker" hidden
                         >Grabaciones pendientes</label
@@ -270,7 +270,7 @@
                         required
                         autocomplete="off"
                         list="sign-suggestions"
-                        placeholder="Por ejemplo: Agua, Wasser, 水…"
+                        placeholder="Por ejemplo: B, Ñ, agua…"
                       />
                       <datalist id="sign-suggestions"></datalist>
                       <p class="help">
@@ -284,6 +284,8 @@
                           Descartar y repetir
                         </button>
                       </div>
+                      <button id="save-all-captures" type="button" class="secondary wide" hidden>Guardar todas con este nombre</button>
+                      <p id="save-all-description" class="help" hidden>Usa esta opción cuando todas las tomas pendientes sean de la misma palabra o letra.</p>
                       <p class="help">
                         Se añadirá a tu vocabulario y a los ejemplos de entrenamiento. Actualiza el
                         modelo cuando tengas suficientes ejemplos para reconocerla.

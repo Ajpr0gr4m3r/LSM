@@ -2486,3 +2486,17 @@ progress::-moz-progress-bar { background:var(--series-train); }
 .app-header .header-trail { color:var(--muted); }
 dialog::backdrop { background:color-mix(in srgb,var(--rail) 70%,transparent); }
 .studio-edition .header-actions, .studio-edition .app-header { min-width:0; }
+
+/* HUD: controles y contador en líneas independientes, sin offsets negativos. */
+.camera-top { align-items:flex-start; flex-wrap:wrap; }
+.camera-top-right { display:flex; flex-direction:column; align-items:flex-end; gap:7px; max-width:100%; padding:6px; }
+#camera-rig-toggle { position:static; transform:none; margin:0; border-radius:5px; min-height:34px; font-size:11px; }
+#batch-counter { position:static; margin:0; padding:4px 10px; line-height:1.4; border-radius:4px; font-size:20px; }
+#camera-state { position:static; max-width:100%; overflow-wrap:anywhere; }
+#save-all-captures { margin-top:10px; }
+@media(max-width:480px) {
+  .camera-top { left:8px; right:8px; top:8px; gap:6px; }
+  .camera-top-right { margin-left:auto; }
+  .camera-label { font-size:7px; }
+  .continuous-settings + .input-row { flex-wrap:wrap; }
+}

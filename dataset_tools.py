@@ -252,7 +252,7 @@ def inspect_sample(language, identifier):
 
 
 # Conserva el destino histórico de grupos y huellas al ampliar el vocabulario.
-def persistent_split(targets, groups, path, seed=42, fingerprints=None):
+def persistent_split(targets, groups, path, seed=42, fingerprints=None, label_names=None):
     """Freeze assignments across vocabulary growth; never recycle a test group."""
     path=Path(path)
     if not path.exists():
@@ -273,6 +273,21 @@ def persistent_split(targets, groups, path, seed=42, fingerprints=None):
                     raise ValueError('Una persona/grupo combina particiones históricas. Reúne una reserva nueva independiente; no se recicla la prueba.')
                 if locked:mapping[group]=locked.pop()
         new=sorted(set(groups)-set(mapping))
+        missing = []
+        roles = {'train', 'validation', 'test'}
+        for c in sorted(set(targets.tolist())):
+            present = set(groups[targets == c])
+            assigned = {mapping[g] for g in present if g in mapping}
+            free = present - set(mapping)
+            needed = len(roles - assigned) - len(free)
+            if needed > 0:
+                name = label_names[int(c)] if label_names is not None else str(c)
+                missing.append(f'«{name}»: {len(present)} sesiones; faltan al menos {needed}')
+        if missing:
+            raise ValueError('Faltan sesiones independientes. ' + '; '.join(missing)
+                             + '. En Dataset, apaga y vuelve a activar la cámara para iniciar otra sesión. '
+                             'Graba nuevas tomas completas de esas señas (recomendamos al menos 10 por sesión) '
+                             'y guárdalas con la misma etiqueta. La reserva histórica se conserva.')
         rng=np.random.default_rng(seed);best=None;score=float('inf');classes=set(targets.tolist())
         for _ in range(1600):
             trial=dict(mapping)
