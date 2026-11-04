@@ -26,7 +26,7 @@ def versions(language):
             from recognition_analysis import confusion_analysis
             if meta.get('confusion_matrix') and not meta.get('test_evaluation'):
                 meta['legacy_confusions'] = confusion_analysis(meta['confusion_matrix'], meta['labels'])
-            result.append({**{k:v for k,v in meta.items() if k not in ('hand_guard','temporal_guard','split_hashes','split_groups')},
+            result.append({**{k:v for k,v in meta.items() if k not in ('posture_vote','hand_guard','temporal_guard','split_hashes','split_groups')},
                            'version':path.parent.name,'active':selected.get('version')==path.parent.name and not selected.get('requires_retraining')})
         except (ValueError,KeyError,OSError):
             continue

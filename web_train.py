@@ -13,6 +13,7 @@ from recognition_features import (prepare_sequence, augment_training, augment_vi
                                   HAND_PREPROCESSING, STABLE_PREPROCESSING, FINGER_PREPROCESSING, fit_hand_guard, hand_guard_accept,
                                   fit_temporal_guard, temporal_guard_accept, calibrate_decision)
 from dataset_tools import training_provenance, grouped_split, persistent_split
+from posture_vote import apply_vote, fit_vote
 from motion_features import fit_motion_profile, augment_timing, motion_challenges
 from validation_protocol import calibration_split, validation_support
 from recognition_decision import batch_evidence, calibrate_joint_policy, policy_allowed, rejection_report, decision_details
@@ -195,6 +196,10 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         temperature = fit_temperature(cal_probs, y[calibration_indices])
         cal_probs = temperature_probabilities(cal_probs, temperature)
         val_probs = temperature_probabilities(val_probs, temperature)
+        select_probs = temperature_probabilities(model(X[selection], training=False).numpy(), temperature)
+        vote = fit_vote(X[train], y[train], X[selection], y[selection], select_probs)
+        cal_probs = apply_vote(X[calibration_indices], cal_probs, vote)
+        val_probs = apply_vote(X[validation], val_probs, vote)
         guard_metadata = {'hand_guard': guard, 'temporal_guard': temporal_guard}
         cal_scores = batch_evidence(raw[calibration_indices], cal_probs, guard_metadata)
         policy = calibrate_joint_policy(cal_probs, y[calibration_indices], cal_scores, guard, groups[calibration_indices], motion_guard=temporal_guard)
@@ -221,6 +226,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         class_validation = [{**row, 'precision': row['accepted_precision']} for row in validation_evaluation['by_class']]
         activated = False  # Set only after the independent regression checks below.
         probabilities = temperature_probabilities(model(X[test], training=False).numpy(), temperature)
+        probabilities = apply_vote(X[test], probabilities, vote)
         pred = np.argmax(probabilities, axis=1)
         test_scores = batch_evidence(raw[test], probabilities, guard_metadata)
         test_allowed = policy_allowed(probabilities, policy, test_scores)
@@ -229,6 +235,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                                        output_dict=True, zero_division=0)
         test_evaluation = evaluate(probabilities, y[test], labels, policy, test_allowed)
         train_probs = temperature_probabilities(model(X[train], training=False).numpy(), temperature)
+        train_probs = apply_vote(X[train], train_probs, vote)
         train_evaluation = evaluate(train_probs, y[train], labels, policy)
         comparison = {'previous_version':previous_version,'note':comparison_note,'comparable':False,'passed':False}
         test_comparison = {'comparable':False,'note':'No hay una prueba independiente común documentada.'}
@@ -247,6 +254,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                 indices=indices_set[common];old_y=np.array([old_ids.index(labels[y[k]]['id']) for k in indices])
                 old_x=np.stack([prepare_sequence(raw[k],old_meta.get('preprocessing')) for k in indices])
                 old_p=temperature_probabilities(old_model(old_x,training=False).numpy(),old_meta.get('temperature',1.))
+                old_p=apply_vote(old_x,old_p,old_meta.get('posture_vote'))
                 old_allowed=[decision_details(raw[k],p,old_meta)['accepted'] for k,p in zip(indices,old_p)]
                 previous_result=evaluate(old_p,old_y,old_meta['labels'],old_meta.get('decision_policy',{'threshold':old_meta.get('decision_threshold',.85),'margin':old_meta.get('decision_margin',.15)}),old_allowed)
                 candidate_result=evaluate(candidate_probs[common],y[indices],labels,policy,np.asarray(candidate_allowed)[common])
@@ -283,7 +291,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'samples': len(y), 'split': {'train': len(train), 'validation': len(validation), 'test': len(test)},
             'test_accuracy': float(np.mean(pred == y[test])), 'report': report,
             'preprocessing': preprocessing, 'architecture': 'compact-bilstm-articulation-v6',
-            'strategy': strategy, 'temperature':temperature, 'decision_policy':policy,
+            'strategy': strategy, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
             'decision_input': 'single-window-v1', 'validation_protocol': protocol,
             'recognition_diagnostics': {
                 'validation': rejection_report(val_probs, y[validation], labels, policy, val_scores),

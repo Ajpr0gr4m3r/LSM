@@ -31,6 +31,7 @@ from web_dataset import inventory, read_dataset, save_draft, pending_drafts, com
 from admin_auth import AdminGuard
 from accounts import Accounts
 import team_access
+from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
@@ -426,7 +427,7 @@ class Runtime:
         if self.process is not None and self.process.poll() is not None and state['state'] == 'running':
             state.update(state='failed', message='El proceso terminó antes de completar el modelo. Revisa web_data/jobs/' + self.job_id + '.log')
         if 'result' in state:
-            state['result'] = {k: v for k, v in state['result'].items() if k not in ('hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')}
+            state['result'] = {k: v for k, v in state['result'].items() if k not in ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')}
         return state
 
     # Comprueba si sigue vivo un entrenamiento iniciado o recuperado después de reiniciar.
@@ -455,7 +456,7 @@ class Runtime:
             error = None
             try:
                 result = model_metadata(info['id'])
-                metadata = {k: v for k, v in result[1].items() if k not in ('hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
+                metadata = {k: v for k, v in result[1].items() if k not in ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
                     if manifest.is_file():
@@ -645,6 +646,8 @@ class Runtime:
             for guard_name in ('hand_guard', 'temporal_guard'):
                 for item in (meta.get(guard_name) or {}).get('classes', []):
                     item['references'] = np.asarray(item['references'], dtype=np.float32)
+            if meta.get('posture_vote'):
+                meta['posture_vote']['weights'] = np.asarray(meta['posture_vote']['weights'],np.float32)
             self.models[language] = directory, model, meta
         self.model_signatures[language] = self.model_signature(language, directory)
         return self.models[language][1:]
@@ -779,6 +782,7 @@ class Runtime:
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
         probs = model(sequence[None, ...], training=False).numpy()[0]
         probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
+        probs = apply_vote(sequence, probs, metadata.get('posture_vote'))
         if metadata.get('decision_input') == 'single-window-v1':
             # Calibrate and decide on the same window. Consecutive accepted
             # windows below provide stability without mixing prior gestures.

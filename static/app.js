@@ -758,7 +758,7 @@ function showPrediction(result) {
   if (result.candidate) {
     $('result-word').textContent = (result.confirmed || result.phase === 'held')
       ? result.candidate.text
-      : (lastSpoken || (result.stability >= 2 ? sessionConfirmedText(result) : 'Observando el gesto…'));
+      : (result.stability >= 2 ? sessionConfirmedText(result) : 'Observando el gesto…');
     $('result-description').textContent =
       result.rejection_reason ||
       (result.confirmed
