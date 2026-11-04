@@ -296,15 +296,17 @@ def fit_temporal_guard(points, targets, validation, val_targets, descriptor_vers
         distances = np.array([[nearest_distance(d, item['references']) for item in classes] for d in val])
         for i,item in enumerate(classes):
             item['motion_required'] = i in moving
-            rivals = [j for j in range(len(classes)) if (j in moving) != (i in moving)]
+            # Una postura quieta compite con el movimiento; una trayectoria
+            # también debe distinguirse de otras trayectorias aprendidas.
+            rivals = [j for j in range(len(classes)) if j != i and (i in moving or j in moving)]
             if not rivals: continue
             own=distances[:,i];rival=distances[:,rivals].min(axis=1)
-            same_motion=np.isin(val_targets,list(moving)) == (i in moving)
+            matches = val_targets == i if i in moving else ~np.isin(val_targets, list(moving))
             eligible=[]
             for ratio in (.8,.9,.98,1.1):
                 accepted=(own<=item['max_distance']) & (own<=ratio*np.maximum(rival,1e-8))
                 n=int(accepted.sum())
-                if n>=3 and same_motion[accepted].mean()>=.95:
+                if n>=3 and matches[accepted].mean()>=.95:
                     eligible.append((n,ratio))
             if eligible:
                 item['rival_classes']=rivals

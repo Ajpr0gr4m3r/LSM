@@ -688,7 +688,7 @@ async function sendFrame(mark) {
     $('camera-state').textContent = result.hands ? (quality?.usable ? (result.tracking_recovered ? 'Seguimiento recuperado' : 'Manos visibles') : 'Revisando encuadre') : 'Buscando manos';
     $('hands-status').textContent = result.hands
       ? 'Manos detectadas · Mantén el movimiento natural.'
-      : 'Coloca ambas manos dentro del encuadre.';
+      : 'Encuadra la mano que hace la seña, incluida la muñeca.';
     const count = recording ? result.captured : result.buffer;
     $('frame-progress').max = state.sequence_length;
     $('frame-progress').value = count;
@@ -1105,8 +1105,8 @@ function drawHandRig(hands, width, height, sourceFrame = null) {
     ctx.drawImage(sourceFrame, 0, 0, width, height);
     ctx.restore();
   }
-  ctx.lineWidth = 2; ctx.strokeStyle = '#c5ef73'; ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = '#10251b'; ctx.shadowBlur = 3;
+  ctx.lineWidth = 2; ctx.strokeStyle = canvas.dataset?.stroke || '#efb08b'; ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = '#172139'; ctx.shadowBlur = 3;
   for (const hand of hands) {
     if (hand.length !== 21 || !hand.every(p => p.length === 2 && p.every(Number.isFinite))) continue;
     ctx.beginPath();

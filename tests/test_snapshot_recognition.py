@@ -95,6 +95,67 @@ class SnapshotTests(unittest.TestCase):
             self.assertFalse(ok);self.assertIs(result,original);self.assertEqual(len(seen),1)
         self.assertEqual(len(item.frames),0)
 
+    def test_rotated_hand_recovery_tracks_current_wrist_from_first_frame(self):
+        from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+        from utils import extract_keypoints
+        runtime = Runtime()
+        item = runtime.session(runtime.new_session('lsm'))
+        pose = NormalizedLandmarkList()
+        for _ in range(33):
+            pose.landmark.add()
+        original = types.SimpleNamespace(pose_landmarks=pose, face_landmarks=None,
+                                         left_hand_landmarks=None, right_hand_landmarks=None)
+        image = np.zeros((120, 160, 3), np.uint8)
+        hand = NormalizedLandmarkList()
+        for i in range(21):
+            hand.landmark.add(x=.4+.01*(i%4), y=.5-.015*(i//4))
+        item.hand_detector = types.SimpleNamespace(process=lambda frame:
+            types.SimpleNamespace(multi_hand_landmarks=[hand]))
+        coordinates = []
+        for tick, x in enumerate((.4, .44, .47)):
+            pose.landmark[15].x, pose.landmark[15].y, pose.landmark[15].visibility = x, .5, 1
+            hand.landmark[0].x = x
+            recovered, ok = runtime.recover_hand_tracking(item, image, original, 10 + tick*.1)
+            self.assertTrue(ok)
+            left, right = regions(extract_keypoints(recovered))[-2:]
+            self.assertFalse(right.any())
+            coordinates.append(left[0, 0])
+        np.testing.assert_allclose(coordinates, [.4, .44, .47])
+        pose.landmark[16].CopyFrom(pose.landmark[15])
+        recovered, ok = runtime.recover_hand_tracking(item, image, original, 11)
+        self.assertFalse(ok)
+        self.assertIs(recovered, original)
+
+    def test_downward_hand_sequence_without_pose_wrist(self):
+        from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+        from utils import extract_keypoints
+        from capture_quality import sequence_quality
+        runtime = Runtime()
+        item = runtime.session(runtime.new_session('lsm'))
+        result = types.SimpleNamespace(pose_landmarks=None, face_landmarks=None,
+                                       left_hand_landmarks=None, right_hand_landmarks=None)
+        empty = types.SimpleNamespace(multi_hand_landmarks=None)
+        item.hand_detector = types.SimpleNamespace(process=lambda rgb:empty)
+        label = types.SimpleNamespace(classification=[types.SimpleNamespace(label='Right', score=.98)])
+        image = np.zeros((80, 100, 3), np.uint8)
+        image[-1,-1] = [30, 20, 10]
+        frames = []
+        def detect(rgb):
+            np.testing.assert_array_equal(rgb[0,0], [10,20,30])
+            hand = NormalizedLandmarkList()
+            for i in range(21):
+                hand.landmark.add(x=.6-.01*(i%4)-len(frames)*.002, y=.6-.02*(i//4), z=.01*i)
+            return types.SimpleNamespace(multi_hand_landmarks=[hand], multi_handedness=[label])
+        item.inverted_detector = types.SimpleNamespace(process=detect)
+        for tick in range(30):
+            recovered, ok = runtime.recover_hand_tracking(item,image,result,10+tick*.1)
+            self.assertTrue(ok)
+            frames.append(extract_keypoints(recovered))
+        left,right = regions(np.stack(frames))[-2:]
+        self.assertFalse(left.any())
+        np.testing.assert_allclose(right[:,0,0], .4+.002*np.arange(30), atol=1e-6)
+        self.assertEqual(sequence_quality(frames)['usable_ratio'],1)
+
     # Prueba automatizada: verifica phone photo writes draft without fabricating confidence.
     def test_phone_photo_writes_draft_without_fabricating_confidence(self):
         runtime=Runtime();created=runtime.create_conversation('lsm',None)

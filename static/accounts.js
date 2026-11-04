@@ -22,7 +22,7 @@ function lockAccount() {
 function accountScreen(mode) {
   accountMode = mode;
   const setup = accountState?.setup_required, registering = mode !== 'login';
-  $('account-title').textContent = setup ? 'Prepara el espacio del equipo.' : registering ? 'Únete a tu equipo.' : 'Tu equipo, en Seña.';
+  $('account-title').textContent = setup ? 'Prepara el espacio del equipo.' : registering ? 'Únete a tu equipo.' : 'Iniciar sesión';
   $('account-description').textContent = setup
     ? 'Elige tu usuario y contraseña para crear la primera cuenta administradora del equipo.'
     : registering ? 'Pide al administrador un código de invitación y elige tu contraseña.' : 'Inicia sesión para acceder a los ejemplos y modelos del equipo.';

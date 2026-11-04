@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-theme="light">
+<html lang="es" data-theme="light" class="studio-edition">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -20,7 +20,7 @@
       <div class="account-card">
         <a class="brand" href="#home">seña<span class="brand-period">.</span></a>
         <p class="small-label">ESPACIO COMPARTIDO</p>
-        <h1 id="account-title">Tu equipo, en Seña.</h1>
+        <h1 id="account-title">Iniciar sesión</h1>
         <p id="account-description">Inicia sesión para acceder a los ejemplos y modelos del equipo.</p>
         <div class="input-row" id="account-tabs">
           <button type="button" id="account-login-tab" class="secondary">Iniciar sesión</button>
@@ -45,7 +45,7 @@
             ><svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#hand"></use></svg></span
           >seña<span class="brand-period">.</span></a
-        ><span class="studio-label">ESTUDIO COMPARTIDO</span>
+        ><span class="studio-label">ESTUDIO LSM</span>
         <nav class="main-nav" aria-label="Navegación principal">
           <button type="button" data-view="home" aria-label="Inicio" aria-current="true">
             <svg class="icon" aria-hidden="true">
@@ -123,9 +123,9 @@
         <main id="main-content">
           <div class="page-heading">
             <div>
-              <p class="eyebrow" id="view-eyebrow">TU ESPACIO DE TRABAJO</p>
-              <h1 id="view-title">De tus manos, a tus datos.</h1>
-              <p id="view-subtitle">Captura, entrena y reconoce señas. Con los ejemplos de tu equipo.</p>
+              <p class="eyebrow" id="view-eyebrow">ESTUDIO</p>
+              <h1 id="view-title">Resumen del estudio</h1>
+              <p id="view-subtitle">Estado del dataset y del modelo activo.</p>
             </div>
             <div class="profile-context">
               <span id="breadcrumb">LSM</span>
@@ -134,52 +134,31 @@
             </div>
           </div>
           <div id="notice" role="status" aria-live="polite" hidden></div>
-          <section id="view-home" class="view">
-            <div class="stat-grid" id="dashboard-stats"></div>
-            <div class="home-grid">
-              <article class="welcome-card">
-                <span class="small-label">EL SIGUIENTE PASO</span>
-                <h2>Un buen modelo empieza<br />con buenos ejemplos.</h2>
-                <p id="next-step"></p>
-                <div class="button-row">
-                  <button class="primary" data-view="recognition">
-                    Abrir reconocimiento
-                    <svg class="icon" aria-hidden="true">
-                      <use href="/static/vendor/lucide.svg#arrow-up-right"></use>
-                    </svg></button
-                  ><button class="ghost" data-view="dataset">
-                    Revisar dataset
-                    <svg class="icon" aria-hidden="true">
-                      <use href="/static/vendor/lucide.svg#arrow-right"></use>
-                    </svg>
-                  </button>
-                </div>
-                <div class="welcome-footer">
-                  <span>LSM · salida en español</span><span>Sin guardar video ni audio</span>
-                </div>
-              </article>
-              <article class="card activity-card">
-                <div class="card-heading">
-                  <h2>Actividad reciente</h2>
-                  <svg class="icon" aria-hidden="true">
-                    <use href="/static/vendor/lucide.svg#activity"></use>
-                  </svg>
-                </div>
-                <div id="recent-activity"></div>
-              </article>
+          <section id="view-home" class="view folio" aria-labelledby="folio-title">
+            <header class="folio-head"><div><span class="folio-caption">SEÑA / ARCHIVO LSM</span>
+              <h1 id="folio-title">Atlas de señas</h1></div><div id="profile-grid" class="folio-profiles"></div></header>
+            <dl id="dashboard-stats" class="folio-counts"></dl>
+            <div class="folio-spread">
+              <section class="folio-plot">
+                <div class="folio-rule"><span>01</span><h2>Muestras por seña</h2></div>
+                <div id="folio-chart" class="folio-chart"></div>
+
+              </section>
+              <section class="folio-directory">
+                <div class="folio-rule"><span>02</span><h2>Herramientas</h2></div>
+                <button type="button" class="folio-action" data-view="recognition"><span>Reconocer señas</span><span aria-hidden="true">↗</span></button>
+                <button type="button" class="folio-action" data-view="dataset"><span>Registrar ejemplos</span><span aria-hidden="true">↗</span></button>
+                <button type="button" class="folio-action" data-view="training"><span>Evaluar el modelo</span><span aria-hidden="true">↗</span></button>
+                <p id="next-step" class="folio-note"></p>
+              </section>
             </div>
-            <div class="section-heading">
-              <div>
-                <span class="small-label">PERFILES INDEPENDIENTES</span>
-                <h2>Un espacio para cada lengua</h2>
-              </div>
-              <span class="muted">Los ejemplos nunca se mezclan entre perfiles.</span>
-            </div>
-            <div id="profile-grid" class="profile-grid"></div>
+            <section class="folio-log"><div class="folio-rule"><span>03</span><h2>Bitácora reciente</h2></div>
+              <div id="recent-activity" class="folio-events"></div>
+            </section>
           </section>
           <section id="view-recognition" class="view" hidden>
-            <div class="recognition-grid">
-              <div id="recognition-camera">
+            <div class="recognition-grid instrument">
+              <div id="recognition-camera"><div class="desk-label"><span>01 / VISOR</span><h2>Cámara de reconocimiento</h2></div>
                 <div id="camera-workspace" class="camera-column">
                   <label class="check-row capture-consent"><input id="shared-camera-consent" type="checkbox" /> Permito procesar imágenes de mi cámara en este servidor. Las imágenes no se guardan; las tomas que nombre y guarde compartirán sus puntos de referencia con el equipo.</label>
                   <div class="camera-panel">
@@ -187,7 +166,7 @@
                     <canvas id="hand-rig" aria-hidden="true" hidden></canvas>
                     <div id="camera-placeholder" class="camera-placeholder">
                       <div class="camera-symbol" aria-hidden="true">◉</div>
-                      <h3>Todo listo para empezar</h3>
+                      <h3>Cámara apagada</h3>
                       <p>
                         Encuadra el rostro, el torso y ambas manos.<br />Busca buena luz y un fondo
                         tranquilo.
@@ -277,7 +256,7 @@
                     </p>
                     <form id="name-capture" class="name-capture" hidden>
                       <span class="small-label">GRABACIÓN COMPLETA · PASO 2</span>
-                      <h3>¿Qué significa esta seña?</h3>
+                      <h3>Prueba en vivo</h3>
                       <p id="draft-language" class="help"></p>
                       <label id="draft-picker-label" for="draft-picker" hidden
                         >Grabaciones pendientes</label
@@ -329,15 +308,15 @@
                   </div>
                 </div>
               </div>
-              <aside id="recognition-results">
+              <aside id="recognition-results"><div class="desk-label"><span>02 / LECTURA</span><h2>Resultado de la sesión</h2></div>
                 <div id="test-results">
-                  <p id="recognition-vocabulary" class="help"></p>
+
                   <div class="result-card">
                     <div class="card-heading">
                       <span class="small-label">RESULTADO EN VIVO</span
                       ><span id="output-language" class="mini-badge">ESPAÑOL</span>
                     </div>
-                    <div id="result-word" class="result-word">Todo empieza<br />con un gesto.</div>
+                    <div id="result-word" class="result-word">Esperando una seña</div>
                     <p id="result-description">
                       Primero necesitas un modelo entrenado para esta lengua.
                     </p>
@@ -355,6 +334,7 @@
                       ><button id="speak" class="text-button" disabled>Escuchar ↗</button>
                     </div>
                   </div>
+                  <p id="recognition-vocabulary" class="help"></p>
                   <div class="history-card">
                     <div class="card-heading">
                       <h3>Señas confirmadas</h3>
@@ -385,10 +365,20 @@
           </section>
           <section id="view-conversation" class="view" hidden>
             <div class="conversation-layout">
+              <article class="card conversation-chat">
+                <div class="card-heading"><div><span class="small-label">MENSAJES TEMPORALES</span><h2>Mensajes</h2></div><span id="conversation-status" class="mini-badge">Sin iniciar</span></div>
+                <div id="conversation-messages" class="conversation-messages" aria-live="polite" aria-relevant="additions text"><p id="conversation-empty" class="help">Crea una sala y envía el primer mensaje.</p></div>
+                <form id="conversation-form" class="conversation-form">
+                  <label class="sr-only" for="conversation-input">Escribir un mensaje para la otra persona</label>
+                  <input id="conversation-input" type="text" maxlength="300" autocomplete="off" placeholder="Escribe una respuesta…" disabled>
+                  <button id="send-conversation-message" class="primary" type="submit" disabled>Enviar</button>
+                </form>
+                <p class="help">Las señas solo se reconocen si este perfil tiene un modelo entrenado. El enlace del teléfono permite usar la cámara sin iniciar sesión.</p>
+              </article>
               <article class="card conversation-setup">
-                <span class="small-label">UNA CONVERSACIÓN A LA VEZ</span>
-                <h2>Hablen como les resulte más fácil.</h2>
-                <p>La otra persona puede abrir el enlace en su teléfono, usar la cámara para hacer señas o responder escribiendo. Los mensajes se muestran en ambas pantallas y se pueden escuchar.</p>
+                <span class="small-label">SALA</span>
+                <h2>Conectar un teléfono</h2>
+                <p>Comparte la sala para recibir texto o señas desde otro dispositivo.</p>
                 <label class="check-row conversation-consent"><input id="conversation-consent" type="checkbox" /> Acepto compartir en esta sala los mensajes y las señas que se reconozcan. La sala vence en una hora; no se guardan mensajes ni video.</label>
                 <div class="button-row">
                   <button id="create-conversation" class="primary" type="button">Crear conversación</button>
@@ -400,22 +390,13 @@
                   <img id="conversation-qr" alt="Código QR temporal para abrir la conversación en el teléfono" hidden>
                 </div>
               </article>
-              <article class="card conversation-chat">
-                <div class="card-heading"><div><span class="small-label">MENSAJES TEMPORALES</span><h2>Conversación</h2></div><span id="conversation-status" class="mini-badge">Sin iniciar</span></div>
-                <div id="conversation-messages" class="conversation-messages" aria-live="polite" aria-relevant="additions text"><p id="conversation-empty" class="help">Crea una sala y envía el primer mensaje.</p></div>
-                <form id="conversation-form" class="conversation-form">
-                  <label class="sr-only" for="conversation-input">Escribir un mensaje para la otra persona</label>
-                  <input id="conversation-input" type="text" maxlength="300" autocomplete="off" placeholder="Escribe una respuesta…" disabled>
-                  <button id="send-conversation-message" class="primary" type="submit" disabled>Enviar</button>
-                </form>
-                <p class="help">Las señas solo se reconocen si este perfil tiene un modelo entrenado. El enlace del teléfono permite usar la cámara sin iniciar sesión.</p>
-              </article>
+
             </div>
           </section>
           <section id="view-dataset" class="view" hidden>
             <div class="dataset-toolbar card">
               <div>
-                <h2>Tu biblioteca de señas</h2>
+                <h2>Archivos del dataset</h2>
                 <p>Graba tandas desde 5 tomas. Reúne 30–60 ejemplos variados por seña.</p>
               </div>
               <div class="button-row">
@@ -432,52 +413,7 @@
                 /></label>
               </div>
             </div>
-            <div class="dataset-grid">
-              <div>
-                <div id="dataset-camera"></div>
-                <section id="alphabet-panel" class="alphabet-panel">
-                  <details>
-                    <summary>Abecedario y caracteres <span id="alphabet-count"></span></summary>
-                    <h3 id="alphabet-title"></h3>
-                    <p id="alphabet-note" class="help"></p>
-                    <div class="alphabet-actions">
-                      <button id="add-alphabet" class="primary" type="button">
-                        Añadir todo el abecedario</button
-                      ><button id="add-all-alphabets" class="secondary" type="button">
-                        Registrar abecedario LSM
-                      </button>
-                    </div>
-                    <p id="alphabet-progress" class="help"></p>
-                    <div
-                      id="alphabet-grid"
-                      class="alphabet-grid"
-                      aria-label="Letras y ejemplos"
-                    ></div>
-                    <details id="alphabet-extras">
-                      <summary>Variantes escritas adicionales</summary>
-                      <button id="add-alphabet-extras" class="secondary" type="button">
-                        Añadir variantes al vocabulario
-                      </button>
-                      <div id="alphabet-extra-grid" class="alphabet-grid"></div>
-                    </details>
-                    <p id="alphabet-selection" class="help">
-                      Selecciona una letra para preparar su nombre al terminar la grabación.
-                    </p>
-                    <button id="clear-alphabet-selection" class="text-button" type="button">
-                      Volver a grabar señas libres
-                    </button>
-                    <p class="help">
-                      Añadir letras crea las etiquetas. Para reconocerlas, graba ejemplos de cada
-                      una y entrena. Puedes comenzar con dos letras; las letras sin ejemplos no
-                      bloquean el entrenamiento. Confirma el gesto y sus variantes con una persona
-                      conocedora de esa lengua.
-                    </p>
-                    <a id="alphabet-source" target="_blank" rel="noopener noreferrer"
-                      >Referencia de dactilología ↗</a
-                    >
-                  </details>
-                </section>
-              </div>
+            <div class="dataset-grid collection-desk">
               <div>
                 <article class="card">
                   <div class="card-heading">
@@ -524,6 +460,52 @@
                     <p id="admin-message" class="help" role="status" aria-live="polite"></p>
                   </form>
                 </details>
+              </div>
+
+              <div>
+                <div class="desk-label"><span>CAPTURA</span><h2>Registrar una toma</h2></div><div id="dataset-camera"></div>
+                <section id="alphabet-panel" class="alphabet-panel">
+                  <details>
+                    <summary>Abecedario y caracteres <span id="alphabet-count"></span></summary>
+                    <h3 id="alphabet-title"></h3>
+                    <p id="alphabet-note" class="help"></p>
+                    <div class="alphabet-actions">
+                      <button id="add-alphabet" class="primary" type="button">
+                        Añadir todo el abecedario</button
+                      ><button id="add-all-alphabets" class="secondary" type="button">
+                        Registrar abecedario LSM
+                      </button>
+                    </div>
+                    <p id="alphabet-progress" class="help"></p>
+                    <div
+                      id="alphabet-grid"
+                      class="alphabet-grid"
+                      aria-label="Letras y ejemplos"
+                    ></div>
+                    <details id="alphabet-extras">
+                      <summary>Variantes escritas adicionales</summary>
+                      <button id="add-alphabet-extras" class="secondary" type="button">
+                        Añadir variantes al vocabulario
+                      </button>
+                      <div id="alphabet-extra-grid" class="alphabet-grid"></div>
+                    </details>
+                    <p id="alphabet-selection" class="help">
+                      Selecciona una letra para preparar su nombre al terminar la grabación.
+                    </p>
+                    <button id="clear-alphabet-selection" class="text-button" type="button">
+                      Volver a grabar señas libres
+                    </button>
+                    <p class="help">
+                      Añadir letras crea las etiquetas. Para reconocerlas, graba ejemplos de cada
+                      una y entrena. Puedes comenzar con dos letras; las letras sin ejemplos no
+                      bloquean el entrenamiento. Confirma el gesto y sus variantes con una persona
+                      conocedora de esa lengua.
+                    </p>
+                    <a id="alphabet-source" target="_blank" rel="noopener noreferrer"
+                      >Referencia de dactilología ↗</a
+                    >
+                  </details>
+                </section>
               </div>
             </div>
             <article class="card audit-card">
@@ -593,12 +575,12 @@
             </article>
           </section>
           <section id="view-training" class="view" hidden>
-            <div class="training-grid">
+            <div class="training-grid evaluation-desk">
               <div>
                 <div id="training-results">
                   <div class="training-card">
                     <span class="small-label">NUEVA VERSIÓN</span>
-                    <h3>Configura el entrenamiento</h3>
+                    <h3>Preparar versión</h3>
                     <p class="help">
                       Puedes grabar tandas desde 5 tomas. Para entrenar y probar, reúne un mínimo de
                       30 ejemplos por palabra o letra y 2 señas distintas. Recomendamos entre 30 y
@@ -617,8 +599,8 @@
                       <option value="trajectory">Trayectoria y velocidad · experimental</option>
                       <option value="contrastive">Contrastivo · experimental</option>
                     </select>
-                    <p class="help">En las señas con movimiento, graba el recorrido completo desde la posición de partida y conserva brevemente la posición final. Una toma debe contener una sola seña.</p>
-                    <p class="help">Cada versión guarda su evaluación. Se mantienen los ejemplos de las clases del modelo activo. Una versión sin evidencia suficiente se guarda para revisión.</p>
+                    <details class="training-notes"><summary>Preparación de los ejemplos</summary><p class="help">En las señas con movimiento, graba el recorrido completo desde la posición de partida y conserva brevemente la posición final. Una toma debe contener una sola seña.</p>
+                    <p class="help">Cada versión guarda su evaluación. Se mantienen los ejemplos de las clases del modelo activo. Una versión sin evidencia suficiente se guarda para revisión.</p></details>
                     <button id="train-model" class="primary wide" disabled>
                       Entrenar modelo ↗
                     </button>
@@ -722,8 +704,8 @@
                   <button id="refresh-users" class="text-button" type="button">Actualizar usuarios</button><div id="team-users"></div>
                 </div><p id="team-message" class="help" role="status"></p>
               </article>
-              <div class="settings-grid">
-              <article class="card">
+              <div class="preferences-layout"><nav class="preferences-nav" aria-label="Categorías de configuración"><button type="button" data-preference="camera" aria-controls="preferences-camera" aria-pressed="true">Cámara</button><button type="button" data-preference="theme" aria-controls="preferences-theme" aria-pressed="false">Apariencia</button><button type="button" data-preference="recognition" aria-controls="preferences-recognition" aria-pressed="false">Reconocimiento</button><button type="button" data-preference="guide" aria-controls="preferences-guide" aria-pressed="false">Guía de uso</button></nav><div class="settings-grid">
+              <article id="preferences-camera" class="card preference-sheet">
                 <span class="small-label">DISPOSITIVOS</span>
                 <h2>Cámara y captura</h2>
                 <label class="check-label"><input id="show-hand-rig" type="checkbox" /> Mostrar rig de manos</label>
@@ -747,8 +729,8 @@
                   completas se conservan.
                 </p>
               </article>
-              <article class="card">
-                <span class="small-label">PERSONALIZA EL ESTUDIO</span>
+              <article id="preferences-theme" class="card preference-sheet">
+                <span class="small-label">PANTALLA</span>
                 <h2>Apariencia</h2>
                 <label for="appearance">Tema</label
                 ><select id="appearance">
@@ -760,12 +742,10 @@
                 >
                 <h3>Lengua activa</h3>
                 <p class="help">
-                  Cámbiala en el selector superior. El vocabulario y el modelo de cada perfil se
-                  mantienen separados. La interfaz está en español; el resultado usa el idioma
-                  escrito del perfil.
+                  Lengua de Señas Mexicana · salida en español.
                 </p>
               </article>
-              <article class="card">
+              <article id="preferences-recognition" class="card preference-sheet">
                 <span class="small-label">OPCIONES AVANZADAS</span>
                 <h2>Reconocimiento</h2>
                 <label for="inference-mode">Modo de confirmación</label
@@ -784,7 +764,7 @@
                   Los puntos de referencia se guardan en el servidor del equipo. No se almacenan videos ni audio.
                 </div>
               </article>
-              <article class="card">
+              <article id="preferences-guide" class="card preference-sheet">
                 <h2>Cómo usar Seña</h2>
                 <ol class="usage-list">
                   <li>Usa el perfil LSM y elige la cámara.</li>
@@ -792,8 +772,7 @@
                   <li>Reúne 30 ejemplos o más por clase, en sesiones distintas.</li>
                   <li>En Entrenamiento, selecciona las clases y revisa la evaluación.</li>
                   <li>
-                    En Reconocimiento, realiza una seña y espera su confirmación. Baja las manos
-                    para iniciar otra.
+                    En Reconocimiento, realiza una seña y espera su confirmación. Puedes enlazar señas distintas sin retirar la mano.
                   </li>
                 </ol>
                 <p class="help">
@@ -801,6 +780,7 @@
                   conversaciones libres ni incluye un modelo preentrenado universal.
                 </p>
               </article>
+            </div>
             </div>
           </section>
           <footer class="app-footer">

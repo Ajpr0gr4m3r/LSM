@@ -5,36 +5,12 @@ let currentView = 'home',
   studioBusy = false;
 const trainingChoices = new Map();
 const headings = {
-  home: [
-    'TU ESPACIO DE TRABAJO',
-    'De tus manos, a tus datos.',
-    'Captura, entrena y reconoce señas. Con los ejemplos de tu equipo.',
-  ],
-  conversation: [
-    'COMUNICACIÓN EN VIVO',
-    'Una conversación, dos formas de participar.',
-    'Comparte señas reconocidas o responde con un mensaje escrito.',
-  ],
-  recognition: [
-    'RECONOCIMIENTO EN VIVO',
-    'Haz la seña. Espera la confirmación.',
-    'Un resultado claro, solo cuando el modelo tiene suficiente evidencia.',
-  ],
-  dataset: [
-    'CAPTURA Y REVISIÓN',
-    'Mejores ejemplos, mejores resultados.',
-    'Organiza el vocabulario y revisa la calidad de tus grabaciones.',
-  ],
-  training: [
-    'MODELOS Y EVALUACIÓN',
-    'Entrena. Compara. Conserva lo mejor.',
-    'Cada versión queda guardada. La validación decide qué modelo activar.',
-  ],
-  settings: [
-    'AJUSTES DEL ESTUDIO',
-    'A tu manera. Con tu equipo.',
-    'Elige la cámara, la apariencia y cómo confirmar las detecciones.',
-  ],
+  home: ['ESTUDIO', 'Resumen del estudio', 'Estado del dataset y del modelo activo.'],
+  recognition: ['CÁMARA', 'Reconocimiento', 'Realiza una seña del vocabulario entrenado.'],
+  conversation: ['COMUNICACIÓN', 'Sala de conversación', 'Intercambia mensajes escritos y señas desde dos dispositivos.'],
+  dataset: ['EJEMPLOS', 'Dataset', 'Graba, nombra y revisa las tomas de cada seña.'],
+  training: ['MODELO', 'Entrenamiento', 'Configura una versión y consulta su evaluación.'],
+  settings: ['PREFERENCIAS', 'Configuración', 'Ajustes de cámara, apariencia y reconocimiento.'],
 };
 const labelsByView = {
   home: 'Inicio',
@@ -100,6 +76,7 @@ async function navigateStudio(view) {
   if (currentView !== view) await stopCamera();
   window.scrollTo({ top: 0, behavior: 'auto' });
   currentView = view;
+  document.documentElement.classList.toggle("home-edition", view === "home");
   mode = view === 'dataset' ? 'train' : 'test';
   const [eyebrow, title, subtitle] = headings[view];
   $('view-eyebrow').textContent = eyebrow;
@@ -131,6 +108,7 @@ function applyTheme(value) {
   const dark =
     value === 'dark' || (value === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  $('hand-rig').dataset.stroke = getComputedStyle(document.documentElement).getPropertyValue('--signal').trim();
   $('appearance').value = value;
   $('theme-toggle').replaceChildren(icon(dark ? 'sun' : 'moon'));
   $('theme-toggle').setAttribute('aria-label', dark ? 'Activar modo claro' : 'Activar modo oscuro');
@@ -149,29 +127,32 @@ function renderStudio() {
     learned = state.profiles.reduce((n, x) => n + (x.model?.labels.length || 0), 0),
     models = state.profiles.filter((x) => x.model).length;
   const stats = [
-    ['Ejemplos guardados', samples, 'Puntos de referencia, sin video', 'database'],
-    ['Señas en modelos', learned, 'Vocabulario con reconocimiento activo', 'hand'],
-    ['Modelos activos', `${models} / 7`, 'Un modelo por lengua', 'cpu'],
-    [
-      'Tomas pendientes',
-      state.profiles.reduce((n, x) => n + x.drafts.length, 0),
-      'Completas, listas para nombrar',
-      'folder',
-    ],
+    ['Ejemplos', samples], ['Señas entrenadas', learned], ['Modelos activos', models],
+    ['Pendientes', state.profiles.reduce((n, x) => n + x.drafts.length, 0)],
   ];
-  $('dashboard-stats').replaceChildren(
-    ...stats.map(([label, value, note, glyph]) => {
-      const card = node('article', undefined, 'stat-card');
-      const copy = node('div');
-      copy.append(
-        node('span', label, 'stat-label'),
-        node('strong', String(value), 'stat-value'),
-        node('small', note),
-      );
-      card.append(copy, icon(glyph));
-      return card;
-    }),
-  );
+  $('dashboard-stats').replaceChildren(...stats.map(([label, value]) => {
+    const entry = node('div');
+    entry.append(node('dt', label), node('dd', value.toLocaleString('es-MX')));
+    return entry;
+  }));
+  const ranked = p.labels.filter(x => x.samples > 0).sort((a,b) => b.samples - a.samples);
+  const chart = $('folio-chart');
+  chart.replaceChildren();
+  if (ranked.length) {
+    const top = ranked.slice(0, 8);
+    chart.append(node('p', top.length === ranked.length ? 'Ejemplos guardados por etiqueta' :
+      'Las ocho etiquetas con más ejemplos', 'folio-chart-caption'));
+    for (const item of top) {
+      const row = node('div', undefined, 'folio-bar');
+      const meter = node('meter');
+      meter.min = 0;
+      meter.max = top[0].samples;
+      meter.value = item.samples;
+      meter.setAttribute('aria-label', 'Ejemplos de ' + item.text);
+      row.append(node('span', item.text), meter, node('b', String(item.samples)));
+      chart.append(row);
+    }
+  } else chart.append(node('p', 'Guarda la primera toma en Dataset para ver la distribución.'));
   const incomplete = p.labels.filter((x) => x.samples > 0 && x.samples < state.minimum_samples);
   $('next-step').textContent = incomplete.length
     ? `${p.code}: ${incomplete.length} seña(s) necesitan más ejemplos. Completa las tomas y revisa su calidad antes de entrenar.`
@@ -180,16 +161,11 @@ function renderStudio() {
       : `Prepara al menos dos señas de ${p.code}, con 30 ejemplos completos en cada una.`;
   $('profile-grid').replaceChildren(
     ...state.profiles.map((x) => {
-      const card = node('button', undefined, 'profile-card' + (x.id === language ? ' active' : ''));
+      const card = node('button', undefined, 'folio-profile');
       card.type = 'button';
-      const top = node('div', undefined, 'profile-top');
-      top.append(node('span', x.code, 'code'), icon('arrow-up-right'));
-      const info = node('div', undefined, 'profile-stats');
-      info.append(
-        node('span', `${x.labels.reduce((n, r) => n + r.samples, 0)} ejemplos`),
-        node('span', x.model ? `${x.model.labels.length} señas activas` : 'Sin modelo'),
-      );
-      card.append(top, node('strong', x.written), node('p', x.name), info);
+      card.append(node('span', x.code), node('strong', x.model ? 'Modelo activo' : 'Sin modelo'),
+                  icon('arrow-up-right'));
+      card.setAttribute('aria-label', x.name + ': abrir reconocimiento');
       card.addEventListener('click', async () => {
         await selectLanguage(x.id);
         await navigateStudio('recognition');
@@ -199,27 +175,14 @@ function renderStudio() {
   );
   $('recent-activity').replaceChildren();
   for (const item of (state.activity || []).slice(0, 4)) {
-    const row = node('div', undefined, 'activity-row'),
-      copy = node('div');
-    copy.append(
-      node(
-        'strong',
-        item.kind === 'training'
-          ? `Entrenamiento · ${(item.language || '').toUpperCase()}`
-          : 'Dataset actualizado',
-      ),
-      node('p', item.message),
-      node(
-        'small',
-        new Date(item.time * 1000).toLocaleString('es-MX', {
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      ),
-    );
-    row.append(icon(item.kind === 'training' ? 'activity' : 'database'), copy);
+    const row = node('div', undefined, 'folio-event');
+    const date = new Date(item.time * 1000);
+    const stamp = node('time', date.toLocaleString('es-MX', {
+      day:'numeric', month:'short', hour:'2-digit', minute:'2-digit',
+    }));
+    if (Number.isFinite(date.getTime())) stamp.dateTime = date.toISOString();
+    row.append(stamp, node('strong', item.kind === 'training' ? 'Entrenamiento' : 'Dataset'),
+               node('p', item.message));
     $('recent-activity').append(row);
   }
   if (!$('recent-activity').children.length)
@@ -306,10 +269,10 @@ function drawCurve(id, history, trainKey, valKey, rate) {
     svg.append(line);
   }
   for (const [key, color] of trainKey === valKey
-    ? [[trainKey, '#8db457']]
+    ? [[trainKey, 'var(--series-train)']]
     : [
-        [trainKey, '#8db457'],
-        [valKey, '#6498b2'],
+        [trainKey, 'var(--series-train)'],
+        [valKey, 'var(--series-validation)'],
       ]) {
     const poly = document.createElementNS(svg.namespaceURI, 'polyline');
     poly.setAttribute('fill', 'none');
@@ -480,12 +443,16 @@ async function modifySamples(action) {
 }
 // Consulta las versiones guardadas y sus métricas para el perfil activo.
 async function loadVersions() {
+  const list = $('model-versions');
+  list.setAttribute('aria-busy', 'true');
   try {
     const result = await api('/api/models/list', { language });
     versionData = result.versions;
     renderVersions();
   } catch (e) {
     notice(e.message, true);
+  } finally {
+    list.removeAttribute('aria-busy');
   }
 }
 // Explica etapas de rechazo, soporte y separación de reservas de una versión.
@@ -654,7 +621,9 @@ function renderVersions() {
     }
     if (version.independent_test_comparison?.comparable) {
       const comparison=version.independent_test_comparison;
-      details.append(node('p',`Prueba común independiente (${comparison.samples} ejemplos): F1 anterior ${(100*comparison.previous.macro_f1).toFixed(1)} %, nuevo ${(100*comparison.candidate.macro_f1).toFixed(1)} %. Esta prueba no selecciona el modelo.`));
+      if (Number.isFinite(comparison.previous?.macro_f1) && Number.isFinite(comparison.candidate?.macro_f1))
+        details.append(node('p',`Prueba común independiente (${comparison.samples} ejemplos): F1 anterior ${(100*comparison.previous.macro_f1).toFixed(1)} %, nuevo ${(100*comparison.candidate.macro_f1).toFixed(1)} %. Esta prueba no selecciona el modelo.`));
+      else details.append(node('p', comparison.note || 'Esta versión no guardó ambos valores F1 de la comparación.', 'help'));
     }
     const download=node('button','Descargar evaluación','text-button');download.type='button';
     download.addEventListener('click',()=>{
@@ -850,3 +819,15 @@ document.querySelector('.brand').addEventListener('click', (event) => {
   event.preventDefault();
   navigateStudio('home');
 });
+
+/* Mantiene el foco en el selector mientras se cambia de categoría. */
+function selectPreference(key) {
+  for (const button of document.querySelectorAll('[data-preference]')) {
+    const selected = button.dataset.preference === key;
+    button.setAttribute('aria-pressed', String(selected));
+    $(button.getAttribute('aria-controls')).hidden = !selected;
+  }
+}
+for (const button of document.querySelectorAll('[data-preference]'))
+  button.addEventListener('click', () => selectPreference(button.dataset.preference));
+selectPreference('camera');

@@ -10,7 +10,24 @@ El sistema no incluye un diccionario universal ni modelos preentrenados de todas
 
 El diagrama muestra cómo se conectan las partes principales. Este README también incluye la [referencia de funciones](#referencia-función-por-función) para consultar el propósito de cada función y método.
 
-## Preparar Python si todavía no existe el entorno
+## Abrir Seña en Windows
+
+**La primera vez**, instala Python 3.11 de 64 bits y abre PowerShell en la carpeta `LSM`, donde está `web_app.py`. Ejecuta estos comandos uno por uno para crear el entorno e instalar las dependencias.
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**Cada vez que quieras abrir Seña**, ejecuta este comando desde la misma carpeta.
+
+```powershell
+.\.venv\Scripts\python.exe web_app.py
+```
+
+El navegador se abre automáticamente. También puedes entrar desde esa computadora en [http://127.0.0.1:8765](http://127.0.0.1:8765). Deja PowerShell abierto mientras usas Seña. Para detener el servidor, presiona **Ctrl+C** en esa ventana.
+
+## Preparar Python en macOS o Linux
 
 El repositorio usa Python 3.11. Si la carpeta `.venv/` no está disponible, desde la raíz ejecuta:
 

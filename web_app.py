@@ -113,11 +113,15 @@ class Session:
         self.language = language
         self.owner_id = None
         self.holistic = None
+        self.inverted_detector = None
+        self.inverted_until = 0.
+        self.hand_detector = None
         self.snapshot_detector = None
         self.touched = time.monotonic()
         self.last_frame = 0.0
         self.last_hand_seen = 0.0
         self.hand_recovery_after = 0.0
+        self.pose_recovery_after = 0.0
         self.capture = None
         self.provenance = {}
         self.quality_gate = False
@@ -138,6 +142,10 @@ class Session:
 
     # Libera los detectores de video e imagen independientes de esta sesión.
     def close(self):
+        if self.inverted_detector is not None:
+            self.inverted_detector.close()
+        if self.hand_detector is not None:
+            self.hand_detector.close()
         if self.snapshot_detector is not None:
             self.snapshot_detector.close()
         if self.holistic is not None:
@@ -510,11 +518,70 @@ class Runtime:
         if hands_detected(result) and landmark_quality(extract_keypoints(result))['usable']:
             item.last_hand_seen = now
             return result, False
-        # Retry only a recent tracking loss, at most once a second. Analyze the
-        # very same exposure independently; never reuse old landmarks as hands.
-        if not item.last_hand_seen or now-item.last_hand_seen > .8 or now < item.hand_recovery_after:
+        # Durante un giro Holistic puede perder la mano aunque siga viendo
+        # la muñeca. Hands busca la palma directamente en el fotograma actual.
+        pose = getattr(result, 'pose_landmarks', None)
+        if hasattr(result, 'left_hand_landmarks'):
+            if now < item.hand_recovery_after:
+                return result, False
+            import cv2
+            import mediapipe as mp
+            from types import SimpleNamespace
+            rgb = cv2.cvtColor(mirrored, cv2.COLOR_BGR2RGB)
+            height, width = mirrored.shape[:2]
+            slots = {}
+            # Cada detector mantiene su propio seguimiento en una orientación fija.
+            # Si el giro funcionó, probarlo primero en los siguientes fotogramas.
+            prefer_inverted = now < item.inverted_until
+            for inverted in (prefer_inverted, not prefer_inverted):
+                attr = 'inverted_detector' if inverted else 'hand_detector'
+                detector = getattr(item, attr)
+                if detector is None:
+                    detector = mp.solutions.hands.Hands(max_num_hands=2, model_complexity=1)
+                    setattr(item, attr, detector)
+                detection = detector.process(cv2.rotate(rgb, cv2.ROTATE_180) if inverted else rgb)
+                labels = getattr(detection, 'multi_handedness', None) or ()
+                for index, hand in enumerate(detection.multi_hand_landmarks or ()):
+                    if inverted:
+                        # Deshacer la rotación en x/y; z está referido a la muñeca.
+                        for point in hand.landmark:
+                            point.x, point.y = 1. - point.x, 1. - point.y
+                    wrist = hand.landmark[0]
+                    distances = sorted((np.hypot(wrist.x - pose.landmark[i].x,
+                                                  (wrist.y - pose.landmark[i].y) * height / width), side)
+                                       for i, side in ((15, 'left'), (16, 'right'))
+                                       if pose and pose.landmark[i].visibility >= .5)
+                    if distances:
+                        distance, side = distances[0]
+                        if len(distances) > 1 and distances[1][0] - distance < .025:
+                            continue
+                    if not distances or distance > .15:
+                        if index >= len(labels) or not labels[index].classification:
+                            continue
+                        label = labels[index].classification[0]
+                        side = label.label.lower()
+                        if label.score < .9 or side not in ('left', 'right'):
+                            continue
+                        if any(visible_side == side for _, visible_side in distances):
+                            continue
+                        distance = 1 - label.score
+                    if side not in slots or distance < slots[side][0]:
+                        slots[side] = (distance, hand)
+                if slots:
+                    item.inverted_until = now + .8 if inverted else 0.
+                    break
+            if slots:
+                recovered = SimpleNamespace(pose_landmarks=pose, face_landmarks=result.face_landmarks,
+                    left_hand_landmarks=slots['left'][1] if 'left' in slots else result.left_hand_landmarks,
+                    right_hand_landmarks=slots['right'][1] if 'right' in slots else result.right_hand_landmarks)
+                if landmark_quality(extract_keypoints(recovered))['usable']:
+                    item.last_hand_seen = now
+                    return recovered, True
+            # Reintentar en el próximo cuadro durante una toma o pérdida reciente.
+            item.hand_recovery_after = now if item.capture or now-item.last_hand_seen < .8 else now + .10
+        if not item.last_hand_seen or now-item.last_hand_seen > .8 or now < item.pose_recovery_after:
             return result, False
-        item.hand_recovery_after = now + 1.
+        item.pose_recovery_after = now + 1.
         _, recovered = mediapipe_detection(mirrored, self.image_detector(item))
         if not hands_detected(recovered) or not landmark_quality(extract_keypoints(recovered))['usable']:
             return result, False
@@ -604,7 +671,6 @@ class Runtime:
             session.holistic = mp.solutions.holistic.Holistic(model_complexity=1, min_detection_confidence=.5, min_tracking_confidence=.5)
         now = time.monotonic()
         gap = now - session.last_frame if session.last_frame else 0
-        session.last_frame = now
         if gap > 1.0:
             session.reset()
             if session.capture:
@@ -613,6 +679,9 @@ class Runtime:
         mirrored = cv2.flip(image, 1)
         _, results = mediapipe_detection(mirrored, session.holistic)
         results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
+        # El arranque de MediaPipe puede superar un segundo en CPU. Medir la
+        # pausa desde el final de la detección evita cancelar la primera toma.
+        session.last_frame = time.monotonic()
         points = extract_keypoints(results)
         hands = hands_detected(results)
         output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
