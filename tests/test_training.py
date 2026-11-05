@@ -48,7 +48,7 @@ class TrainingTests(unittest.TestCase):
             targets = np.array([0] * 12 + [1] * 12)
             points[12:] *= .25
             points += np.random.default_rng(7).normal(0, .0001, points.shape).astype(np.float32)
-            labels = langs.labels_for('asl')[:2]
+            labels = langs.labels_for('lsm')[:2]
             with patch.object(langs, 'WEB_MODELS', root / 'models'), \
                  patch.object(web_train, 'WEB_DATA', root / 'data'), \
                  patch.object(web_train, 'MIN_SAMPLES', 5), \
@@ -57,12 +57,12 @@ class TrainingTests(unittest.TestCase):
                  patch.object(web_train, 'persistent_split', side_effect=lambda y,g,path,**kwargs:__import__('web_dataset').split_per_class(y)), \
                  patch.object(model, 'build_web_model', side_effect=tiny_model), \
                  contextlib.redirect_stdout(io.StringIO()):
-                web_train.train_language('asl', 1, 'b' * 32, strategy=strategy)
+                web_train.train_language('lsm', 1, 'b' * 32, strategy=strategy, activate=False)
                 runtime = Runtime()
-                bundle = root / 'models' / 'asl' / ('b' * 32)
+                bundle = root / 'models' / 'lsm' / ('b' * 32)
                 metadata = json.loads((bundle / 'metadata.json').read_text())
                 loaded = tf.keras.models.load_model(bundle / 'model.keras', compile=False, safe_mode=True)
-                self.assertEqual(metadata['language'], 'asl')
+                self.assertEqual(metadata['language'], 'lsm')
                 self.assertEqual(metadata['preprocessing'], 'articulation-motion-v5')
                 self.assertEqual(loaded.input_shape[-1], FEATURE_DIM + 244)
                 self.assertIsInstance(metadata['activated'], bool)
@@ -86,6 +86,8 @@ class TrainingTests(unittest.TestCase):
                 self.assertIsNone(runtime.load_model('lsm'))
                 progress = json.loads((root / 'data' / 'jobs' / ('b' * 32 + '.json')).read_text())
                 self.assertEqual(progress['state'], 'completed')
+                for label in labels:
+                    self.assertIn(f'{label["text"]} (8)', progress['data_warning'])
 
     # Prueba automatizada: verifica robust training publishes versioned guard.
     def test_robust_training_publishes_versioned_guard(self):

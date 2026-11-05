@@ -12,6 +12,10 @@ from sign_languages import dataset_dir, labels_for, language_info, pipeline_spec
 from web_dataset import load_sequence, save_sequence, sequence_metadata, validate_identifier
 from capture_quality import sequence_quality
 
+# Objetivo de tomas originales disponibles para aprender después de reservar
+# grupos completos. No es un mínimo obligatorio para iniciar el entrenamiento.
+TRAIN_SUPPORT_TARGET = 15
+
 MAX_ARCHIVE = 32 * 1024 * 1024
 MAX_EXPANDED = 128 * 1024 * 1024
 _CACHE = {}
@@ -288,7 +292,9 @@ def persistent_split(targets, groups, path, seed=42, fingerprints=None, label_na
                              + '. En Dataset, apaga y vuelve a activar la cámara para iniciar otra sesión. '
                              'Graba nuevas tomas completas de esas señas (recomendamos al menos 10 por sesión) '
                              'y guárdalas con la misma etiqueta. La reserva histórica se conserva.')
-        rng=np.random.default_rng(seed);best=None;score=float('inf');classes=set(targets.tolist())
+        rng = np.random.default_rng(seed)
+        best, score = None, None
+        classes = set(targets.tolist())
         for _ in range(1600):
             trial=dict(mapping)
             trial.update(zip(new,rng.choice(['train','validation','test'],len(new),p=[.7,.15,.15])))
@@ -296,8 +302,15 @@ def persistent_split(targets, groups, path, seed=42, fingerprints=None, label_na
             if any(set(targets[idx].tolist())!=classes for idx in candidate):continue
             counts=np.array([[np.sum(targets[idx]==c) for c in sorted(classes)] for idx in candidate])
             if np.any(counts[0]<2):continue
-            cost=float(np.mean(abs(counts/counts.sum(axis=0)-np.array([.7,.15,.15])[:,None])))+float(np.maximum(3-counts[1:],0).sum())
-            if cost<score:best=(trial,candidate);score=cost
+            # Prioriza el soporte de las señas con pocas tomas para aprender,
+            # manteniendo la cobertura de validación y prueba.
+            training_shortfall = np.maximum(TRAIN_SUPPORT_TARGET - counts[0], 0).sum()
+            evaluation_shortfall = np.maximum(3 - counts[1:], 0).sum()
+            fractions = counts / counts.sum(axis=0)
+            balance = float(np.mean(abs(fractions - np.array([.7, .15, .15])[:, None])))
+            cost = (evaluation_shortfall, training_shortfall, balance)
+            if best is None or cost < score:
+                best, score = (trial, candidate), cost
         if best is None:raise ValueError('Las nuevas clases necesitan sesiones en entrenamiento, validación y prueba. La reserva histórica no se mezcla; graba nuevas sesiones.')
         mapping,parts=best
     path.parent.mkdir(parents=True,exist_ok=True)

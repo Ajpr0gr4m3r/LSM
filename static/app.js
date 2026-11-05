@@ -168,15 +168,21 @@ function render() {
     populated.length >= 2 && populated.every((x) => x.samples >= state.minimum_samples);
   const busy = state.job?.state === 'running';
   renderAdmin();
-  $('train-model').disabled =
-    !eligible || busy || recording || countdown || batch.active || !!selectedDraft || savingDraft;
-  $('train-reason').textContent = selectedDraft
-    ? 'Pon nombre y guarda tu grabación pendiente antes de entrenar.'
-    : busy
-      ? 'Hay un entrenamiento en curso. Puedes seguir viendo su avance.'
-      : eligible
-        ? `Se entrenarán ${populated.length} señas de ${p.code}. Recomendamos entre 30 y ${state.recommended_samples} ejemplos variados por palabra o letra. Las tandas pueden ser de 5 tomas; el entrenamiento requiere 30 por palabra o letra.`
-        : `Completa al menos ${state.minimum_samples} ejemplos de cada seña que empezaste y reúne 2 señas diferentes. Recomendado: 30–${state.recommended_samples} por palabra o letra.`;
+  const capturing = recording || countdown || batch.active;
+  $('train-model').disabled = !eligible || busy || capturing || savingDraft;
+  $('train-reason').textContent = busy
+    ? 'Hay un entrenamiento en curso. Puedes seguir viendo su avance.'
+    : capturing
+      ? 'Termina la grabación o la tanda para poder entrenar.'
+      : savingDraft
+        ? 'Espera a que se guarden las tomas.'
+        : eligible
+          ? `Se entrenarán ${populated.length} señas de ${p.code} con sus tomas guardadas.`
+          : `Selecciona al menos 2 señas con ${state.minimum_samples} ejemplos guardados cada una.`;
+  $('train-drafts').hidden = drafts.length === 0;
+  $('train-draft-count').textContent = drafts.length === 1
+    ? 'Una toma pendiente quedará fuera del entrenamiento.'
+    : `${drafts.length} tomas pendientes quedarán fuera del entrenamiento.`;
   $('start-camera').disabled = busy || cameraStarting;
 
   $('camera-device').disabled = busy || cameraStarting || savingDraft;
@@ -382,7 +388,8 @@ function renderJob() {
   const weak = (job.result?.validation_by_class || []).filter(item =>
     item.recall < .6 || item.accepted < 2 || (item.precision || 0) < .9 || item.coverage < .25);
   $('job-description').textContent = (job.message || '') +
-    (weak.length ? ` Necesitan revisión: ${weak.map(item => item.text).join(', ')}.` : '');
+    (weak.length ? ` Necesitan revisión: ${weak.map(item => item.text).join(', ')}.` : '') +
+    (job.data_warning ? ` ${job.data_warning}` : '');
   $('job-progress').max = job.epochs || 40;
   $('job-progress').value = job.state === 'completed' ? job.epochs || 40 : job.epoch || 0;
   $('job-metrics').textContent = job.result

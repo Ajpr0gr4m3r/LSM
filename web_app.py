@@ -521,7 +521,6 @@ class Runtime:
     def refine_downward_hand(self, item, image, result):
         """Refina dedos descendentes sobre el mismo cuadro y conserva su lado original."""
         import cv2
-        import mediapipe as mp
         from types import SimpleNamespace
         from utils import extract_keypoints
         height, width = image.shape[:2]
@@ -560,6 +559,7 @@ class Runtime:
                 x,y = np.clip((center-size/2).astype(int),0,[width-size,height-size])
             roi = image[y:y+size,x:x+size]
             if item.detail_detector is None:
+                import mediapipe as mp
                 item.detail_detector = mp.solutions.hands.Hands(static_image_mode=True,max_num_hands=1)
             rgb = cv2.cvtColor(cv2.rotate(roi,cv2.ROTATE_180),cv2.COLOR_BGR2RGB)
             found = item.detail_detector.process(rgb).multi_hand_landmarks
@@ -730,6 +730,46 @@ class Runtime:
         self.model_signatures[language] = self.model_signature(language, directory)
         return self.models[language][1:]
 
+    def retry_i_with_other_hand(self, points, model, metadata, strict):
+        """Verifica I en la otra mano solo después de un rechazo normal."""
+        from motion_features import motion_summary
+        from recognition_features import regions, hand_descriptor, nearest_distance
+
+        labels = metadata['labels']
+        index = next((i for i, label in enumerate(labels) if label['text'].casefold() == 'i'), None)
+        guard = metadata.get('hand_guard') or {}
+        if index is None or guard.get('version') != 'finger-contrast-v2':
+            return None
+        left, right = regions(points)[-2:]
+        if np.any(left) or np.mean(np.any(right, axis=(1,2))) < .9:
+            return None
+        if motion_summary(points)['extent'] > .12:
+            return None
+
+        reflected = points.copy()
+        pose, face, left, right = regions(reflected)
+        for region in (pose, face, left, right):
+            region[...,0] = np.where(np.any(region[...,:3] != 0,axis=-1),1-region[...,0],0)
+        left[:], right[:] = right.copy(), left.copy()
+        for a,b in zip(range(11,33,2),range(12,33,2)):
+            pose[:,[a,b]] = pose[:,[b,a]]
+
+        descriptor = hand_descriptor(reflected, True, guard.get('descriptor_version'))
+        distances = [nearest_distance(descriptor,row['references']) for row in guard['classes']]
+        own = distances[index]
+        competitors = [distance for j,distance in enumerate(distances) if j != index]
+        if not competitors or own > .7 * guard['classes'][index]['max_distance'] or own > .8 * min(competitors):
+            return None
+
+        prepared = prepare_sequence(reflected,metadata.get('preprocessing'))
+        probabilities = model(prepared[None,...],training=False).numpy()[0]
+        probabilities = temperature_probabilities(probabilities,metadata.get('temperature',1.))
+        probabilities = apply_vote(prepared,probabilities,metadata.get('posture_vote'))
+        if probabilities.argmax() != index or probabilities[index] < (.95 if strict else .90):
+            return None
+        verdict = decision_details(reflected,probabilities,metadata,strict=strict,test_mode=True)
+        return (probabilities,verdict) if verdict['accepted'] else None
+
     # Procesa un fotograma: seguimiento, calidad, captura o inferencia con filtros y confirmación temporal.
     def frame(self, payload):
         if 'confirmation_ack' not in payload:
@@ -887,12 +927,21 @@ class Runtime:
             # Preserve the decision behavior of previously saved models.
             session.probabilities.append(probs)
             probs = np.mean(session.probabilities, axis=0)
+        strict = payload.get('strict') is True
+        details = decision_details(raw_sequence, probs, metadata, strict=strict, test_mode=True)
+        held_j = session.gesture_confirmed and any(
+            label['id'] == session.last_confirmed and label['text'].casefold() == 'j'
+            for label in metadata['labels']
+        )
+        if not details['accepted'] and not held_j:
+            retry = self.retry_i_with_other_hand(raw_sequence, model, metadata, strict)
+            if retry is not None:
+                probs, details = retry
         index = int(np.argmax(probs))
         label = metadata['labels'][index]
         confidence = float(probs[index])
         output.update(candidate=label, confidence=confidence, phase='observing',
                       alternatives=[{**metadata['labels'][int(i)], 'confidence': float(probs[i])} for i in np.argsort(probs)[-3:][::-1]])
-        details = decision_details(raw_sequence, probs, metadata, strict=payload.get('strict') is True, test_mode=payload.get('mode') == 'test')
         decision = details['accepted']
         output['rejection_reason'] = details.get('reason')
         output['rejection_code'] = details.get('code')
@@ -936,8 +985,6 @@ class Runtime:
             raise ValueError('Estrategia de entrenamiento desconocida.')
         if not isinstance(epochs, int) or not 5 <= epochs <= 200:
             raise ValueError('Selecciona entre 5 y 200 épocas.')
-        if pending_drafts(language):
-            raise ValueError('Pon nombre o descarta las grabaciones pendientes antes de entrenar.')
         from web_train import retained_label_ids
         label_ids = retained_label_ids(language, label_ids)
         read_dataset(language, MIN_SAMPLES, label_ids)

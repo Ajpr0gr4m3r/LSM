@@ -75,6 +75,28 @@ class DiscriminativeTests(unittest.TestCase):
             for before,after in zip(first,second):self.assertTrue(set(before)<=set(after))
             for a,b in ((second[0],second[1]),(second[0],second[2]),(second[1],second[2])):self.assertFalse(set(a)&set(b))
 
+    def test_new_session_replenishes_training_without_moving_old_reserves(self):
+        import json
+        roles = ('train', 'validation', 'test')
+        targets, groups, mapping = [], [], {}
+        for label, counts in enumerate(((4, 60, 60), (100, 3, 3), (100, 3, 3), (100, 3, 3))):
+            for role, count in zip(roles, counts):
+                group = f'{label}-{role}'
+                targets.extend([label] * count)
+                groups.extend([group] * count)
+                mapping[group] = role
+        old_size = len(targets)
+        for label, count in enumerate((11, 25, 25, 25)):
+            targets.extend([label] * count)
+            groups.extend(['new-session'] * count)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'split.json'
+            path.write_text(json.dumps({'version': 1, 'groups': mapping}))
+            parts = persistent_split(np.array(targets), np.array(groups), path)
+            self.assertTrue(set(range(old_size, len(targets))) <= set(parts[0]))
+            for role, indices in zip(roles, parts):
+                self.assertTrue(all(mapping[groups[i]] == role for i in indices if i < old_size))
+
     # Prueba automatizada: verifica single class regression cannot hide in average.
     def test_single_class_regression_cannot_hide_in_average(self):
         old={'macro_f1':.9,'false_accept_rate':0.,'by_class':[{'id':'a','recall':1.,'accepted_recall':.9}]}
@@ -127,7 +149,10 @@ class DiscriminativeTests(unittest.TestCase):
         clock=[100.]
         # Ayudante de prueba para now.
         def now():return clock[0]
-        with patch.dict('sys.modules',{'utils':fake}),patch.object(runtime,'load_model',return_value=(Model(),metadata)),patch('web_app.time.monotonic',side_effect=now):
+        with patch.dict('sys.modules', {'utils': fake}), \
+             patch.object(runtime, 'load_model', return_value=(Model(), metadata)), \
+             patch.object(runtime, 'image_detector', return_value=object()), \
+             patch('web_app.time.monotonic', side_effect=now):
             outputs=[]
             for _ in range(36):
                 clock[0]+=.2;outputs.append(runtime.frame({'session':sid,'image':encoded,'mode':'test'}))

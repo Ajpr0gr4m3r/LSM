@@ -12,7 +12,7 @@ from web_dataset import read_dataset, split_per_class
 from recognition_features import (prepare_sequence, augment_training, augment_viewpoints, validation_threshold, decision_metrics,
                                   HAND_PREPROCESSING, STABLE_PREPROCESSING, FINGER_PREPROCESSING, fit_hand_guard, hand_guard_accept,
                                   fit_temporal_guard, temporal_guard_accept, calibrate_decision)
-from dataset_tools import training_provenance, grouped_split, persistent_split
+from dataset_tools import TRAIN_SUPPORT_TARGET, training_provenance, grouped_split, persistent_split
 from posture_vote import apply_vote, fit_vote
 from motion_features import fit_motion_profile, augment_timing, motion_challenges
 from validation_protocol import calibration_split, validation_support
@@ -110,6 +110,16 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             raise ValueError('Faltan ejemplos únicos por clase después de quitar duplicados.')
         groups, provenance = training_provenance(language, raw, y, labels)
         train, validation, test = persistent_split(y, groups, model_dir(language)/'evaluation_split.json', fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw], label_names=[label['text'] for label in labels])
+        counts = np.bincount(y[train], minlength=len(labels))
+        low_support = [f'{label["text"]} ({count})'
+                       for label, count in zip(labels, counts) if count < TRAIN_SUPPORT_TARGET]
+        if low_support:
+            status['data_warning'] = (
+                'Estas señas tienen pocas tomas únicas para aprender. ' + ', '.join(low_support)
+                + f'. Busca al menos {TRAIN_SUPPORT_TARGET} por seña en entrenamiento.'
+                ' Graba más ejemplos en nuevas sesiones. Las tomas reservadas para evaluar se conservan.'
+            )
+            write_json(progress_path, status)
         selection, calibration_indices, protocol = calibration_split(y, groups, validation,
             model_dir(language)/'calibration_split.json',
             fingerprints=[hashlib.sha256(p.tobytes()).hexdigest() for p in raw])
@@ -136,7 +146,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
-        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy == 'trajectory' else augment_training if strategy == 'baseline' else augment_articulation)(view_points, view_targets)
+        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory') else augment_articulation)(view_points, view_targets)
         X_fit = np.stack([prepare_sequence(sequence, preprocessing) for sequence in fit_points])
 
         from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
@@ -174,7 +184,6 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                 status['history'] = history
                 write_json(progress_path, status)
 
-        counts = np.bincount(y[train], minlength=len(labels))
         weights = {i: float(len(train) / (len(labels) * n)) for i, n in enumerate(counts)}
         callbacks = [BalancedValidation(),
             tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_balanced_score', mode='max', save_best_only=True),
@@ -332,12 +341,12 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'diagnostics':diagnostics, 'contrastive_history':contrastive_history,
             'split_groups':{name:sorted(set(groups[indices].tolist())) for name,indices in (('train',train),('validation',validation),('test',test))},
             'provenance': provenance, 'history': history, 'temporal_guard': temporal_guard, 'motion_profile': motion_profile,
-            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy in ('trajectory', 'robust') else None,
+            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy in ('baseline', 'trajectory', 'robust') else None,
             'input_dim': int(X.shape[-1]), 'hand_guard': guard,
             'dataset_sha256': hashlib.sha256(raw.tobytes()).hexdigest(),
             'augmentation': {'training_only': True, 'variants_per_original': 8,
-                             'jitter': 'distance-timing-articulation-v1' if strategy == 'robust' else 'ordered-time-warp' if strategy == 'trajectory' else 'legacy-independent' if strategy == 'baseline' else 'palm-scaled-temporally-correlated',
-                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy in ('trajectory', 'robust') else None,
+                             'jitter': 'distance-timing-articulation-v1' if strategy == 'robust' else 'ordered-time-warp' if strategy in ('baseline', 'trajectory') else 'palm-scaled-temporally-correlated',
+                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy in ('baseline', 'trajectory', 'robust') else None,
                              'distance_scale': [.72, 1.12] if strategy == 'robust' else None,
                              'camera_roll_degrees': [4, 10], 'horizontal_scale': [.95, 1.05]},
             'validation_decisions': validation_evaluation,
