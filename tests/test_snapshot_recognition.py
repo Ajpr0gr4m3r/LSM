@@ -182,3 +182,28 @@ class SnapshotTests(unittest.TestCase):
             result=runtime.analyze_snapshot(sid,image)
         self.assertTrue(result['accepted']);self.assertEqual(len(session.frames),0)
         self.assertIsNone(session.holistic)
+
+    def test_detail_region_never_returns_old_points_and_expires(self):
+        from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+        runtime=Runtime();item=runtime.session(runtime.new_session('lsm'))
+        seed=NormalizedLandmarkList()
+        for i in range(21):
+            seed.landmark.add(x=.4+.01*(i%4),y=.3+.05*(i//4))
+        item.detail_regions['left_hand_landmarks']=dict(
+            time=10.,center=np.array([65.,60.]),wrist=np.array([64.,36.]),
+            size=70,seed=seed,image_size=(160,120))
+        calls=[]
+        item.detail_detector=types.SimpleNamespace(process=lambda image:
+            calls.append(image) or types.SimpleNamespace(multi_hand_landmarks=None))
+        absent=types.SimpleNamespace(pose_landmarks=None,face_landmarks=None,
+                                    left_hand_landmarks=None,right_hand_landmarks=None)
+        image=np.zeros((120,160,3),np.uint8)
+        with patch('web_app.time.monotonic',return_value=10.1):
+            result=runtime.refine_downward_hand(item,image,absent)
+        self.assertIs(result,absent)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(item.detail_regions['left_hand_landmarks']['time'],10.)
+        with patch('web_app.time.monotonic',return_value=10.5):
+            self.assertIs(runtime.refine_downward_hand(item,image,absent),absent)
+        self.assertFalse(item.detail_regions)
+        self.assertEqual(len(calls),1)

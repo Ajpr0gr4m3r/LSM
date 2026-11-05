@@ -114,6 +114,7 @@ class Session:
         self.language = language
         self.owner_id = None
         self.holistic = None
+        self.detail_regions = {}
         self.detail_detector = None
         self.inverted_detector = None
         self.inverted_until = 0.
@@ -524,19 +525,39 @@ class Runtime:
         from types import SimpleNamespace
         from utils import extract_keypoints
         height, width = image.shape[:2]
+        now = time.monotonic()
         for side in ('left_hand_landmarks', 'right_hand_landmarks'):
             hand = getattr(result, side, None)
+            previous = item.detail_regions.get(side)
+            if previous and (now-previous['time'] > .35 or previous['image_size'] != (width,height)):
+                item.detail_regions.pop(side,None)
+                previous = None
             if hand is None:
-                continue
+                if not previous:
+                    continue
+                hand = previous['seed']
             xy = np.array([(p.x*width,p.y*height) for p in hand.landmark])
             axis = xy[9] - xy[0]
-            if axis[1] < max(8, .5 * np.linalg.norm(axis)):
+            if axis[1] < max(8, .4 * np.linalg.norm(axis)):
+                item.detail_regions.pop(side,None)
                 continue
             low, high = xy.min(axis=0), xy.max(axis=0)
             size = min(height, width, int(np.ceil(1.9 * max(high-low))))
             if size < 32:
                 continue
-            x,y = np.clip(((low+high-size)/2).astype(int), 0, [width-size,height-size])
+            center = (low+high)/2
+            if previous:
+                # Seguir la muñeca actual sin arrastrar las puntas antiguas.
+                predicted_center = previous['center'] + xy[0] - previous['wrist']
+                center = .75 * predicted_center + .25 * center
+                size = int(round(.8 * previous['size'] + .2 * size))
+            size = min(size,height,width)
+            x,y = np.clip((center-size/2).astype(int), 0, [width-size,height-size])
+            # Si el recorte suavizado dejaría dedos fuera, usar el encuadre actual.
+            if np.any(low < [x,y]) or np.any(high > [x+size,y+size]):
+                size = min(height,width,max(32,int(np.ceil(1.9*max(high-low)))))
+                center = (low+high)/2
+                x,y = np.clip((center-size/2).astype(int),0,[width-size,height-size])
             roi = image[y:y+size,x:x+size]
             if item.detail_detector is None:
                 item.detail_detector = mp.solutions.hands.Hands(static_image_mode=True,max_num_hands=1)
@@ -556,6 +577,11 @@ class Runtime:
             fields[side] = candidate
             refined = SimpleNamespace(**fields)
             if landmark_quality(extract_keypoints(refined))['usable']:
+                # Guardar solo el encuadre de una detección actual. Nunca devolver
+                # puntos viejos cuando la nueva imagen no contiene una mano.
+                item.detail_regions[side] = dict(time=now,center=np.array([x+size/2,y+size/2]),
+                    wrist=np.array([wrist.x*width,wrist.y*height]),size=size,
+                    seed=candidate,image_size=(width,height))
                 result = refined
         return result
 
@@ -566,6 +592,11 @@ class Runtime:
             item.last_hand_seen = now
             refined = self.refine_downward_hand(item, mirrored, result)
             return refined, refined is not result
+        if item.detail_regions:
+            recovered = self.refine_downward_hand(item, mirrored, result)
+            if recovered is not result:
+                item.last_hand_seen = now
+                return recovered, True
         # Durante un giro Holistic puede perder la mano aunque siga viendo
         # la muñeca. Hands busca la palma directamente en el fotograma actual.
         pose = getattr(result, 'pose_landmarks', None)
