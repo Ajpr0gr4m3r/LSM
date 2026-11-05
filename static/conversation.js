@@ -30,6 +30,7 @@ function conversationRender(data) {
     }
     host.append(row);
     if (!conversationSeen.has(message.id)) {
+      if (typeof animateUI === 'function') animateUI(row, 400);
       conversationSeen.add(message.id);
       if (message.sender !== 'Computadora' && message.sender !== 'Señas')
         conversationSpeech.enqueue(message.text, profile()?.locale || data.locale || 'es-MX');
@@ -87,6 +88,7 @@ function closeConversationUI(message = '') {
 }
 // Crea una sala con consentimiento y presenta QR y enlace si se configuró HTTPS móvil.
 async function createConversation() {
+  if (typeof SENA_FEATURES !== 'undefined' && !SENA_FEATURES.conversation) return;
   if (!$('conversation-consent').checked) {
     $('conversation-link-status').textContent = 'Confirma primero el uso de los mensajes en esta sala.';
     return;

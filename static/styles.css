@@ -2500,3 +2500,43 @@ dialog::backdrop { background:color-mix(in srgb,var(--rail) 70%,transparent); }
   .camera-label { font-size:7px; }
   .continuous-settings + .input-row { flex-wrap:wrap; }
 }
+
+/* Aparición escalonada de Inicio; conserva el tiempo al actualizar sus datos. */
+@keyframes home-reveal {
+  from { opacity:0; transform:translateY(7px); }
+  to { opacity:1; transform:translateY(0); }
+}
+.home-reveal { animation:home-reveal 1s ease-out both; }
+@media(prefers-reduced-motion:reduce) {
+  .home-reveal { animation:none; }
+}
+html[data-reduce-motion="true"] .home-reveal { animation:none; }
+
+/* Accesos suspendidos con un único feature flag de interfaz. */
+.conversation-disabled [data-view="conversation"],
+.conversation-disabled a[href="#conversation"],
+.conversation-disabled #view-conversation { display:none !important; }
+.view { animation:none; }
+.view > .card { animation:none; }
+.home-intro { margin:6px 0 0; font-size:12px; min-height:1.6em; color:var(--muted); }
+.home-reveal { animation-duration:1000ms; animation-timing-function:cubic-bezier(.22,1,.36,1); }
+.primary,.secondary,.file-button,.folio-action,.main-nav button,.preferences-nav button {
+  transition:background-color 180ms ease,border-color 180ms ease,color 180ms ease,box-shadow 180ms ease;
+}
+button:active:not(:disabled) { transform:translateY(1px); }
+input,select { transition:border-color 180ms ease,box-shadow 180ms ease; }
+input:focus,select:focus { border-color:var(--action); }
+#frame-progress::-webkit-progress-value,
+#job-progress::-webkit-progress-value,
+#confidence-progress::-webkit-progress-value { transition:width 200ms ease; }
+#frame-progress::-moz-progress-bar,
+#job-progress::-moz-progress-bar,
+#confidence-progress::-moz-progress-bar { transition:width 200ms ease; }
+#batch-counter { transition:background-color 180ms ease; }
+@media(prefers-reduced-motion:reduce) {
+  .home-reveal { animation:none; }
+  *,*::before,*::after { transition:none !important; }
+}
+html[data-reduce-motion="true"] .home-reveal { animation:none; }
+html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after { transition:none !important; }

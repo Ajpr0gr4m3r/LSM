@@ -180,13 +180,42 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_balanced_score', mode='max', save_best_only=True),
             tf.keras.callbacks.EarlyStopping(monitor='val_balanced_score', mode='max', min_delta=1e-6, patience=16, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5)]
+        initial_weights = model.get_weights()
         if strategy in ('baseline', 'trajectory', 'robust'):
-            model.fit(X_fit, y_fit, validation_data=(X[selection], onehot[selection]), epochs=epochs,
-                      batch_size=min(16,len(train)), verbose=2, class_weight=weights, callbacks=callbacks+[Progress()])
+            fit_args = dict(x=X_fit, y=y_fit, batch_size=min(16,len(train)), class_weight=weights)
+            fit_callbacks = callbacks+[Progress()]
         else:
             fit_data=HardExampleSequence(X_fit,y_fit,min(16,len(train)))
-            model.fit(fit_data, validation_data=(X[selection],onehot[selection]),epochs=epochs,verbose=2,
-                      workers=1, use_multiprocessing=False, callbacks=callbacks+[MineHardExamples(fit_data),Progress()])
+            fit_args = dict(x=fit_data, workers=1, use_multiprocessing=False)
+            fit_callbacks = callbacks+[MineHardExamples(fit_data),Progress()]
+        common = dict(validation_data=(X[selection],onehot[selection]),epochs=epochs,
+                      verbose=2,callbacks=fit_callbacks)
+        recovery = None
+        try:
+            model.fit(**fit_args, **common)
+        except tf.errors.InvalidArgumentError as error:
+            if 'var and grad do not have the same shape' not in str(error):
+                raise
+            # Un paso fallido puede haber actualizado solo algunas variables.
+            # Recuperar pesos y slots de un checkpoint completo antes de seguir.
+            if checkpoint.exists():
+                model = tf.keras.models.load_model(checkpoint, safe_mode=True)
+                start_epoch = int(max(history,key=lambda row: row['val_balanced_score'])['epoch'])
+                optimizer = model.optimizer
+                history[:] = [row for row in history if row['epoch'] <= start_epoch]
+            else:
+                model.set_weights(initial_weights)
+                start_epoch = 0
+                history.clear()
+                optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=5e-4,clipnorm=1.0)
+            recovery = dict(reason='invalid_recurrent_gradient_shape',
+                            resumed_epoch=start_epoch,execution='eager')
+            status.update(message='Recuperando el mejor checkpoint. El entrenamiento continúa en modo compatible.',
+                          recovery=recovery,history=history,epoch=start_epoch)
+            write_json(progress_path,status)
+            model.compile(optimizer=optimizer,loss='categorical_crossentropy',
+                          metrics=['accuracy'],run_eagerly=True)
+            model.fit(**fit_args, **common, initial_epoch=start_epoch)
         model = tf.keras.models.load_model(checkpoint, compile=False, safe_mode=True)
         val_probs = model(X[validation], training=False).numpy()
         cal_probs = model(X[calibration_indices], training=False).numpy()
@@ -291,7 +320,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'samples': len(y), 'split': {'train': len(train), 'validation': len(validation), 'test': len(test)},
             'test_accuracy': float(np.mean(pred == y[test])), 'report': report,
             'preprocessing': preprocessing, 'architecture': 'compact-bilstm-articulation-v6',
-            'strategy': strategy, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
+            'training_recovery':recovery, 'strategy': strategy, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
             'decision_input': 'single-window-v1', 'validation_protocol': protocol,
             'recognition_diagnostics': {
                 'validation': rejection_report(val_probs, y[validation], labels, policy, val_scores),

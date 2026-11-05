@@ -3,6 +3,56 @@ let currentView = 'home',
   auditData = null,
   versionData = [],
   studioBusy = false;
+// Cambiar a true para recuperar los accesos y la ruta visual de Conversación.
+const SENA_FEATURES = Object.freeze({conversation: false});
+document.documentElement.classList.toggle('conversation-disabled', !SENA_FEATURES.conversation);
+
+function animateUI(element, duration = 700) {
+  if (!element?.animate) return;
+  for (const animation of element.getAnimations()) animation.cancel();
+  if (document.documentElement.dataset.reduceMotion === 'true'
+      || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.animate([{opacity:.45,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],
+                  {duration,easing:'cubic-bezier(.22,1,.36,1)'});
+}
+let homeAnimationStart = null, homeAnimationFrame = null;
+
+// Un solo reloj para cifras y barras; los sondeos de estado no reinician la animación.
+function animateHomeOverview() {
+  cancelAnimationFrame(homeAnimationFrame);
+  if (currentView !== 'home') return;
+  if (homeAnimationStart === null) homeAnimationStart = performance.now();
+  const elapsed = performance.now()-homeAnimationStart;
+  const reveal = $('view-home').querySelectorAll(
+    '.folio-head, .folio-counts > div, .folio-rule, .folio-chart-caption, .folio-bar, .folio-action, .folio-note, .folio-event, .empty-state'
+  );
+  for (const [index, element] of [...reveal].entries()) {
+    element.classList.add('home-reveal');
+    element.style.animationDelay = `${Math.min(index*90,1500)-elapsed}ms`;
+  }
+  const update = now => {
+    if (currentView !== 'home') return;
+    const reduced = document.documentElement.dataset.reduceMotion === 'true'
+      || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const progress = reduced ? 1 : Math.min(1, Math.max(0, (now-homeAnimationStart)/3000));
+    const eased = 1-Math.pow(1-progress,3);
+    const intro = $('home-intro');
+    const phrase = reduced || now-homeAnimationStart >= 2400
+      ? 'Lengua de Señas Mexicana. Un espacio para comunicar.'
+      : 'Comunicar también está en tus manos.';
+    if (intro.textContent !== phrase) {
+      intro.textContent = phrase;
+      animateUI(intro);
+    }
+    for (const element of $('view-home').querySelectorAll('[data-home-value]')) {
+      const value = Number(element.dataset.homeValue);
+      if (element.tagName === 'METER') element.value = value*eased;
+      else element.textContent = Math.round(value*eased).toLocaleString('es-MX');
+    }
+    if (progress < 1 || (!reduced && now-homeAnimationStart < 2400)) homeAnimationFrame = requestAnimationFrame(update);
+  };
+  update(performance.now());
+}
 const trainingChoices = new Map();
 const headings = {
   home: ['ESTUDIO', 'Resumen del estudio', 'Estado del dataset y del modelo activo.'],
@@ -72,8 +122,12 @@ function renderAlternatives(items) {
 }
 // Cambia de vista y mueve el único espacio de cámara a Dataset o Reconocimiento.
 async function navigateStudio(view) {
-  if (!headings[view]) view = 'home';
-  if (currentView !== view) await stopCamera();
+  if (!headings[view] || (view === 'conversation' && !SENA_FEATURES.conversation)) view = 'home';
+  if (currentView !== view) {
+    await stopCamera();
+    if (view === 'home') homeAnimationStart = null;
+    cancelAnimationFrame(homeAnimationFrame);
+  }
   window.scrollTo({ top: 0, behavior: 'auto' });
   currentView = view;
   document.documentElement.classList.toggle("home-edition", view === "home");
@@ -94,6 +148,8 @@ async function navigateStudio(view) {
   $('training-results').hidden = false;
   $('alphabet-panel').hidden = false;
   historyReplace(view);
+  animateUI($('view-' + view));
+  animateUI(document.querySelector('.page-heading'));
   notice('');
   if (state) render();
   if (view === 'training' && state) await loadVersions();
@@ -132,7 +188,9 @@ function renderStudio() {
   ];
   $('dashboard-stats').replaceChildren(...stats.map(([label, value]) => {
     const entry = node('div');
-    entry.append(node('dt', label), node('dd', value.toLocaleString('es-MX')));
+    const count = node('dd', value.toLocaleString('es-MX'));
+    count.dataset.homeValue = value;
+    entry.append(node('dt', label), count);
     return entry;
   }));
   const ranked = p.labels.filter(x => x.samples > 0).sort((a,b) => b.samples - a.samples);
@@ -148,8 +206,11 @@ function renderStudio() {
       meter.min = 0;
       meter.max = top[0].samples;
       meter.value = item.samples;
+      meter.dataset.homeValue = item.samples;
       meter.setAttribute('aria-label', 'Ejemplos de ' + item.text);
-      row.append(node('span', item.text), meter, node('b', String(item.samples)));
+      const count = node('b', String(item.samples));
+      count.dataset.homeValue = item.samples;
+      row.append(node('span', item.text), meter, count);
       chart.append(row);
     }
   } else chart.append(node('p', 'Guarda la primera toma en Dataset para ver la distribución.'));
@@ -189,6 +250,7 @@ function renderStudio() {
     $('recent-activity').append(
       node('div', 'Aquí aparecerán tus entrenamientos y cambios de dataset.', 'empty-state'),
     );
+  animateHomeOverview();
   $('vocabulary-total').textContent = `${p.labels.length} etiquetas`;
   filterVocabulary();
   const classes = $('train-classes');
@@ -796,6 +858,7 @@ $('refresh-versions').addEventListener('click', loadVersions);
 $('export-dataset').addEventListener('click', exportDataset);
 $('import-dataset').addEventListener('change', importDataset);
 applyTheme(localStorage.getItem('sena-theme') || 'system');
+window.addEventListener('hashchange', () => navigateStudio(location.hash.slice(1) || 'home'));
 navigateStudio(location.hash.slice(1) || 'home');
 
 // Abre el detalle de una toma con metadatos y curvas de movimiento y calidad.
@@ -826,6 +889,7 @@ function selectPreference(key) {
     const selected = button.dataset.preference === key;
     button.setAttribute('aria-pressed', String(selected));
     $(button.getAttribute('aria-controls')).hidden = !selected;
+    if (selected) animateUI($(button.getAttribute('aria-controls')));
   }
 }
 for (const button of document.querySelectorAll('[data-preference]'))

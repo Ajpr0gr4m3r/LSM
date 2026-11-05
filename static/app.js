@@ -804,6 +804,7 @@ function showPrediction(result) {
       expected,
       time: new Date().toISOString(),
     });
+    if (typeof animateUI === 'function') animateUI($('result-word'), 400);
     lastSpoken = result.confirmed.text;
     $('speak').disabled = !('speechSynthesis' in window);
     if ('speechSynthesis' in window) speak();
