@@ -26,7 +26,7 @@ import uuid
 import numpy as np
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
-from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept
+from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
 from web_dataset import inventory, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
 from admin_auth import AdminGuard
 from accounts import Accounts
@@ -730,6 +730,26 @@ class Runtime:
         self.model_signatures[language] = self.model_signature(language, directory)
         return self.models[language][1:]
 
+    def retry_viewpoint(self, points, probabilities, model, metadata, strict):
+        """Reevalúa una ventana rechazada bajo dos variaciones leves de cámara."""
+        original_index = int(np.argmax(probabilities))
+        policy = (metadata.get('decision_policy') or {}).get('classes', {})
+        if policy.get(str(original_index), {}).get('supported') is False:
+            # A repeated inference cannot change calibration support. Avoid
+            # two extra model evaluations on every frame of a blocked class.
+            return None
+        views, _ = augment_viewpoints(points[None], np.array([0]))
+        prepared = np.stack([prepare_sequence(view, metadata.get('preprocessing')) for view in views[1:]])
+        variants = model(prepared, training=False).numpy()
+        variants = temperature_probabilities(variants, metadata.get('temperature', 1.))
+        variants = apply_vote(prepared, variants, metadata.get('posture_vote'))
+        consensus = (probabilities + variants.sum(axis=0)) / 3
+        original_index = int(np.argmax(probabilities))
+        if consensus.argmax() != original_index or not np.all(variants.argmax(axis=1) == original_index):
+            return None
+        verdict = decision_details(points, consensus, metadata, strict=strict, test_mode=True)
+        return (consensus, verdict) if verdict['accepted'] else None
+
     def retry_i_with_other_hand(self, points, model, metadata, strict):
         """Verifica I en la otra mano solo después de un rechazo normal."""
         from motion_features import motion_summary
@@ -929,12 +949,20 @@ class Runtime:
             probs = np.mean(session.probabilities, axis=0)
         strict = payload.get('strict') is True
         details = decision_details(raw_sequence, probs, metadata, strict=strict, test_mode=True)
+        # Un reintento puede reforzar la lectura original, pero un desacuerdo
+        # entre manos/ángulos debe esperar una nueva ventana estable.
+        original_index = int(np.argmax(probs))
+        original_label = metadata['labels'][original_index]['text'].casefold()
         held_j = session.gesture_confirmed and any(
             label['id'] == session.last_confirmed and label['text'].casefold() == 'j'
             for label in metadata['labels']
         )
-        if not details['accepted'] and not held_j:
+        if not details['accepted'] and original_label == 'i' and not held_j:
             retry = self.retry_i_with_other_hand(raw_sequence, model, metadata, strict)
+            if retry is not None and int(np.argmax(retry[0])) == original_index:
+                probs, details = retry
+        if not details['accepted'] and metadata.get('decision_input') == 'single-window-v1':
+            retry = self.retry_viewpoint(raw_sequence, probs, model, metadata, strict)
             if retry is not None:
                 probs, details = retry
         index = int(np.argmax(probs))
@@ -946,6 +974,8 @@ class Runtime:
         output['rejection_reason'] = details.get('reason')
         output['rejection_code'] = details.get('code')
         if not decision:
+            # Keep the model proposal visible without treating it as accepted.
+            output['proposed_candidate'] = label
             output['candidate'] = None
             if not output['rejection_reason']:
                 output['rejection_reason'] = 'Seña ambigua. Mantén el gesto o vuelve a empezar.'

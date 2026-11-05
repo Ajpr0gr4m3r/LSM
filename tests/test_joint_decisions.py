@@ -6,6 +6,15 @@ from recognition_decision import calibrate_joint_policy, policy_allowed, rejecti
 
 # Ayudante de prueba para JointDecisionTests.
 class JointDecisionTests(unittest.TestCase):
+    def test_unsupported_retry_never_runs_model(self):
+        from unittest.mock import Mock
+        from web_app import Runtime
+        model = Mock(side_effect=AssertionError('Unnecessary inference'))
+        metadata = {'decision_policy': {'classes': {'0': {'supported': False}}}}
+        result = Runtime().retry_viewpoint(None, np.array([.96, .04]), model, metadata, False)
+        self.assertIsNone(result)
+        model.assert_not_called()
+
     # Ayudante de prueba para fixture.
     def fixture(self):
         p=np.array([[.8,.2]]*6+[[.2,.8]]*6)

@@ -223,8 +223,12 @@ function render() {
       : 'Elige cuántas tomas quieres y empieza la tanda.';
   $('expected-label').disabled = !p.model;
   if (!stream && !history.length) resetResult();
+  const unsupported = p.model?.labels.filter((_, index) =>
+    p.model.decision_policy?.classes?.[index]?.supported === false,
+  ) || [];
   $('recognition-vocabulary').textContent = p.model
-    ? `Este modelo aprendió: ${p.model.labels.map(label => label.text).join(', ')}. Otras señas pueden confundirse; primero debes entrenarlas.`
+    ? `Vocabulario del modelo · ${p.model.labels.map(label => label.text).join(', ')}.` +
+      (unsupported.length ? ` Aún sin validación suficiente para confirmar ${unsupported.map(label => label.text).join(', ')}.` : '')
     : 'Este perfil todavía no tiene señas aprendidas.';
   const summary = $('model-summary');
   summary.replaceChildren();
@@ -779,8 +783,9 @@ function showPrediction(result) {
     $('download').disabled = false;
   }
   renderAlternatives(result.alternatives || []);
-  $('confidence').textContent = result.candidate ? `${(100 * result.confidence).toFixed(1)}%` : '—';
-  $('confidence-progress').value = result.candidate ? 100 * result.confidence : 0;
+  const visibleProposal = result.candidate || result.proposed_candidate;
+  $('confidence').textContent = visibleProposal ? `${(100 * result.confidence).toFixed(1)}%` : '—';
+  $('confidence-progress').value = visibleProposal ? 100 * result.confidence : 0;
   $('stability').textContent = `${result.stability} / ${result.stability_required || 5} confirmaciones estables`;
   if (result.candidate || result.confirmed) {
     $('result-word').textContent = (result.confirmed || result.phase === 'held')
@@ -794,7 +799,9 @@ function showPrediction(result) {
           ? 'Puedes hacer otra seña sin retirar la mano.'
         : 'Coincidencia provisional. Esperando estabilidad para confirmar.');
   } else {
-    $('result-word').textContent = result.hands ? 'Sin confirmación' : 'Esperando tus manos…';
+    $('result-word').textContent = result.proposed_candidate
+      ? `${result.proposed_candidate.text} · sin confirmar`
+      : (result.hands ? 'Sin confirmación' : 'Esperando tus manos…');
     $('result-description').textContent =
       result.rejection_reason || 'Haz una seña del vocabulario entrenado y espera la confirmación.';
   }

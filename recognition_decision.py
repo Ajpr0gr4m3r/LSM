@@ -8,7 +8,8 @@ import numpy as np
 
 from recognition_analysis import accepted_mask
 from recognition_features import (hand_descriptor, temporal_descriptor, nearest_distance,
-                                  hand_guard_accept, temporal_guard_accept, temporal_guard_score)
+                                  hand_guard_accept, temporal_guard_accept, temporal_guard_score, regions)
+
 
 
 # Mide distancia de forma, rival y trayectoria de una predicción respecto a sus referencias aprendidas.
@@ -154,7 +155,7 @@ def decision_details(points, probabilities, metadata, strict=False, test_mode=Fa
     row = policy.get('classes', {}).get(str(index), {})
     if row.get('supported') is False:
         return dict(accepted=False, code='unsupported_class',
-                    reason='Esta seña no tiene validación suficiente. Revisa sus confusiones y graba nuevas sesiones.')
+                    reason='Esta clase se confunde con otras en validación. El porcentaje mostrado no basta para confirmarla. Revisa sus ejemplos y añade nuevas sesiones.')
     # In test mode, a very high calibrated score may use the agreed 90%
     # acceptance floor. Shape, motion and ambiguity checks still apply.
     if test_mode and not strict and float(p[index]) >= .90 - 1e-7:
