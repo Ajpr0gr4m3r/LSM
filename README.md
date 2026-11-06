@@ -39,6 +39,26 @@ python3.11 -m venv .venv
 
 En la computadora del proyecto normalmente ya existe ese entorno; en ese caso basta con usar `.venv/bin/python web_app.py`. No instales paquetes con otro Python si vas a ejecutar la aplicación con `.venv`.
 
+## Avisos de MediaPipe en otra computadora
+
+`Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.` es una **advertencia interna de MediaPipe**, no un error de entrenamiento de Seña. MediaPipe continúa sin esa función opcional. Puede aparecer varias veces porque Holistic usa varios modelos y Seña crea detectores auxiliares cuando necesita recuperar las manos. Ese mensaje por sí solo no demuestra que la cámara o el reconocimiento hayan fallado.
+
+Para comprobar la instalación sin abrir la cámara ni modificar datos, ejecuta en Windows:
+
+```powershell
+.\.venv\Scripts\python.exe diagnostico_mediapipe.py
+```
+
+En macOS/Linux:
+
+```bash
+.venv/bin/python diagnostico_mediapipe.py
+```
+
+La prueba informa el Python y las versiones instaladas, y procesa tres imágenes vacías con cada configuración de detector utilizada por la app. Si termina con `Detectores operativos`, esos avisos no impidieron procesar las imágenes. Esto no comprueba permisos de cámara ni el modelo entrenado de Seña. Si aparece `ERROR`, comparte la salida completa, especialmente el `Traceback`; no basta con las líneas que empiezan por `W0000`.
+
+Usa el entorno de Python 3.11 creado **en esa computadora** con `requirements.txt`; no copies `.venv` desde otra máquina. Si faltan paquetes, instálalos con el mismo ejecutable de Python que usas para iniciar Seña. No se ocultan los errores nativos ni se cambian los umbrales de reconocimiento para eliminar este aviso.
+
 ## Empezar a usar Seña
 
 ### 1. Iniciar el servidor

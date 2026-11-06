@@ -54,8 +54,17 @@ async function api(path, body) {
           headers: { 'Content-Type': 'application/json', 'X-LSM-Token': state?.token || '' },
           body: JSON.stringify(body),
         };
-  const response = await fetch(path, options);
-  const data = await response.json();
+  let response, data;
+  try {
+    response = await fetch(path, options);
+    data = await response.json();
+  } catch (error) {
+    // Un fallo de transporte es recuperable; un error HTTP o JSON inválido no lo es.
+    if (error.name === 'TypeError' || error.name === 'NetworkError') {
+      error.networkFailure = true;
+    }
+    throw error;
+  }
   if (!response.ok) {
     if (response.status === 401 && typeof lockAccount === 'function') lockAccount();
     if (response.status === 404 && path.startsWith('/api/admin/')) {
@@ -670,7 +679,7 @@ async function stopCamera() {
   if (state) render();
 }
 // Captura un fotograma conservando proporción y calidad, lo procesa y programa el siguiente sin solapar envíos.
-async function sendFrame(mark) {
+async function sendFrame(mark, failures = 0) {
   if (!stream || mark !== generation || !session) return;
   const started = performance.now();
   try {
@@ -690,6 +699,7 @@ async function sendFrame(mark) {
       strict: localStorage.getItem('sena-confirmation') === 'strict',
     });
     if (mark !== generation) return;
+    if (failures) notice('Conexión recuperada.');
     drawHandRig(result.hand_rig, canvas.width, canvas.height, canvas);
     const quality = result.quality;
     if (quality) {
@@ -752,7 +762,19 @@ async function sendFrame(mark) {
     if (mode === 'test' && !$('snapshot-mode').checked && (!result.inference_skipped || result.confirmed)) showPrediction(result);
   } catch (error) {
     if (mark !== generation) return;
-    notice(error.message, true);
+    // No reenviar la misma imagen ni reintentar capturas: el servidor podría
+    // haber recibido el fotograma aunque se haya perdido su respuesta.
+    if (error.networkFailure && !recording && !countdown && !batch.active && failures < 3) {
+      frameReady = false;
+      clearHandRig();
+      $('camera-state').textContent = 'Reconectando…';
+      notice(`Se interrumpió la conexión. Reintentando ${failures + 1}/3…`, true);
+      timer = setTimeout(() => sendFrame(mark, failures + 1), 500 * (failures + 1));
+      return;
+    }
+    notice(error.networkFailure
+      ? 'No se pudo recuperar la conexión con Seña. Comprueba que web_app.py siga abierto y vuelve a activar la cámara.'
+      : error.message, true);
     // Cerrar la sesión también descarta cualquier captura parcial en el servidor.
     await stopCamera();
     return;
