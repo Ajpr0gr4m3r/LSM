@@ -207,6 +207,26 @@ Hay carpetas históricas de otros perfiles bajo `web_data/` o `models/`. Se cons
 
 Para respaldar el trabajo, detén el servidor y copia `web_data/datasets/lsm/`, `web_data/vocabulary/`, `web_data/trash/`, `models/lsm/` y `models/lsm/evaluation_split.json` a un lugar seguro. Trata los puntos de movimiento como datos privados aunque no sean video.
 
+### Compartir las grabaciones mediante GitHub
+
+Las tomas confirmadas de LSM y su vocabulario ya están permitidos en `.gitignore`.
+Son archivos de puntos `.npz`, con metadatos de captura; Seña no guarda videos ni audio.
+En GitHub Desktop, selecciona los cambios de `web_data/datasets/lsm/` y
+`web_data/vocabulary/lsm.json`, crea el commit y pulsa **Push origin**.
+Las nuevas tomas guardadas aparecerán también en los cambios pendientes.
+
+Desde la terminal puedes añadirlas al próximo commit con:
+
+```bash
+git add -- web_data/datasets/lsm/ web_data/vocabulary/lsm.json
+```
+
+Un commit es local: las grabaciones llegan a GitHub cuando haces push. Quienes
+tengan acceso al repositorio podrán descargarlas, incluidos sus metadatos de
+sesión y participante. Borradores, credenciales, cuentas, papelera y modelos
+continúan excluidos. Después de descargar los datos en otro equipo, entrena allí
+el modelo; los pesos del modelo no forman parte de este respaldo.
+
 ## Recorrido interno: qué llama a qué
 
 1. El navegador carga `static/index.html` y `static/styles.css`.

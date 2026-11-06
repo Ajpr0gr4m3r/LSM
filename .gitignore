@@ -88,7 +88,18 @@ htmlcov/
 *.tmp
 *.bak
 # Datos, caché, trabajos y versiones de modelos de la página local
-web_data/
+web_data/*
+# Tomas confirmadas de LSM y nombres de sus etiquetas: compartir con el equipo.
+!web_data/datasets/
+web_data/datasets/*
+!web_data/datasets/lsm/
+web_data/datasets/lsm/*
+!web_data/datasets/lsm/*/
+web_data/datasets/lsm/*/*
+!web_data/datasets/lsm/*/*.npz
+!web_data/vocabulary/
+web_data/vocabulary/*
+!web_data/vocabulary/lsm.json
 models/lsm/
 models/dgs/
 models/asl/
