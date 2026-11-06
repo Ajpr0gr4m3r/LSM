@@ -54,3 +54,12 @@ test('API distinguishes network failures from HTTP failures', async()=>{
   c.fetch=async()=>({ok:false,status:500,json:async()=>({error:'Detector failed'})});
   await assert.rejects(c.api('/api/frame',{}),e=>!e.networkFailure && e.message==='Detector failed');
 });
+
+test('interrupted take keeps camera open and stops automatic batch', async()=>{
+  const c=harness();c.recording=true;c.batch.active=true;
+  c.batch.stop=()=>{c.batch.active=false;};
+  c.api=async()=>({phase:'capture-interrupted',capture_error:'Repite la toma',buffer:0,hands:true});
+  await c.sendFrame(1);
+  assert.equal(c.stopped,0);assert.equal(c.recording,false);assert.equal(c.batch.active,false);
+  assert.equal(c.notices.at(-1),'Repite la toma');assert.equal(c.scheduled.length,1);
+});

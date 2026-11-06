@@ -6,19 +6,18 @@
 # Instalación:
 #   pip install -r requirements.txt
 #
-# Para GPU NVIDIA (opcional, acelera entrenamiento):
-#   pip install tensorflow[and-cuda]  (TF >= 2.14)
-#   o bien: pip install tensorflow-gpu==2.12.0
+# Entorno base: Python 3.11 de 64 bits; ejecución CPU en Windows/macOS/Linux.
+# Un único paquete cv2: contrib incluye OpenCV y lo requiere MediaPipe.
+# OpenCV <4.12 mantiene la compatibilidad con NumPy 1.x y TensorFlow 2.15.
 # ══════════════════════════════════════════════════════════════════
 
 # ── Deep Learning ─────────────────────────────────────────────────
-tensorflow>=2.12.0,<2.16.0          # Motor LSTM; 2.12-2.15 soportan Holistic
+tensorflow>=2.12.0,<2.16.0          # Motor LSTM; conserva compatibilidad de modelos
 
 # ── Visión por Computadora ────────────────────────────────────────
-opencv-python>=4.8.0                # Captura, procesamiento y UI de video
+opencv-contrib-python>=4.8.0,<4.12.0                # Captura, procesamiento y UI de video
 mediapipe==0.10.14          # Detección Holistic (manos, pose, cara)
-                                    # Nota: Holistic fue deprecado en 0.10.14+
-                                    # Usa mediapipe==0.10.14 para máxima estabilidad
+                                    # API solutions usada por Seña; no actualizar sin migración
 
 # ── Ciencia de Datos ──────────────────────────────────────────────
 numpy>=1.24.0,<2.0.0               # Operaciones matriciales (compatible con TF)

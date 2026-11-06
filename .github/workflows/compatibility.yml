@@ -1,0 +1,28 @@
+name: Compatibilidad de captura
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -p test_process_status.py
+      - run: python -m unittest discover -s tests -p test_frame_timing.py
+      - run: python -m unittest discover -s tests -p test_confirmation_delivery.py
+      - run: node --test tests/test_frame_connection.js tests/test_cameras.js tests/test_confirmation_voice.js

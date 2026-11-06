@@ -707,6 +707,14 @@ async function sendFrame(mark, failures = 0) {
       $('quality-message').textContent = quality.message;
     }
     $('frame-latency').textContent = `${Math.round(performance.now() - started)} ms`;
+    if (result.phase === 'capture-interrupted') {
+      recording = false;
+      countdown = false;
+      batch.stop();
+      $('capture-instruction').textContent = result.capture_error;
+      notice(result.capture_error, true);
+      render();
+    }
     if (result.phase === 'waiting-for-hands')
       $('capture-instruction').textContent = 'Esperando buen encuadre para iniciar la toma…';
     if (!frameReady) {

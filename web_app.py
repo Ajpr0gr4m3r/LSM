@@ -31,6 +31,7 @@ from web_dataset import inventory, read_dataset, save_draft, pending_drafts, com
 from admin_auth import AdminGuard
 from accounts import Accounts
 import team_access
+from process_status import process_alive
 from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
@@ -424,10 +425,7 @@ class Runtime:
             state = json.loads(path.read_text())
         if state.get('state') == 'running' and self.process is None:
             pid = state.get('pid')
-            try:
-                if not isinstance(pid, int): raise OSError()
-                os.kill(pid, 0)
-            except OSError:
+            if not process_alive(pid):
                 state.update(state='failed', message='El entrenamiento se interrumpió. Los modelos anteriores siguen guardados.')
         if self.process is not None and self.process.poll() is not None and state['state'] == 'running':
             state.update(state='failed', message='El proceso terminó antes de completar el modelo. Revisa web_data/jobs/' + self.job_id + '.log')
@@ -445,11 +443,9 @@ class Runtime:
             if status.get('state') == 'running':
                 self.recovered_training_pid = status.get('pid')
         if isinstance(self.recovered_training_pid, int):
-            try:
-                os.kill(self.recovered_training_pid, 0)
+            if process_alive(self.recovered_training_pid):
                 return True
-            except OSError:
-                self.recovered_training_pid = None
+            self.recovered_training_pid = None
         return False
 
     # Reúne perfiles, vocabularios, ejemplos, modelos, actividad y trabajo para la interfaz.
@@ -810,6 +806,16 @@ class Runtime:
         return result
 
     def _frame(self, payload):
+        # El intervalo de transporte excluye TODO el trabajo local: inicializar
+        # MediaPipe, cargar el modelo, inferir y escribir la toma en disco.
+        session = self.session(payload.get('session'))
+        try:
+            return self._process_frame(payload)
+        finally:
+            session.last_frame = time.monotonic()
+
+    def _process_frame(self, payload):
+        now = time.monotonic()
         if self.training():
             raise ValueError('Espera a que termine el entrenamiento antes de usar la cámara.')
         session = self.session(payload.get('session'))
@@ -825,22 +831,17 @@ class Runtime:
         image = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None or image.shape[0] > 1080 or image.shape[1] > 1920:
             raise ValueError('Envía una imagen JPEG de hasta 1920 × 1080.')
+        gap = now - session.last_frame if session.last_frame else 0
+        interrupted = gap > 1.0 and session.capture is not None
+        if gap > 1.0:
+            session.reset()
+            session.capture = None
         if session.holistic is None:
             import mediapipe as mp
             session.holistic = mp.solutions.holistic.Holistic(model_complexity=1, min_detection_confidence=.5, min_tracking_confidence=.5)
-        now = time.monotonic()
-        gap = now - session.last_frame if session.last_frame else 0
-        if gap > 1.0:
-            session.reset()
-            if session.capture:
-                session.capture = None
-                raise ValueError('La captura se interrumpió. Graba la secuencia de nuevo con una conexión estable.')
         mirrored = cv2.flip(image, 1)
         _, results = mediapipe_detection(mirrored, session.holistic)
         results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
-        # El arranque de MediaPipe puede superar un segundo en CPU. Medir la
-        # pausa desde el final de la detección evita cancelar la primera toma.
-        session.last_frame = time.monotonic()
         points = extract_keypoints(results)
         hands = hands_detected(results)
         output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
@@ -857,6 +858,12 @@ class Runtime:
         quality['warnings'] = visual['warnings']
         quality['image_scope'] = visual['scope']
         output.update(quality=quality, phase='waiting', alternatives=[], latency_ms=0)
+        if interrupted:
+            # La toma parcial no se guarda ni se reinicia a espaldas del usuario.
+            # Mantener el visor permite repetirla sin volver a abrir la cámara.
+            output.update(phase='capture-interrupted', capture_error=
+                'La toma se interrumpió entre fotogramas y no se guardó. La cámara sigue activa; vuelve a grabar la seña completa.')
+            return output
         if session.quality_gate and visual['warnings']:
             quality['usable'] = False
             quality['message'] = visual['warnings'][0]

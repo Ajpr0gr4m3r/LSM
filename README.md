@@ -59,6 +59,24 @@ La prueba informa el Python y las versiones instaladas, y procesa tres imágenes
 
 Usa el entorno de Python 3.11 creado **en esa computadora** con `requirements.txt`; no copies `.venv` desde otra máquina. Si faltan paquetes, instálalos con el mismo ejecutable de Python que usas para iniciar Seña. No se ocultan los errores nativos ni se cambian los umbrales de reconocimiento para eliminar este aviso.
 
+## Compatibilidad y grabaciones en equipos diferentes
+
+La aplicación web usa la cámara del navegador y un servidor Python local. El entorno de referencia es **Python 3.11 de 64 bits** en macOS (Intel/Apple Silicon), Windows x86-64 y Linux x86-64. Esto no garantiza soporte para cualquier arquitectura o versión de sistema: MediaPipe 0.10.14 y TensorFlow deben disponer de paquetes compatibles. Windows ARM y otros equipos requieren una comprobación específica antes de considerarlos compatibles. Crea `.venv` en cada computadora; nunca copies el entorno virtual entre sistemas.
+
+`requirements.txt` instala una sola distribución de OpenCV: `opencv-contrib-python`, que también necesita MediaPipe. Si tu entorno ya tiene `opencv-python` y `opencv-contrib-python` instalados simultáneamente, detén Seña y corrígelo con el Python del entorno. En Windows:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip uninstall -y opencv-python opencv-contrib-python
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe web_app.py
+```
+
+En macOS/Linux usa `.venv/bin/python` en los mismos comandos. Después recarga la página para cargar el JavaScript actualizado. Los datasets y modelos no se eliminan con estos comandos.
+
+La comprobación de pausas excluye el tiempo de procesamiento local completo. Si hay una interrupción real de más de un segundo entre solicitudes, se descarta la toma parcial y se detiene la tanda, pero el visor permanece abierto y permite repetir la toma. No se rellenan fotogramas ni se guardan secuencias incompletas. Cambiar de pestaña u ocultar la página sigue deteniendo la cámara por privacidad.
+
+El flujo `.github/workflows/compatibility.yml` ejecuta pruebas de tiempos, conexión, confirmaciones y procesos en Windows, macOS y Linux después de subir cambios a GitHub. Estas pruebas no sustituyen la prueba física de cámara y precisión en cada equipo; revisa el resultado de Actions antes de dar por validada una plataforma.
+
 ## Empezar a usar Seña
 
 ### 1. Iniciar el servidor

@@ -2,6 +2,7 @@
 
 No instala Tailscale, no inicia sesión y no utiliza Funnel. Ejecutar status primero.
 """
+from process_status import process_alive
 import argparse
 import json
 import os
@@ -99,11 +100,7 @@ def training_active():
     if files:
         job = json.loads(files[0].read_text())
         if job.get('state') == 'running' and isinstance(job.get('pid'), int):
-            try:
-                os.kill(job['pid'], 0)
-                return True
-            except ProcessLookupError:
-                pass
+            return process_alive(job['pid'])
     return False
 
 
