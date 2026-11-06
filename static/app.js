@@ -1169,7 +1169,7 @@ window.addEventListener('pagehide', () => {
 window.addEventListener('DOMContentLoaded', () => {
   bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
   setInterval(() => {
-    if (accountState?.user) refresh().catch(error => notice(error.message, true));
+    if (accountState?.user && !stream && !cameraStarting) refresh().catch(error => notice(error.message, true));
   }, 4000);
 });
 
@@ -1185,22 +1185,13 @@ function clearHandRig() {
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   canvas.hidden = true;
 }
-// Dibuja la imagen analizada reflejada una vez y sus puntos sincronizados, no el video adelantado.
+// El rig es transparente: nunca tapa el video en vivo con una foto antigua.
 function drawHandRig(hands, width, height, sourceFrame = null) {
   clearHandRig();
   if (!$('show-hand-rig').checked || !stream || !hands?.length) return;
   const canvas = $('hand-rig');
   canvas.width = width; canvas.height = height; canvas.hidden = false;
   const ctx = canvas.getContext('2d');
-  if (sourceFrame) {
-    // The landmarks refer to this exact captured frame, mirrored by the server.
-    // Painting over the newer live video would visibly detach them from the hand.
-    ctx.save();
-    ctx.translate(width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(sourceFrame, 0, 0, width, height);
-    ctx.restore();
-  }
   ctx.lineWidth = 2; ctx.strokeStyle = canvas.dataset?.stroke || '#efb08b'; ctx.fillStyle = '#ffffff';
   ctx.shadowColor = '#172139'; ctx.shadowBlur = 3;
   for (const hand of hands) {
@@ -1215,7 +1206,10 @@ function drawHandRig(hands, width, height, sourceFrame = null) {
       ctx.beginPath(); ctx.arc(x*width,y*height,3,0,Math.PI*2); ctx.fill();
     }
   }
-  handRigExpiry = setTimeout(clearHandRig, 800);
+  handRigExpiry = setTimeout(() => {
+    clearHandRig();
+    if (stream) $('camera-state').textContent = 'Esperando nueva detección…';
+  }, 300);
 }
 // Activa o desactiva el rig y conserva la preferencia visual en el navegador.
 function setHandRig(enabled, persist = true) {

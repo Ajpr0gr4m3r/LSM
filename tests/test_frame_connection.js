@@ -63,3 +63,15 @@ test('interrupted take keeps camera open and stops automatic batch', async()=>{
   assert.equal(c.stopped,0);assert.equal(c.recording,false);assert.equal(c.batch.active,false);
   assert.equal(c.notices.at(-1),'Repite la toma');assert.equal(c.scheduled.length,1);
 });
+
+test('periodic dataset refresh does not block an active or starting camera', async()=>{
+  const start=source.indexOf('setInterval(() => {');
+  const polling=source.slice(start,source.indexOf('}, 4000);',start)+9);
+  let poll, calls=0;
+  const c={accountState:{user:{}},stream:{},cameraStarting:false,
+    setInterval:fn=>{poll=fn;},refresh:()=>{calls++;return Promise.resolve();},notice(){}};
+  vm.createContext(c);vm.runInContext(polling,c);
+  poll();assert.equal(calls,0);
+  c.stream=null;c.cameraStarting=true;poll();assert.equal(calls,0);
+  c.cameraStarting=false;poll();assert.equal(calls,1);
+});

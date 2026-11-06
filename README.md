@@ -61,6 +61,8 @@ Usa el entorno de Python 3.11 creado **en esa computadora** con `requirements.tx
 
 ## Compatibilidad y grabaciones en equipos diferentes
 
+El rig dibuja únicamente puntos sobre el video vivo; no coloca una captura fija encima. Los puntos desaparecen después de 300 ms sin actualización y el estado cambia a «Esperando nueva detección…». Esto indica una demora del procesamiento, no necesariamente que la cámara se haya desconectado. Durante el uso de cámara se suspenden las consultas automáticas del inventario; las actualizaciones solicitadas al guardar o terminar una tanda se conservan.
+
 La aplicación web usa la cámara del navegador y un servidor Python local. El entorno de referencia es **Python 3.11 de 64 bits** en macOS (Intel/Apple Silicon), Windows x86-64 y Linux x86-64. Esto no garantiza soporte para cualquier arquitectura o versión de sistema: MediaPipe 0.10.14 y TensorFlow deben disponer de paquetes compatibles. Windows ARM y otros equipos requieren una comprobación específica antes de considerarlos compatibles. Crea `.venv` en cada computadora; nunca copies el entorno virtual entre sistemas.
 
 `requirements.txt` instala una sola distribución de OpenCV: `opencv-contrib-python`, que también necesita MediaPipe. Si tu entorno ya tiene `opencv-python` y `opencv-contrib-python` instalados simultáneamente, detén Seña y corrígelo con el Python del entorno. En Windows:
