@@ -1,0 +1,173 @@
+{
+  "language": "lsm",
+  "pipeline": {
+    "version": "holistic-web-mirror-v1",
+    "sequence_length": 30,
+    "feature_dim": 492,
+    "full_face": false,
+    "face_indices": [
+      61,
+      185,
+      40,
+      39,
+      37,
+      0,
+      267,
+      269,
+      270,
+      409,
+      291,
+      375,
+      321,
+      405,
+      314,
+      17,
+      84,
+      181,
+      91,
+      146,
+      78,
+      95,
+      88,
+      178,
+      87,
+      14,
+      317,
+      402,
+      318,
+      324,
+      308,
+      415,
+      310,
+      311,
+      312,
+      13,
+      82,
+      81,
+      80,
+      191,
+      70,
+      63,
+      105,
+      66,
+      107,
+      55,
+      65,
+      52,
+      53,
+      46,
+      276,
+      283,
+      282,
+      295,
+      285,
+      300,
+      293,
+      334,
+      296,
+      336,
+      33,
+      133,
+      362,
+      263,
+      159,
+      145,
+      386,
+      374,
+      1,
+      2,
+      4,
+      5,
+      6,
+      152,
+      10,
+      234,
+      454,
+      93
+    ],
+    "mirrored": true,
+    "target_fps": 10
+  },
+  "labels": [
+    {
+      "id": "custom_071781edd7cc44b9819463e9af946f3d",
+      "text": "A",
+      "meaning": "A"
+    },
+    {
+      "id": "custom_ad6591580eb14cd5b35f9cd533efc97a",
+      "text": "B",
+      "meaning": "B"
+    }
+  ],
+  "created_at": "2026-10-26T23:31:09.802121+00:00",
+  "samples": 84,
+  "split": {
+    "train": 60,
+    "validation": 12,
+    "test": 12
+  },
+  "test_accuracy": 1.0,
+  "report": {
+    "custom_071781edd7cc44b9819463e9af946f3d": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    },
+    "custom_ad6591580eb14cd5b35f9cd533efc97a": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 12.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 12.0
+    }
+  },
+  "preprocessing": "body-relative-v1",
+  "architecture": "compact-bilstm-v2",
+  "augmentation": {
+    "training_only": true,
+    "variants_per_original": 2
+  },
+  "validation_decisions": {
+    "threshold": 0.85,
+    "margin": 0.15,
+    "evaluated": 12,
+    "accepted": 12,
+    "coverage": 1.0,
+    "accepted_accuracy": 1.0
+  },
+  "test_decisions": {
+    "threshold": 0.85,
+    "margin": 0.15,
+    "evaluated": 12,
+    "accepted": 12,
+    "coverage": 1.0,
+    "accepted_accuracy": 1.0
+  },
+  "decision_threshold": 0.85,
+  "decision_margin": 0.15,
+  "confusion_matrix": [
+    [
+      6,
+      0
+    ],
+    [
+      0,
+      6
+    ]
+  ],
+  "evaluation_note": "Prueba con secuencias reservadas del mismo dataset; no demuestra rendimiento con nuevos usuarios."
+}

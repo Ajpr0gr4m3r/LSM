@@ -100,7 +100,8 @@ web_data/datasets/lsm/*/*
 !web_data/vocabulary/
 web_data/vocabulary/*
 !web_data/vocabulary/lsm.json
-models/lsm/
+# Pesos de las versiones web de LSM (excepcion a *.keras).
+!/models/lsm/*/model.keras
 models/dgs/
 models/asl/
 models/jsl/
