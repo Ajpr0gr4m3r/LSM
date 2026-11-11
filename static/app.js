@@ -415,7 +415,7 @@ function renderJob() {
     notice(
       job.activated === false
         ? job.message
-        : 'Entrenamiento terminado. Abre “Reconocimiento” y activa la cámara para comprobarlo.',
+        : 'Entrenamiento terminado. Abre “Probar modelo” y activa la cámara para comprobarlo.',
     );
   if (lastJobState && fingerprint !== lastJobState && job.state === 'failed')
     notice(job.message, true);

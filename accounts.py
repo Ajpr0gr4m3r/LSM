@@ -41,6 +41,8 @@ class Accounts:
                 CREATE TABLE IF NOT EXISTS sessions (
                     token TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), csrf TEXT NOT NULL,
                     expires REAL NOT NULL, touched REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS studio_admin_sessions (
+                    token TEXT PRIMARY KEY REFERENCES sessions(token) ON DELETE CASCADE);
                 CREATE TABLE IF NOT EXISTS invites (
                     token TEXT PRIMARY KEY, expires REAL NOT NULL, created_by TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS attempts (
@@ -76,10 +78,13 @@ class Accounts:
                     return None
                 user = self.public(user)
             db.execute('UPDATE sessions SET touched=? WHERE token=?', (now, digest(token)))
-            return {'user': user, 'csrf': row['csrf']}
+            studio_admin = db.execute(
+                'SELECT 1 FROM studio_admin_sessions WHERE token=?', (row['token'],)
+            ).fetchone() is not None
+            return {'user': user, 'csrf': row['csrf'], 'studio_admin': studio_admin}
 
     # Emite tokens aleatorios de sesión y CSRF; sustituye la sesión anterior si corresponde.
-    def issue(self, user_id=None, previous=None):
+    def issue(self, user_id=None, previous=None, *, studio_admin=False):
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         now = time.time()
         with self.db() as db:
@@ -88,8 +93,12 @@ class Accounts:
                 db.execute('DELETE FROM sessions WHERE token=?', (digest(previous),))
             if db.execute('SELECT COUNT(*) FROM sessions').fetchone()[0] >= 5000:
                 raise ValueError('Demasiadas sesiones. Inténtalo más tarde.')
+            token_hash = digest(token)
+            lifetime = 3600 if studio_admin else 43200 if user_id else 900
             db.execute('INSERT INTO sessions VALUES (?,?,?,?,?)',
-                       (digest(token), user_id, csrf, now+(43200 if user_id else 900), now))
+                       (token_hash, user_id, csrf, now + lifetime, now))
+            if studio_admin:
+                db.execute('INSERT INTO studio_admin_sessions VALUES (?)', (token_hash,))
         return token, csrf
 
     # Elimina la sesión identificada por el hash del token recibido.

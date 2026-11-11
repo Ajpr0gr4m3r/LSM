@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const elements=new Map();
 function $(id) {
   if(!elements.has(id))elements.set(id,{value:'',textContent:'',hidden:false,disabled:false,checked:false,handlers:{},
-    addEventListener(event,callback){this.handlers[event]=callback;},replaceChildren(){},close(){}});
+    setAttribute(){},addEventListener(event,callback){this.handlers[event]=callback;},replaceChildren(){},close(){}});
   return elements.get(id);
 }
 const visitor = {id:'guest:fixture', name:'Visitante', username:'fixture', role:'collaborator', guest:true};

@@ -3,11 +3,11 @@ import hmac
 import json
 import time
 from http.cookies import SimpleCookie, CookieError
-from accounts import COOKIE
+from accounts import COOKIE, digest
 from web_dataset import draft_dir, sequence_metadata, validate_identifier
 
-ADMIN_ROUTES = {'/api/train', '/api/alphabet', '/api/dataset/import', '/api/dataset/delete',
-                '/api/dataset/move', '/api/models/activate', '/api/admin/delete-recordings'}
+STUDIO_ROUTES = {'/api/train', '/api/alphabet', '/api/capture',
+                 '/api/capture/save', '/api/capture/discard', '/api/admin/delete-recordings'}
 CAMERA_ROUTES = {'/api/snapshot', '/api/close', '/api/reset', '/api/capture', '/api/frame'}
 
 
@@ -32,22 +32,19 @@ def local_session(handler):
             and not getattr(handler.server, 'public_origin', None)
             and handler.client_address[0] in ('127.0.0.1', '::1')):
         return {'user': {'id': 'local', 'name': 'Modo local', 'username': 'local',
-                         'role': 'admin', 'local': True}, 'csrf': handler.server.local_csrf}
+                         'role': 'collaborator', 'local': True}, 'csrf': handler.server.local_csrf}
     return None
 
 
 # Devuelve el estado de acceso local o una sesión de cuenta para la pantalla de entrada.
 def status(handler, accounts):
-    local = local_session(handler)
-    if local:
-        return dict(local, setup_required=False, shared=False, registration='disabled')
-    token = cookie_token(handler)
-    session = accounts.session(token)
+    session = authenticate(handler, accounts)
     if not session:
-        token, _ = accounts.issue(previous=token)
+        token, csrf = accounts.issue(previous=cookie_token(handler))
         set_session(handler, token)
-        session = accounts.session(token)
-    session = guest_session(session, token)
+        session = guest_session({'user': None, 'csrf': csrf}, token)
+    if session['user'].get('local'):
+        return dict(session, setup_required=False, shared=False, registration='disabled')
     return {'user': session['user'], 'csrf': session['csrf'], 'setup_required': not accounts.configured(),
             'shared': True, 'registration': 'invitation', 'guest': session['user'].get('guest', False)}
 
@@ -56,7 +53,7 @@ def guest_session(session, token):
     """Give an anonymous browser a stable, least-privilege identity."""
     if session.get('user'):
         return session
-    identifier = 'guest:' + __import__('hashlib').sha256(token.encode()).hexdigest()[:24]
+    identifier = 'guest:' + digest(token)[:24]
     session['user'] = {'id': identifier, 'name': 'Visitante', 'username': identifier[-8:],
                        'role': 'collaborator', 'active': True, 'guest': True}
     return session
@@ -74,20 +71,39 @@ def close_user_cameras(runtime, identifier):
 # Resuelve la identidad local o valida la sesión de cuenta requerida por la ruta.
 def authenticate(handler, accounts, require_user=True):
     local = local_session(handler)
-    if local:
-        return local
     token = cookie_token(handler)
     session = accounts.session(token)
-    if not session:
-        return None
-    if not session['user']:
-        session = guest_session(session, token)
-    return session
+    if session and session.get('studio_admin'):
+        session['user'] = {
+            'id': 'studio:' + digest(token)[:24], 'name': 'Administrador',
+            'username': 'admin', 'role': 'admin', 'studio_admin': True, 'local': bool(local),
+        }
+        return session
+    if local:
+        return local
+    return guest_session(session, token) if session else None
 
 
 # Compara el token de mutación con el CSRF de la sesión mediante comparación constante.
 def csrf_valid(handler, session):
     return session and hmac.compare_digest(handler.headers.get('X-LSM-Token', ''), session['csrf'])
+
+
+def studio_access_post(handler, route, payload, accounts, runtime, session):
+    token = cookie_token(handler)
+    if route == '/api/admin/unlock':
+        runtime.admin.verify(payload.get('password'))
+        issued, _ = accounts.issue(previous=token, studio_admin=True)
+        close_user_cameras(runtime, session['user']['id'])
+        set_session(handler, issued)
+    else:
+        if not session['user'].get('studio_admin'):
+            raise PermissionError('El modo administrador ya está cerrado.')
+        accounts.logout(token)
+        close_user_cameras(runtime, session['user']['id'])
+        issued, _ = accounts.issue()
+        set_session(handler, issued)
+    return {'ok': True}
 
 
 # Procesa registro, acceso e invitaciones del modo autenticado; los rechaza en modo local.
@@ -123,8 +139,8 @@ def auth_post(handler, route, payload, accounts, runtime, session):
         issued, _ = accounts.issue()
         set_session(handler, issued)
         return status_after_login(accounts, issued)
-    if user['role'] != 'admin':
-        raise PermissionError('Esta opción es solo para administradores.')
+    if user['role'] != 'admin' or user.get('studio_admin'):
+        raise PermissionError('Esta opción requiere una cuenta administradora del equipo.')
     if route == '/api/auth/invite':
         return {'invite': accounts.invite(user['id']), 'expires_in_days': 7}
     if route == '/api/auth/users':
@@ -160,8 +176,8 @@ def draft_owner(language, identifier):
 
 # Comprueba roles, consentimiento y propiedad de cámara o toma antes de una operación.
 def authorize(runtime, user, route, payload):
-    if route in ADMIN_ROUTES and user['role'] != 'admin':
-        raise PermissionError('Esta opción es solo para administradores.')
+    if (route in STUDIO_ROUTES or route.startswith(('/api/dataset/', '/api/models/'))) and not user.get('studio_admin'):
+        raise PermissionError('Abre el modo administrador para usar esta opción.')
     if route in CAMERA_ROUTES:
         item = runtime.session(payload.get('session'))
         if item.owner_id != user['id']:
@@ -179,8 +195,9 @@ def authorize(runtime, user, route, payload):
 # Añade identidad y CSRF al estado y filtra tomas ajenas cuando el usuario no es administrador.
 def shared_state(runtime, user, csrf):
     state = runtime.state()
-    for p in state['profiles']:
-        if user['role'] != 'admin':
-            p['drafts'] = [d for d in p['drafts'] if draft_owner(p['id'], d['id']) == user['id']]
+    if not user.get('studio_admin'):
+        state['activity'] = []
+        for profile in state['profiles']:
+            profile['drafts'] = []
     state.update(token=csrf, user=user, shared=not user.get('local', False), api_version=3)
     return state

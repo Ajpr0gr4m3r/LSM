@@ -105,7 +105,7 @@ Después inicia el programa con un solo comando:
 cd "/Users/apple/Documents/python_work/lia projects/LSM" && .venv/bin/python web_app.py --quick-tunnel
 ```
 
-Seña creará una dirección HTTPS temporal, la imprimirá en Terminal y la abrirá en el navegador. Comparte esa misma dirección con el equipo. La cámara del teléfono y los enlaces QR de **Conversación** usarán automáticamente ese origen HTTPS. En el modo remoto se requiere una cuenta de Seña configurada previamente; crea la primera cuenta desde la aplicación antes de activar el enlace remoto.
+Seña creará una dirección HTTPS temporal, la imprimirá en Terminal y la abrirá en el navegador. Comparte esa misma dirección con el equipo. La cámara del teléfono y los enlaces QR de **Conversación** usarán automáticamente ese origen HTTPS. El público puede abrir Inicio, Probar modelo y Configuración sin cuenta. Para abrir Dataset y Entrenamiento, pulsa **Admin** en la esquina inferior derecha e introduce la contraseña administrativa. En Render, configura `SENA_ADMIN_PASSWORD` en **Environment** con la contraseña acordada. En local se usa el archivo privado `web_data/admin/auth.json` si esa variable no está configurada.
 
 El enlace es accesible por quien lo conozca y el tráfico pasa por Cloudflare. Úsalo solo para pruebas o colaboración temporal y compártelo con cuidado. La dirección deja de funcionar al cerrar la Terminal con **Ctrl+C**; al volver a iniciar puede ser distinta. No hace falta iniciar Tailscale.
 
@@ -148,7 +148,7 @@ Las secuencias guardadas contienen puntos (landmarks) y metadatos de captura, no
 2. Selecciona las clases que quieres entrenar. Incluye las clases anteriores que quieras conservar; las clases aprendidas con datos guardados se mantienen en el entrenamiento.
 3. Escoge la cantidad de épocas y, si corresponde, la estrategia. La opción de referencia es el punto de partida; `discriminative`, `contrastive`, `trajectory` y `robust` son alternativas que se deben comparar con métricas.
 4. Pulsa **Entrenar modelo** y deja la página abierta mientras se muestra el progreso.
-5. Revisa las gráficas, la matriz de confusión, las métricas por clase y el estado de activación. Un entrenamiento terminado no garantiza que la nueva versión haya superado los criterios para activarse.
+5. Revisa las gráficas, la matriz de confusión, las métricas por clase y el estado de activación. Seña activa la versión cuando el entrenamiento termina y guarda el modelo completo. Al arrancar, selecciona la versión compatible más reciente.
 
 El reparto de ejemplos procura mantener sesiones y participantes completos en un solo conjunto. La validación ajusta la decisión del modelo; la prueba reservada sirve para evaluar y no debe usarse para escoger épocas o umbrales. Si los datos no tienen procedencia suficiente, la interfaz debe advertir que la evaluación es exploratoria.
 
@@ -305,7 +305,8 @@ El frontend no escribe los datos directamente. Envía JSON a `web_app.py`, que c
 | `POST /api/capture`, `/api/capture/save`, `/api/capture/discard` | Inicia tomas individuales/consecutivas y guarda o descarta las tomas pendientes. |
 | `POST /api/alphabet` | Añade etiquetas vacías del abecedario español al vocabulario. No genera muestras. |
 | `POST /api/dataset/*` | Audita muestras, revisa una toma, importa/exporta ZIP y aplica cambios administrativos. |
-| `POST /api/train`, `POST /api/models/list`, `POST /api/models/activate` | Inicia entrenamiento, consulta versiones y solicita activar una versión anterior. |
+| `POST /api/train`, `POST /api/models/list` | Inicia entrenamiento y consulta versiones desde el modo administrador. |
+| `POST /api/admin/unlock`, `POST /api/admin/lock` | Abre el modo administrador con contraseña y cierra su sesión. |
 | `POST /api/conversation/*` | Crea, consulta, actualiza o cierra la sala de la computadora. |
 | `GET /phone/<sala>/<llave>` y `POST /api/phone/*` | Entrega la página móvil de una sala válida y procesa su cámara/mensajes. |
 | `POST /api/auth/*` | Registro, inicio/cierre de sesión e invitaciones del modo con cuentas heredado. |
@@ -435,7 +436,7 @@ node tests/test_studio_ui.js
 | El navegador no encuentra cámara | Permite cámara para el navegador, pulsa **Detectar cámaras** y selecciona el dispositivo correcto. En el teléfono abre el enlace HTTPS completo de la sala. |
 | Se pierde la mano o la toma no empieza | Mejora la iluminación, deja espacio alrededor de las manos y acerca el cuerpo para que los puntos sean visibles. La captura espera calidad suficiente antes de guardar cuadros. |
 | No aparece una predicción | Abre Entrenamiento y confirma que existe modelo activo y que la clase está incluida en él. Tener una etiqueta o 30 tomas guardadas no significa que el modelo ya se haya reentrenado. |
-| El entrenamiento no activa la versión nueva | Revisa el motivo, la cantidad de ejemplos completos, los grupos de validación y las métricas por clase. La app puede guardar una versión evaluada sin activarla si no cumple sus controles. |
+| La versión nueva no aparece activa | Revisa si el entrenamiento terminó y guardó el modelo completo. Al arrancar, Seña omite versiones incompatibles, incompletas o guardadas con la opción `--no-activate`. |
 | La foto rechaza una seña | Solo admite las clases para las que el experimento encontró suficiente soporte estático en validación. Para movimiento, usa el reconocimiento temporal. |
 | La página del teléfono no abre la cámara | Confirma que ambos dispositivos estén en Tailscale, que Serve muestre HTTPS y que Seña se iniciara con `--phone-origin`. El chat de texto puede funcionar sin cámara. |
 

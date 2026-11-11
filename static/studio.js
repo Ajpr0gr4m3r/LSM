@@ -55,8 +55,8 @@ function animateHomeOverview() {
 }
 const trainingChoices = new Map();
 const headings = {
-  home: ['ESTUDIO', 'Resumen del estudio', 'Estado del dataset y del modelo activo.'],
-  recognition: ['CÁMARA', 'Reconocimiento', 'Realiza una seña del vocabulario entrenado.'],
+  home: ['ESTUDIO', 'Resumen del estudio', 'Estado del modelo activo.'],
+  recognition: ['CÁMARA', 'Probar modelo', 'Realiza una seña del vocabulario entrenado.'],
   conversation: ['COMUNICACIÓN', 'Sala de conversación', 'Intercambia mensajes escritos y señas desde dos dispositivos.'],
   dataset: ['EJEMPLOS', 'Dataset', 'Graba, nombra y revisa las tomas de cada seña.'],
   training: ['MODELO', 'Entrenamiento', 'Configura una versión y consulta su evaluación.'],
@@ -64,7 +64,7 @@ const headings = {
 };
 const labelsByView = {
   home: 'Inicio',
-  recognition: 'Reconocimiento',
+  recognition: 'Probar modelo',
   conversation: 'Conversación',
   dataset: 'Dataset',
   training: 'Entrenamiento',
@@ -122,7 +122,9 @@ function renderAlternatives(items) {
 }
 // Cambia de vista y mueve el único espacio de cámara a Dataset o Reconocimiento.
 async function navigateStudio(view) {
-  if (!headings[view] || (view === 'conversation' && !SENA_FEATURES.conversation)) view = 'home';
+  if (!Object.hasOwn(headings, view) ||
+      (view === 'conversation' && !SENA_FEATURES.conversation) ||
+      (['dataset', 'training'].includes(view) && !state?.user?.studio_admin)) view = 'home';
   if (currentView !== view) {
     await stopCamera();
     if (view === 'home') homeAnimationStart = null;
@@ -213,13 +215,15 @@ function renderStudio() {
       row.append(node('span', item.text), meter, count);
       chart.append(row);
     }
-  } else chart.append(node('p', 'Guarda la primera toma en Dataset para ver la distribución.'));
-  const incomplete = p.labels.filter((x) => x.samples > 0 && x.samples < state.minimum_samples);
+  } else chart.append(node('p', 'Aún no hay ejemplos guardados.'));
+  const incomplete = (state.user?.studio_admin ? p.labels : []).filter((x) => x.samples > 0 && x.samples < state.minimum_samples);
   $('next-step').textContent = incomplete.length
     ? `${p.code}: ${incomplete.length} seña(s) necesitan más ejemplos. Completa las tomas y revisa su calidad antes de entrenar.`
     : p.model
       ? `${p.code} tiene ${p.model.labels.length} señas en su modelo activo. Comprueba el reconocimiento con una toma nueva.`
-      : `Prepara al menos dos señas de ${p.code}, con 30 ejemplos completos en cada una.`;
+      : state.user?.studio_admin
+        ? `Prepara al menos dos señas de ${p.code}, con 30 ejemplos completos en cada una.`
+        : 'Todavía no hay un modelo disponible para probar.';
   $('profile-grid').replaceChildren(
     ...state.profiles.map((x) => {
       const card = node('button', undefined, 'folio-profile');
@@ -703,26 +707,6 @@ function renderVersions() {
       details.append(node('p', 'Esta versión no guardó curvas por época.'));
     }
     card.append(details);
-    if (!version.active && state.user?.role === 'admin') {
-      const activate = node('button', 'Activar esta versión', 'secondary');
-      activate.type = 'button';
-      activate.addEventListener('click', async () => {
-        const password = $('restore-password').value;
-        $('restore-password').value = '';
-        if (!password)
-          return notice('Escribe la contraseña de administrador para activar una versión.', true);
-        try {
-          await stopCamera();
-          await api('/api/models/activate', { language, version: version.version, password });
-          await refresh();
-          await loadVersions();
-          notice('Modelo comprobado y activado.');
-        } catch (e) {
-          notice(e.message, true);
-        }
-      });
-      card.append(activate);
-    }
     host.append(card);
     if (version.history?.length) {
       drawCurve(

@@ -35,10 +35,17 @@ async function loadAccount() {
 function renderTeam() {
   const user = state?.user || accountState?.user;
   if (!user) return;
-  const admin = user.role === 'admin';
+  const admin = !!user.studio_admin;
+  for (const element of document.querySelectorAll('[data-admin-only]')) element.hidden = !admin;
+  const adminToggle = $('studio-admin-toggle');
+  adminToggle.textContent = admin ? 'Cerrar admin' : 'Admin';
+  adminToggle.setAttribute('aria-label', admin ? 'Cerrar modo administrador' : 'Modo administrador');
+  if (!admin && typeof currentView !== 'undefined' && ['dataset', 'training'].includes(currentView)) {
+    void navigateStudio('home');
+  }
   const local = !!user.local;
-  $('team-settings').hidden = local;
-  $('account-logout').hidden = local || !!user.guest;
+  $('team-settings').hidden = local || !!user.guest || admin;
+  $('account-logout').hidden = local || !!user.guest || admin;
   $('current-account').textContent = user.name;
   if (local) {
     const consent = $('shared-camera-consent');
@@ -52,7 +59,7 @@ function renderTeam() {
   $('capture-participant').readOnly = !local && !user.guest;
   if (!local && !user.guest) $('capture-participant').value = user.name;
   else if ($('capture-participant').value === 'Modo local') $('capture-participant').value = '';
-  $('team-admin').hidden = !admin;
+  $('team-admin').hidden = user.role !== 'admin' || admin;
   document.querySelector('.admin-panel').hidden = !admin;
   $('sample-admin').hidden = !admin;
   if (!admin) {
@@ -62,6 +69,57 @@ function renderTeam() {
     $('train-reason').textContent = 'El administrador del equipo configura y activa los entrenamientos.';
   }
 }
+const adminDialog = $('studio-admin-dialog');
+const adminForm = $('studio-admin-form');
+const adminPassword = $('studio-admin-password');
+const adminError = $('studio-admin-error');
+const adminSubmit = $('studio-admin-submit');
+adminDialog.addEventListener('close', () => { adminPassword.value = ''; });
+$('studio-admin-cancel').addEventListener('click', () => adminDialog.close());
+$('studio-admin-toggle').addEventListener('click', async () => {
+  if (!state?.user?.studio_admin) {
+    adminError.hidden = true;
+    adminDialog.showModal();
+    adminPassword.focus();
+    return;
+  }
+  try {
+    await changeStudioAccess('/api/admin/lock');
+    await navigateStudio('home');
+  } catch (error) {
+    notice(error.message, true);
+  }
+});
+adminForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (adminSubmit.disabled) return;
+  adminError.hidden = true;
+  adminSubmit.disabled = true;
+  try {
+    await changeStudioAccess('/api/admin/unlock', {password: adminPassword.value});
+    adminDialog.close();
+    await navigateStudio('dataset');
+  } catch (error) {
+    adminError.textContent = error.message;
+    adminError.hidden = false;
+  } finally {
+    adminPassword.value = '';
+    adminSubmit.disabled = false;
+  }
+});
+
+async function changeStudioAccess(route, body = {}) {
+  if (!accountState?.user) await bootstrapAccounts();
+  if (stream || session) await stopCamera();
+  // Deja terminar una lectura con la identidad anterior antes de rotar la cookie.
+  if (stateRequest) await stateRequest.catch(() => {});
+  await accountApi(route, body);
+  accountState = null;
+  selectedDraft = null;
+  displayedDraft = null;
+  await bootstrapAccounts();
+}
+
 $('account-logout').addEventListener('click', async () => {
   try {
     await stopCamera();

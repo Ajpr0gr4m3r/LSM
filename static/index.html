@@ -32,22 +32,22 @@
           ><button
             type="button"
             data-view="recognition"
-            aria-label="Reconocimiento"
+            aria-label="Probar modelo"
             aria-current="false"
           >
             <svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#scan"></use></svg
-            ><span>Reconocimiento</span></button
+            ><span>Probar modelo</span></button
           ><button type="button" data-view="conversation" aria-label="Conversación" aria-current="false">
             <svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide.svg#circle-help"></use></svg>
             <span>Conversación</span></button
-          ><button type="button" data-view="dataset" aria-label="Dataset" aria-current="false">
+          ><button type="button" data-view="dataset" data-admin-only hidden aria-label="Dataset" aria-current="false">
             <svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#database"></use></svg
             ><span>Dataset</span></button
           ><button
             type="button"
-            data-view="training"
+            data-view="training" data-admin-only hidden
             aria-label="Entrenamiento"
             aria-current="false"
           >
@@ -103,7 +103,7 @@
             <div>
               <p class="eyebrow" id="view-eyebrow">ESTUDIO</p>
               <h1 id="view-title">Resumen del estudio</h1>
-              <p id="view-subtitle">Estado del dataset y del modelo activo.</p>
+              <p id="view-subtitle">Estado del modelo activo.</p>
             </div>
             <div class="profile-context">
               <span id="breadcrumb">LSM</span>
@@ -125,12 +125,12 @@
               <section class="folio-directory">
                 <div class="folio-rule"><span>02</span><h2>Herramientas</h2></div>
                 <button type="button" class="folio-action" data-view="recognition"><span>Reconocer señas</span><span aria-hidden="true">↗</span></button>
-                <button type="button" class="folio-action" data-view="dataset"><span>Registrar ejemplos</span><span aria-hidden="true">↗</span></button>
-                <button type="button" class="folio-action" data-view="training"><span>Evaluar el modelo</span><span aria-hidden="true">↗</span></button>
+                <button type="button" class="folio-action" data-view="dataset" data-admin-only hidden><span>Registrar ejemplos</span><span aria-hidden="true">↗</span></button>
+                <button type="button" class="folio-action" data-view="training" data-admin-only hidden><span>Evaluar el modelo</span><span aria-hidden="true">↗</span></button>
                 <p id="next-step" class="folio-note"></p>
               </section>
             </div>
-            <section class="folio-log"><div class="folio-rule"><span>03</span><h2>Bitácora reciente</h2></div>
+            <section class="folio-log" data-admin-only hidden><div class="folio-rule"><span>03</span><h2>Bitácora reciente</h2></div>
               <div id="recent-activity" class="folio-events"></div>
             </section>
           </section>
@@ -647,18 +647,7 @@
                 </button>
               </div>
               <div id="model-versions" class="version-grid"></div>
-              <div class="restore-row">
-                <label
-                  >Contraseña de administrador<input
-                    id="restore-password"
-                    type="password"
-                    autocomplete="off"
-                /></label>
-                <p class="help">
-                  Para activar una versión, sus clases deben conservar al menos 30 ejemplos. El
-                  formato y las dimensiones se comprueban antes de cambiar de modelo.
-                </p>
-              </div>
+              <p class="help">Seña activa automáticamente el modelo compatible más reciente.</p>
             </article>
             <article class="card">
               <h2>Evaluación por clase</h2>
@@ -751,11 +740,11 @@
                 <h2>Cómo usar Seña</h2>
                 <ol class="usage-list">
                   <li>Usa el perfil LSM y elige la cámara.</li>
-                  <li>En Dataset, graba la seña y ponle nombre.</li>
-                  <li>Reúne 30 ejemplos o más por clase, en sesiones distintas.</li>
-                  <li>En Entrenamiento, selecciona las clases y revisa la evaluación.</li>
+                  <li data-admin-only hidden>En Dataset, graba la seña y ponle nombre.</li>
+                  <li data-admin-only hidden>Reúne 30 ejemplos o más por clase, en sesiones distintas.</li>
+                  <li data-admin-only hidden>En Entrenamiento, selecciona las clases y revisa la evaluación.</li>
                   <li>
-                    En Reconocimiento, realiza una seña y espera su confirmación. Puedes enlazar señas distintas sin retirar la mano.
+                    En Probar modelo, realiza una seña y espera su confirmación. Puedes enlazar señas distintas sin retirar la mano.
                   </li>
                 </ol>
                 <p class="help">
@@ -773,6 +762,19 @@
         </main>
       </div>
     </div>
+    <button type="button" id="studio-admin-toggle" class="studio-admin-toggle" aria-label="Modo administrador">Admin</button>
+    <dialog id="studio-admin-dialog" aria-labelledby="studio-admin-title">
+      <form id="studio-admin-form">
+        <h2 id="studio-admin-title">Modo administrador</h2>
+        <label for="studio-admin-password">Contraseña</label>
+        <input id="studio-admin-password" type="password" autocomplete="current-password" maxlength="256" required />
+        <p id="studio-admin-error" role="alert" hidden></p>
+        <div class="input-row">
+          <button id="studio-admin-cancel" class="secondary" type="button">Cancelar</button>
+          <button id="studio-admin-submit" class="primary" type="submit">Entrar</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="sample-dialog">
       <div class="card-heading">
         <h2 id="sample-dialog-title">Detalle de toma</h2>

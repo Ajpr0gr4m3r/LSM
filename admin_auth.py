@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import os
 import time
 from pathlib import Path
 
@@ -23,6 +24,12 @@ class AdminGuard:
         if now - self.window_started > 300:
             self.failures = 0
             self.window_started = now
+        valid_input = isinstance(password, str) and 0 < len(password) <= 256
+        supplied = password.encode('utf-8') if valid_input else b''
+        secret = os.environ.get('SENA_ADMIN_PASSWORD')
+        if secret:
+            self._check(valid_input and hmac.compare_digest(supplied, secret.encode('utf-8')), now)
+            return
         try:
             config = json.loads(self.config_path.read_text(encoding='utf-8'))
             if config['algorithm'] != 'pbkdf2-sha256' or config['iterations'] != 600000:
@@ -31,10 +38,11 @@ class AdminGuard:
             expected = bytes.fromhex(config['digest'])
         except (OSError, ValueError, KeyError, TypeError):
             raise PermissionError('No está configurado el acceso de administrador en este servidor.') from None
-        valid_input = isinstance(password, str) and 0 < len(password) <= 256
-        supplied = password if valid_input else ''
-        digest = hashlib.pbkdf2_hmac('sha256', supplied.encode('utf-8'), salt, config['iterations'])
-        if not hmac.compare_digest(digest, expected) or not valid_input:
+        digest = hashlib.pbkdf2_hmac('sha256', supplied, salt, config['iterations'])
+        self._check(valid_input and hmac.compare_digest(digest, expected), now)
+
+    def _check(self, valid, now):
+        if not valid:
             self.failures += 1
             if self.failures >= 5:
                 self.blocked_until = now + 300

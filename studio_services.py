@@ -14,7 +14,12 @@ from dataset_tools import audit_dataset, export_dataset, import_dataset, sample_
 # Lista versiones compatibles y sus diagnósticos sin enviar todas las referencias geométricas al navegador.
 def versions(language):
     root=model_dir(language)
-    selected=json.loads((root/'current.json').read_text()) if (root/'current.json').is_file() else {}
+    try:
+        selected = json.loads((root / 'current.json').read_text())
+        if not isinstance(selected, dict):
+            selected = {}
+    except (OSError, ValueError):
+        selected = {}
     result=[]
     for path in sorted(root.glob('*/metadata.json'),key=lambda p:p.stat().st_mtime,reverse=True):
         try:
@@ -56,6 +61,28 @@ def activate_version(language, version):
     temporary.write_text(json.dumps({'version':version}))
     os.replace(temporary,root/'current.json')
     return {'activated':True,'version':version}
+
+
+def activate_latest_version(language):
+    """Selecciona el último modelo completo y compatible por fecha de entrenamiento."""
+    root = model_dir(language)
+    candidates = sorted(versions(language), key=lambda row: row.get('created_at') or '', reverse=True)
+    counts = {row['id']: row['samples'] for row in inventory(language)}
+    for candidate in candidates:
+        version = candidate['version']
+        labels = candidate.get('labels', [])
+        if (candidate.get('auto_activate') is False or len(labels) < 2
+                or not (root / version / 'model.keras').is_file()
+                or any(counts.get(label.get('id'), 0) < languages.MIN_SAMPLES for label in labels)):
+            continue
+        if candidate['active']:
+            return version
+        try:
+            activate_version(language, version)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        return version
+    return None
 
 
 _ACTIVITY_CACHE = (None, [])

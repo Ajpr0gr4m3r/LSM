@@ -36,7 +36,7 @@ from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
-from studio_services import versions, activate_version, recent_activity, dataset_operation
+from studio_services import versions, activate_latest_version, recent_activity, dataset_operation
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
 
@@ -1128,6 +1128,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Connection', 'close')
         if getattr(self, 'session_cookie', None):
             self.send_header('Set-Cookie', self.session_cookie)
+            self.session_cookie = None
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Permissions-Policy', 'camera=(self), microphone=()')
         self.send_header('X-Content-Type-Options', 'nosniff')
@@ -1235,6 +1236,9 @@ class Handler(BaseHTTPRequestHandler):
                 auth = team_access.authenticate(self, ACCOUNTS)
                 if not auth:
                     return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
+                if route in ('/api/admin/unlock', '/api/admin/lock'):
+                    result = team_access.studio_access_post(self, route, payload, ACCOUNTS, RUNTIME, auth)
+                    return self.send_data(200, result)
                 team_access.authorize(RUNTIME, auth['user'], route, payload)
                 if route == '/api/conversation/create':
                     if payload.get('shared_consent') is not True:
@@ -1296,14 +1300,6 @@ class Handler(BaseHTTPRequestHandler):
                     result = dataset_operation(RUNTIME, route, payload)
                 elif route == '/api/models/list':
                     result = {'versions': versions(payload.get('language'))}
-                elif route == '/api/models/activate':
-                    RUNTIME.admin.verify(payload.get('password'))
-                    if RUNTIME.training() or any(s.capture for s in RUNTIME.sessions.values()):
-                        raise ValueError('Termina el entrenamiento y las capturas antes de cambiar de modelo.')
-                    result = activate_version(payload.get('language'), payload.get('version'))
-                    RUNTIME.models.pop(payload.get('language'), None)
-                    for s in RUNTIME.sessions.values():
-                        if s.language == payload.get('language'): s.reset()
                 elif route == '/api/train':
                     result = RUNTIME.start_training(payload.get('language'), payload.get('epochs', 40), payload.get('labels'), payload.get('strategy', 'baseline'))
                 else:
@@ -1324,7 +1320,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--host', default='127.0.0.1', help='Escucha interna; usa un proxy HTTPS para acceso remoto.')
-    parser.add_argument('--public-url', help='Origen HTTPS del proxy; el acceso remoto exige una cuenta del equipo.')
+    parser.add_argument('--public-url', help='Origen HTTPS del proxy para el acceso público.')
     parser.add_argument('--phone-origin', help='Origen HTTPS para los enlaces temporales del teléfono; puede coincidir con --public-url.')
     parser.add_argument('--quick-tunnel', action='store_true', help='Crea una URL HTTPS temporal con cloudflared para compartir la app sin Tailscale.')
     parser.add_argument('--no-open', action='store_true', help='No abras el navegador automáticamente al iniciar.')
@@ -1364,12 +1360,17 @@ def main():
         server.local_csrf = secrets.token_urlsafe(32)
         address = args.public_url or f'http://127.0.0.1:{args.port}'
         print(f'\nPágina de Seña: {address}', flush=True)
-        print('Modo: acceso remoto con cuenta.' if args.public_url else 'Modo: solo esta computadora, sin inicio de sesión.', flush=True)
+        print('Modo: acceso público con administración protegida.' if args.public_url else 'Modo: solo esta computadora, sin inicio de sesión.', flush=True)
         if args.quick_tunnel:
             print('La URL es temporal y deja de funcionar al cerrar esta ventana. Compártela solo con quien corresponda.', flush=True)
         if not args.no_open:
             threading.Timer(0.6, webbrowser.open, args=(address,)).start()
         print('Ctrl+C para cerrar.\n', flush=True)
+        if not RUNTIME.training():
+            for profile in LANGUAGES:
+                selected = activate_latest_version(profile['id'])
+                if selected:
+                    print(f"Modelo activo de {profile['id']}: {selected}", flush=True)
         server.serve_forever()
     except KeyboardInterrupt:
         pass

@@ -262,7 +262,6 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                     previous_bundle = (old_model, old_meta)
                 comparison_note = 'Se comparan clases comunes solo en ejemplos ajenos al entrenamiento y calibración anteriores.'
         class_validation = [{**row, 'precision': row['accepted_precision']} for row in validation_evaluation['by_class']]
-        activated = False  # Set only after the independent regression checks below.
         probabilities = temperature_probabilities(model(X[test], training=False).numpy(), temperature)
         probabilities = apply_vote(X[test], probabilities, vote)
         pred = np.argmax(probabilities, axis=1)
@@ -317,11 +316,8 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                       {'area':'inferencia','evidence':'Rechazos y errores aceptados se evalúan por separado; falta un conjunto real de señas desconocidas.'}],
             'needs_more_data': [r['id'] for r in validation_evaluation['by_class'] if r['recall']<.8 or r['coverage']<.5 or r['support']<5],
         }
-        reliable = (validation_evaluation['macro_f1'] >= .8 and (validation_evaluation['accepted_accuracy'] or 0)>=.95
-                    and all(r['recall']>=.6 and r['coverage']>=.25 and r['accepted']>=3 for r in validation_evaluation['by_class']))
-        # Historical data may be evaluated exploratorily but never establish new-person accuracy.
-        activated = bool(activate and reliable and protocol['independent'] and not provenance.get('legacy_samples')
-                         and (not previous_version or comparison['passed']))
+        # El estudio usa la versión más reciente; las métricas se conservan para revisión.
+        activated = bool(activate)
         metadata = {
             'language': language, 'pipeline': pipeline_spec(), 'labels': labels,
             'created_at': datetime.now(timezone.utc).isoformat(),
@@ -354,7 +350,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'checkpoint_selection': '0.7 * validation macro F1 + 0.3 * minimum class recall; loss breaks ties',
             'test_decisions': test_evaluation,
             'model_comparison': comparison, 'independent_test_comparison':test_comparison,
-            'activated': activated,
+            'activated': activated, 'auto_activate': bool(activate),
             'decision_threshold': calibration['threshold'], 'decision_margin': calibration['margin'], 'stability_frames': 5,
             'confusion_matrix': confusion_matrix(y[test], pred, labels=list(range(len(labels)))).tolist(),
             'evaluation_note': 'Prueba con secuencias reservadas del mismo dataset; no demuestra rendimiento con nuevos usuarios.',
@@ -365,7 +361,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             write_json(manifest, {'version': job_id})
         status.update(state='completed', activated=activated,
                       message='Modelo entrenado, comparado y activado. Ya puedes probarlo.' if activated else
-                      'Versión guardada sin activar: revisa las letras con baja recuperación, precisión o cobertura en validación.', result=metadata)
+                      'Versión guardada sin activar por solicitud del entrenamiento.', result=metadata)
         write_json(progress_path, status)
     except Exception as exc:
         status.update(state='failed', message=str(exc))
