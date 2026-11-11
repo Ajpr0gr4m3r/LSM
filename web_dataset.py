@@ -43,6 +43,21 @@ def load_sequence(path):
 _INVENTORY_CACHE = {}
 
 
+def stored_sample_counts(language):
+    """Cuenta archivos guardados para Inicio, sin abrir las secuencias."""
+    root = dataset_dir(language)
+    result = []
+    for label in labels_for(language):
+        folder = root / label['id']
+        try:
+            with os.scandir(folder) as entries:
+                count = sum(entry.name.endswith('.npz') and entry.is_file() for entry in entries)
+        except FileNotFoundError:
+            count = 0
+        result.append({**label, 'samples': count})
+    return result
+
+
 # Cuenta ejemplos válidos e inválidos por etiqueta y reutiliza el resultado si los archivos no cambiaron.
 def inventory(language):
     # Leer los arrays solo si cambia algún archivo. Consultar el estado no debe

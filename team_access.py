@@ -192,12 +192,8 @@ def authorize(runtime, user, route, payload):
         raise ValueError('Acepta el procesamiento en el servidor antes de activar la cámara.')
 
 
-# Añade identidad y CSRF al estado y filtra tomas ajenas cuando el usuario no es administrador.
+# Adjunta identidad y CSRF y calcula únicamente los datos que el usuario puede ver.
 def shared_state(runtime, user, csrf):
-    state = runtime.state()
-    if not user.get('studio_admin'):
-        state['activity'] = []
-        for profile in state['profiles']:
-            profile['drafts'] = []
+    state = runtime.state(include_studio=bool(user.get('studio_admin')))
     state.update(token=csrf, user=user, shared=not user.get('local', False), api_version=3)
     return state

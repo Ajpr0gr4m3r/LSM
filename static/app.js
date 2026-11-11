@@ -241,7 +241,7 @@ function render() {
     : 'Este perfil todavía no tiene señas aprendidas.';
   const summary = $('model-summary');
   summary.replaceChildren();
-  if (p.model) {
+  if (p.model && state.user?.studio_admin) {
     const strong = document.createElement('strong');
     strong.textContent = `${p.code}: ${p.model.labels.length} señas entrenadas. `;
     const learned = new Set(p.model.labels.map(label => label.id));
@@ -256,7 +256,7 @@ function render() {
       strong,
       `Aciertos en prueba reservada: ${(100 * p.model.test_accuracy).toFixed(1)}% (${p.model.split.test} ejemplos). ${p.model.evaluation_note}`,
     );
-  } else {
+  } else if (!p.model) {
     summary.textContent =
       p.model_error ||
       `Este perfil está preparado para aprender. Todavía no tiene un modelo de ${p.code}; activar la cámara no generará detecciones inventadas.`;

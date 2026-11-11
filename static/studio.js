@@ -255,6 +255,7 @@ function renderStudio() {
       node('div', 'Aquí aparecerán tus entrenamientos y cambios de dataset.', 'empty-state'),
     );
   animateHomeOverview();
+  if (!state.user?.studio_admin) return;
   $('vocabulary-total').textContent = `${p.labels.length} etiquetas`;
   filterVocabulary();
   const classes = $('train-classes');

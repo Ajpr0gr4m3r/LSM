@@ -7,6 +7,7 @@ import argparse
 import base64
 import hashlib
 from collections import deque
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -27,7 +28,7 @@ import numpy as np
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
-from web_dataset import inventory, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
+from web_dataset import inventory, stored_sample_counts, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
 from admin_auth import AdminGuard
 from accounts import Accounts
 import team_access
@@ -87,7 +88,21 @@ ACCOUNTS = Accounts(WEB_DATA / "accounts" / "team.sqlite3")
 
 
 # Valida el manifiesto activo, la lengua, el pipeline y los archivos del modelo antes de cargarlo.
-def model_metadata(language):
+@lru_cache(maxsize=4)
+def public_model_metadata(path, modified, size):
+    """Retiene solo los campos de la vista pública, sin guardar referencias pesadas."""
+    full = json.loads(path.read_text())
+    summary = {key: full[key] for key in (
+        'language', 'pipeline', 'labels', 'created_at', 'preprocessing',
+    ) if key in full}
+    classes = (full.get('decision_policy') or {}).get('classes', {})
+    summary['decision_policy'] = {'classes': {
+        index: {'supported': row.get('supported')} for index, row in classes.items()
+    }}
+    return summary
+
+
+def model_metadata(language, *, public=False):
     directory = model_dir(language)
     manifest = directory / 'current.json'
     if not manifest.exists():
@@ -99,7 +114,12 @@ def model_metadata(language):
     if not isinstance(version, str) or len(version) != 32 or any(c not in '0123456789abcdef' for c in version):
         raise ValueError('La versión del modelo es inválida.')
     path = directory / version
-    meta = json.loads((path / 'metadata.json').read_text())
+    metadata_path = path / 'metadata.json'
+    if public:
+        stat = metadata_path.stat()
+        meta = public_model_metadata(metadata_path, stat.st_mtime_ns, stat.st_size)
+    else:
+        meta = json.loads(metadata_path.read_text())
     if meta['language'] != language or meta['pipeline'] != pipeline_spec():
         raise ValueError('El modelo no corresponde a esta lengua o a la configuración de captura actual.')
     feature_dimension(meta.get('preprocessing'))
@@ -165,6 +185,8 @@ class Runtime:
     # Crea el bloqueo compartido, las cachés y los registros en memoria del servidor.
     def __init__(self):
         self.lock = threading.RLock()
+        self.startup_models_ready = threading.Event()
+        self.startup_models_ready.set()
         self.sessions = {}
         self.conversations = {}
         self.models = {}
@@ -450,14 +472,14 @@ class Runtime:
         return False
 
     # Reúne perfiles, vocabularios, ejemplos, modelos, actividad y trabajo para la interfaz.
-    def state(self):
+    def state(self, *, include_studio=True):
         profiles = []
         for info in LANGUAGES:
-            rows = inventory(info['id'])
+            rows = (inventory if include_studio else stored_sample_counts)(info['id'])
             metadata = None
             error = None
             try:
-                result = model_metadata(info['id'])
+                result = model_metadata(info['id'], public=not include_studio)
                 metadata = {k: v for k, v in result[1].items() if k not in ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
@@ -467,11 +489,11 @@ class Runtime:
                             error = selection.get('reason', 'Reentrena el modelo tras borrar ejemplos.')
             except (ValueError, KeyError, OSError) as exc:
                 error = str(exc)
-            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']), 'alphabet': alphabet_status(info['id'], rows, metadata)})
+            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']) if include_studio else [], 'alphabet': alphabet_status(info['id'], rows, metadata) if include_studio else None})
         old_model = ROOT / 'models' / 'lsm_model.h5'
         return {'profiles': profiles, 'minimum_samples': MIN_SAMPLES, 'recommended_samples': RECOMMENDED_SAMPLES, 'sequence_length': SEQUENCE_LENGTH,
-                'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job(),
-                'legacy_model': old_model.is_file(), 'activity': recent_activity(), 'api_version': 2}
+                'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job() if include_studio else None,
+                'legacy_model': old_model.is_file(), 'activity': recent_activity() if include_studio else [], 'api_version': 2}
 
     # Prepara el comparador de fotos con referencias entrenadas y grabaciones únicas de validación congelada.
     def prepare_snapshot(self, language):
@@ -1232,6 +1254,9 @@ class Handler(BaseHTTPRequestHandler):
             route = urlsplit(self.path).path
             if route.startswith('/api/auth/'):
                 return self.send_data(200, team_access.auth_post(self, route, payload, ACCOUNTS, RUNTIME, auth))
+            if (route not in ('/api/admin/unlock', '/api/admin/lock', '/api/close')
+                    and not RUNTIME.startup_models_ready.wait(timeout=10)):
+                return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.'})
             with RUNTIME.lock:
                 auth = team_access.authenticate(self, ACCOUNTS)
                 if not auth:
@@ -1315,6 +1340,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_data(500, {'error': f'No se pudo completar la operación: {exc}'})
 
 
+def prepare_startup_models(runtime):
+    """Deja que la portada cargue mientras se comprueba el modelo más reciente."""
+    try:
+        if not runtime.training():
+            for profile in LANGUAGES:
+                selected = activate_latest_version(profile['id'])
+                if selected:
+                    print(f"Modelo activo de {profile['id']}: {selected}", flush=True)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"No se pudo preparar el modelo al arrancar: {error}", file=sys.stderr, flush=True)
+    finally:
+        runtime.startup_models_ready.set()
+
+
 # Valida los argumentos de arranque, configura el servidor y libera detectores al cerrarlo.
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1366,11 +1405,9 @@ def main():
         if not args.no_open:
             threading.Timer(0.6, webbrowser.open, args=(address,)).start()
         print('Ctrl+C para cerrar.\n', flush=True)
-        if not RUNTIME.training():
-            for profile in LANGUAGES:
-                selected = activate_latest_version(profile['id'])
-                if selected:
-                    print(f"Modelo activo de {profile['id']}: {selected}", flush=True)
+        RUNTIME.startup_models_ready.clear()
+        threading.Thread(target=prepare_startup_models, args=(RUNTIME,),
+                         name='seña-modelos', daemon=True).start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass

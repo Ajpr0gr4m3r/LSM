@@ -11,31 +11,43 @@ from web_dataset import inventory, validate_identifier
 from dataset_tools import audit_dataset, export_dataset, import_dataset, sample_rows, inspect_sample
 
 
-# Lista versiones compatibles y sus diagnósticos sin enviar todas las referencias geométricas al navegador.
-def versions(language):
-    root=model_dir(language)
+def current_selection(root):
     try:
         selected = json.loads((root / 'current.json').read_text())
-        if not isinstance(selected, dict):
-            selected = {}
+        return selected if isinstance(selected, dict) else {}
     except (OSError, ValueError):
-        selected = {}
-    result=[]
-    for path in sorted(root.glob('*/metadata.json'),key=lambda p:p.stat().st_mtime,reverse=True):
+        return {}
+
+
+def compatible_metadata(language):
+    """Lee una versión a la vez y descarta pipelines incompatibles."""
+    for path in model_dir(language).glob('*/metadata.json'):
         try:
-            validate_identifier(path.parent.name)
-            meta=json.loads(path.read_text())
+            version = path.parent.name
+            validate_identifier(version)
+            meta = json.loads(path.read_text())
             if meta['language'] != language or meta['pipeline'] != pipeline_spec():
                 continue
             feature_dimension(meta.get('preprocessing'))
-            from recognition_analysis import confusion_analysis
-            if meta.get('confusion_matrix') and not meta.get('test_evaluation'):
-                meta['legacy_confusions'] = confusion_analysis(meta['confusion_matrix'], meta['labels'])
-            result.append({**{k:v for k,v in meta.items() if k not in ('posture_vote','hand_guard','temporal_guard','split_hashes','split_groups')},
-                           'version':path.parent.name,'active':selected.get('version')==path.parent.name and not selected.get('requires_retraining')})
-        except (ValueError,KeyError,OSError):
+            yield version, meta, path.stat().st_mtime
+        except (ValueError, KeyError, OSError):
             continue
-    return result
+
+
+# Lista versiones y diagnósticos para la vista de Entrenamiento.
+def versions(language):
+    selected = current_selection(model_dir(language))
+    result = []
+    for version, meta, modified in compatible_metadata(language):
+        if meta.get('confusion_matrix') and not meta.get('test_evaluation'):
+            from recognition_analysis import confusion_analysis
+            meta['legacy_confusions'] = confusion_analysis(meta['confusion_matrix'], meta['labels'])
+        summary = {k: v for k, v in meta.items() if k not in (
+            'posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups'
+        )}
+        active = selected.get('version') == version and not selected.get('requires_retraining')
+        result.append((modified, dict(summary, version=version, active=active)))
+    return [row for _, row in sorted(result, key=lambda item: item[0], reverse=True)]
 
 
 # Valida vocabulario, archivos y dimensiones antes de cambiar atómicamente la versión activa.
@@ -66,16 +78,17 @@ def activate_version(language, version):
 def activate_latest_version(language):
     """Selecciona el último modelo completo y compatible por fecha de entrenamiento."""
     root = model_dir(language)
-    candidates = sorted(versions(language), key=lambda row: row.get('created_at') or '', reverse=True)
-    counts = {row['id']: row['samples'] for row in inventory(language)}
-    for candidate in candidates:
-        version = candidate['version']
-        labels = candidate.get('labels', [])
-        if (candidate.get('auto_activate') is False or len(labels) < 2
-                or not (root / version / 'model.keras').is_file()
-                or any(counts.get(label.get('id'), 0) < languages.MIN_SAMPLES for label in labels)):
-            continue
-        if candidate['active']:
+    selection = current_selection(root)
+    candidates = [
+        (meta.get('created_at') or '', modified, version)
+        for version, meta, modified in compatible_metadata(language)
+        if meta.get('auto_activate') is not False and len(meta.get('labels', [])) >= 2
+        and (root / version / 'model.keras').is_file()
+    ]
+    for _, _, version in sorted(candidates, reverse=True):
+        # El modelo que ya está activo se validó al activarlo. Las operaciones
+        # de borrado que lo invalidan marcan el manifiesto para reentrenar.
+        if version == selection.get('version') and not selection.get('requires_retraining'):
             return version
         try:
             activate_version(language, version)
