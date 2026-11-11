@@ -47,8 +47,19 @@ def status(handler, accounts):
         token, _ = accounts.issue(previous=token)
         set_session(handler, token)
         session = accounts.session(token)
+    session = guest_session(session, token)
     return {'user': session['user'], 'csrf': session['csrf'], 'setup_required': not accounts.configured(),
-            'shared': True, 'registration': 'invitation'}
+            'shared': True, 'registration': 'invitation', 'guest': session['user'].get('guest', False)}
+
+
+def guest_session(session, token):
+    """Give an anonymous browser a stable, least-privilege identity."""
+    if session.get('user'):
+        return session
+    identifier = 'guest:' + __import__('hashlib').sha256(token.encode()).hexdigest()[:24]
+    session['user'] = {'id': identifier, 'name': 'Visitante', 'username': identifier[-8:],
+                       'role': 'collaborator', 'active': True, 'guest': True}
+    return session
 
 
 # Cierra los detectores y elimina todas las sesiones de cámara de un usuario.
@@ -65,9 +76,12 @@ def authenticate(handler, accounts, require_user=True):
     local = local_session(handler)
     if local:
         return local
-    session = accounts.session(cookie_token(handler))
-    if not session or (require_user and not session['user']):
+    token = cookie_token(handler)
+    session = accounts.session(token)
+    if not session:
         return None
+    if not session['user']:
+        session = guest_session(session, token)
     return session
 
 
@@ -83,7 +97,7 @@ def auth_post(handler, route, payload, accounts, runtime, session):
     user = session['user']
     token = cookie_token(handler)
     if route in ('/api/auth/setup', '/api/auth/register', '/api/auth/login'):
-        if user:
+        if user and not user.get('guest'):
             raise ValueError('Cierra la sesión actual para cambiar de cuenta.')
         accounts.throttle('network:' + handler.client_address[0], limit=200)
         identity = 'account:' + str(payload.get('username', ''))[:40].lower()

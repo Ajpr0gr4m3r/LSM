@@ -62,7 +62,8 @@ function renderTeam() {
   const admin = user.role === 'admin';
   const local = !!user.local;
   $('team-settings').hidden = local;
-  $('account-logout').hidden = local;
+  $('admin-login').hidden = !user.guest;
+  $('account-logout').hidden = local || !!user.guest;
   $('current-account').textContent = user.name;
   if (local) {
     const consent = $('shared-camera-consent');
@@ -72,9 +73,9 @@ function renderTeam() {
     }
     label.append(document.createTextNode(' Permito procesar mi cámara en esta Mac. Las imágenes no se guardan; solo se guardan los puntos de las tomas que confirme.'));
   }
-  $('team-account-info').textContent = `${user.name} · @${user.username} · ${admin ? 'Administrador' : 'Colaborador'}`;
-  $('capture-participant').readOnly = !local;
-  if (!local) $('capture-participant').value = user.name;
+  $('team-account-info').textContent = user.guest ? 'Estás usando Seña como visitante. El acceso no requiere cuenta.' : `${user.name} · @${user.username} · ${admin ? 'Administrador' : 'Colaborador'}`;
+  $('capture-participant').readOnly = !local && !user.guest;
+  if (!local && !user.guest) $('capture-participant').value = user.name;
   else if ($('capture-participant').value === 'Modo local') $('capture-participant').value = '';
   $('team-admin').hidden = !admin;
   document.querySelector('.admin-panel').hidden = !admin;
@@ -86,6 +87,7 @@ function renderTeam() {
     $('train-reason').textContent = 'El administrador del equipo configura y activa los entrenamientos.';
   }
 }
+$('admin-login').addEventListener('click', () => { $('team-workspace').hidden = true; $('account-gate').hidden = false; accountScreen(accountState?.setup_required ? 'setup' : 'login'); });
 $('account-login-tab').addEventListener('click', () => accountScreen('login'));
 $('account-register-tab').addEventListener('click', () => accountScreen('register'));
 $('account-form').addEventListener('submit', async event => {
