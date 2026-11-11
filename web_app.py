@@ -1169,7 +1169,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith('/api/'):
             auth = team_access.authenticate(self, ACCOUNTS)
             if not auth:
-                return self.send_data(401, {'error': 'Inicia sesión para continuar.'})
+                return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
         if route == '/api/state':
             with RUNTIME.lock:
                 return self.send_data(200, team_access.shared_state(RUNTIME, auth['user'], auth['csrf']))
@@ -1217,7 +1217,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(500, {'error': f'No se pudo completar la operación: {exc}'})
         auth = team_access.authenticate(self, ACCOUNTS, require_user=not route.startswith('/api/auth/'))
         if not auth:
-            return self.send_data(401, {'error': 'Inicia sesión para continuar.'})
+            return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
         if not self.trusted_host() or (origin and origin not in expected) or not team_access.csrf_valid(self, auth):
             return self.send_data(403, {'error': 'Sesión no autorizada. Recarga la página.'})
         try:
@@ -1234,7 +1234,7 @@ class Handler(BaseHTTPRequestHandler):
             with RUNTIME.lock:
                 auth = team_access.authenticate(self, ACCOUNTS)
                 if not auth:
-                    return self.send_data(401, {'error': 'La sesión terminó. Vuelve a iniciar sesión.'})
+                    return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
                 team_access.authorize(RUNTIME, auth['user'], route, payload)
                 if route == '/api/conversation/create':
                     if payload.get('shared_consent') is not True:

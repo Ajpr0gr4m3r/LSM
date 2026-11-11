@@ -16,29 +16,7 @@
   </head>
   <body>
     <a class="skip-link" href="#main-content">Ir al contenido</a>
-    <section id="account-gate" hidden class="account-gate" aria-labelledby="account-title">
-      <div class="account-card">
-        <a class="brand" href="#home">seña<span class="brand-period">.</span></a>
-        <p class="small-label">ESPACIO COMPARTIDO</p>
-        <h1 id="account-title">Iniciar sesión</h1>
-        <p id="account-description">Inicia sesión para acceder a los ejemplos y modelos del equipo.</p>
-        <div class="input-row" id="account-tabs">
-          <button type="button" id="account-login-tab" class="secondary">Iniciar sesión</button>
-          <button type="button" id="account-register-tab" class="secondary">Crear cuenta</button>
-        </div>
-        <form id="account-form">
-          <label id="account-name-label" hidden>Nombre visible<input id="account-name" maxlength="80" autocomplete="name" /></label>
-          <label>Usuario<input id="account-username" required minlength="3" maxlength="40" autocomplete="username" autocapitalize="none" /></label>
-          <label>Contraseña<input id="account-password" type="password" required maxlength="256" autocomplete="current-password" /></label>
-          <label id="account-invite-label" hidden>Código de invitación<input id="account-invite" maxlength="128" autocomplete="off" /></label>
-          <label id="account-consent-label" class="check-row" hidden><input id="account-consent" type="checkbox" /> Entiendo que mis ejemplos guardados estarán disponibles para las cuentas de este equipo y se usarán para entrenar sus modelos.</label>
-          <p id="account-message" class="help" role="status" aria-live="polite"></p>
-          <button id="account-submit" class="primary" type="submit">Entrar</button>
-        </form>
-        <p class="help">El perfil LSM conserva sus ejemplos y modelos en este servidor. Las contraseñas no se comparten.</p>
-      </div>
-    </section>
-    <div class="app-layout" id="team-workspace" hidden>
+    <div class="app-layout" id="team-workspace">
       <aside class="sidebar">
         <a href="#home" class="brand" aria-label="Seña, inicio"
           ><span class="brand-mark"
@@ -701,7 +679,6 @@
             <article class="card" id="team-settings">
                 <span class="small-label">ACCESO</span><h2>Uso de Seña</h2>
                 <p id="team-account-info"></p>
-                <button id="admin-login" class="secondary" type="button" hidden>Acceso de administrador</button>
                 <p>La página abre directamente para visitantes. Las cuentas de administrador se usan para gestionar el vocabulario, los datos y los modelos.</p>
                 <div id="team-admin" hidden>
                   <button id="create-invite" class="secondary" type="button">Crear invitación</button>

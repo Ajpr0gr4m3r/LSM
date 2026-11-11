@@ -1,5 +1,5 @@
 'use strict';
-let accountState = null, accountMode = 'login', accountBusy = false, accountBoot = null;
+let accountState = null, accountBoot = null;
 // Envía operaciones de cuenta con el CSRF de acceso, separado del token del estado de cámara.
 async function accountApi(path, body) {
   const response = await fetch(path, body === undefined ? {} : {
@@ -10,30 +10,12 @@ async function accountApi(path, body) {
   if (!response.ok) throw new Error(result.error || 'No se pudo acceder al equipo.');
   return result;
 }
-// Oculta el estudio, detiene la cámara y vuelve a consultar la sesión de acceso.
-function lockAccount() {
+// Renueva el acceso del navegador si la sesión caducó.
+function recoverAccess() {
+  if (accountBoot) return;
   accountState = null;
-  $('team-workspace').hidden = true;
-  $('account-gate').hidden = false;
   if (stream) void stopCamera();
-  void bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
-}
-// Configura los campos de registro o inicio de sesión del modo autenticado heredado.
-function accountScreen(mode) {
-  accountMode = mode;
-  const setup = accountState?.setup_required, registering = mode !== 'login';
-  $('account-title').textContent = setup ? 'Prepara el espacio del equipo.' : registering ? 'Únete a tu equipo.' : 'Iniciar sesión';
-  $('account-description').textContent = setup
-    ? 'Elige tu usuario y contraseña para crear la primera cuenta administradora del equipo.'
-    : registering ? 'Pide al administrador un código de invitación y elige tu contraseña.' : 'Inicia sesión para acceder a los ejemplos y modelos del equipo.';
-  $('account-tabs').hidden = !!setup;
-  for (const id of ['account-name-label','account-consent-label']) $(id).hidden = !registering;
-  $('account-invite-label').hidden = !registering || setup;
-  $('account-password').minLength = registering ? 12 : 1;
-  $('account-password').autocomplete = registering ? 'new-password' : 'current-password';
-  $('account-submit').textContent = setup ? 'Crear espacio de equipo' : registering ? 'Crear mi cuenta' : 'Entrar';
-  $('account-password').value = '';
-  $('account-message').textContent = '';
+  void bootstrapAccounts().catch(error => notice(error.message, true));
 }
 // Comparte la carga inicial en curso para evitar consultas de acceso duplicadas.
 async function bootstrapAccounts() {
@@ -41,19 +23,13 @@ async function bootstrapAccounts() {
   accountBoot = loadAccount();
   try { return await accountBoot; } finally { accountBoot = null; }
 }
-// Abre el estudio en modo local o muestra el acceso del despliegue autenticado.
+// Obtiene la sesión de visitante o reutiliza una sesión vigente.
 async function loadAccount() {
   accountState = await accountApi('/api/auth/status');
-  if (accountState.user) {
-    $('account-gate').hidden = true;
-    $('team-workspace').hidden = false;
-    await refresh();
-    renderTeam();
-  } else {
-    $('team-workspace').hidden = true;
-    $('account-gate').hidden = false;
-    accountScreen(accountState.setup_required ? 'setup' : 'login');
+  if (!accountState.user) {
+    throw new Error('El servidor no ofrece acceso de visitante. Actualiza el despliegue de Seña.');
   }
+  await refresh();
 }
 // Aplica identidad y permisos y oculta controles de cuentas cuando está activo el modo local.
 function renderTeam() {
@@ -62,7 +38,6 @@ function renderTeam() {
   const admin = user.role === 'admin';
   const local = !!user.local;
   $('team-settings').hidden = local;
-  $('admin-login').hidden = !user.guest;
   $('account-logout').hidden = local || !!user.guest;
   $('current-account').textContent = user.name;
   if (local) {
@@ -87,27 +62,6 @@ function renderTeam() {
     $('train-reason').textContent = 'El administrador del equipo configura y activa los entrenamientos.';
   }
 }
-$('admin-login').addEventListener('click', () => { $('team-workspace').hidden = true; $('account-gate').hidden = false; accountScreen(accountState?.setup_required ? 'setup' : 'login'); });
-$('account-login-tab').addEventListener('click', () => accountScreen('login'));
-$('account-register-tab').addEventListener('click', () => accountScreen('register'));
-$('account-form').addEventListener('submit', async event => {
-  event.preventDefault();
-  if (accountBusy) return;
-  accountBusy = true; $('account-submit').disabled = true;
-  try {
-    const route = accountMode === 'setup' ? 'setup' : accountMode === 'register' ? 'register' : 'login';
-    accountState = await accountApi('/api/auth/' + route, {
-      username:$('account-username').value.trim(), name:$('account-name').value.trim(),
-      password:$('account-password').value,
-      invite:$('account-invite').value.trim(), shared_consent:$('account-consent').checked,
-    });
-    $('account-form').reset();
-    state = undefined; stateRequest = null; selectedDraft = null; displayedDraft = null;
-    await bootstrapAccounts();
-    $('shared-camera-consent').checked = false;
-  } catch(error) { $('account-message').textContent = error.message; }
-  finally { accountBusy = false; $('account-submit').disabled = false; }
-});
 $('account-logout').addEventListener('click', async () => {
   try {
     await stopCamera();

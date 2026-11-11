@@ -66,7 +66,7 @@ async function api(path, body) {
     throw error;
   }
   if (!response.ok) {
-    if (response.status === 401 && typeof lockAccount === 'function') lockAccount();
+    if (response.status === 401 && typeof recoverAccess === 'function') recoverAccess();
     if (response.status === 404 && path.startsWith('/api/admin/')) {
       throw new Error(
         'El servidor activo es una versión anterior sin administración. Detén web_app.py con Ctrl+C, vuelve a ejecutarlo y recarga la página.',
@@ -1167,7 +1167,7 @@ window.addEventListener('pagehide', () => {
   }).catch(() => {});
 });
 window.addEventListener('DOMContentLoaded', () => {
-  bootstrapAccounts().catch(error => { $('account-message').textContent = error.message; });
+  bootstrapAccounts().catch(error => notice(error.message, true));
   setInterval(() => {
     if (accountState?.user && !stream && !cameraStarting) refresh().catch(error => notice(error.message, true));
   }, 4000);
