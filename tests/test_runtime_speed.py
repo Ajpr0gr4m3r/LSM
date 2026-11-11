@@ -28,8 +28,8 @@ class RuntimeSpeedTests(unittest.TestCase):
                 (root/'current.json').write_text('disabled')
                 with patch('web_app.model_metadata',return_value=None) as reader:
                     self.assertIsNone(runtime.load_model('lsm')); reader.assert_called_once()
-                new=types.SimpleNamespace(input_shape=(None,web_app.SEQUENCE_LENGTH,web_app.FEATURE_DIM),output_shape=(None,2))
-                fake=types.SimpleNamespace(keras=types.SimpleNamespace(models=types.SimpleNamespace(load_model=lambda *a,**kw:new)))
+                new=types.SimpleNamespace(call=lambda *a,**kw:None,input_shape=(None,web_app.SEQUENCE_LENGTH,web_app.FEATURE_DIM),output_shape=(None,2))
+                fake=types.SimpleNamespace(function=lambda call,**kw:call,keras=types.SimpleNamespace(models=types.SimpleNamespace(load_model=lambda *a,**kw:new)))
                 with patch('web_app.model_metadata',return_value=(directory,meta)),patch.dict(sys.modules,{'tensorflow':fake}):
                     self.assertIs(runtime.load_model('lsm')[0],new)
                 (directory/'model.keras').unlink()

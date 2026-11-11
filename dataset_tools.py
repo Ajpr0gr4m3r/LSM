@@ -311,7 +311,41 @@ def persistent_split(targets, groups, path, seed=42, fingerprints=None, label_na
             cost = (evaluation_shortfall, training_shortfall, balance)
             if best is None or cost < score:
                 best, score = (trial, candidate), cost
-        if best is None:raise ValueError('Las nuevas clases necesitan sesiones en entrenamiento, validación y prueba. La reserva histórica no se mezcla; graba nuevas sesiones.')
+        if best is None and new:
+            # La búsqueda aleatoria puede omitir un reparto válido al añadir
+            # muchas clases. Resolver la cobertura sin mover grupos históricos.
+            from scipy.optimize import milp, Bounds, LinearConstraint
+            names = ('train', 'validation', 'test')
+            matrix, lower, upper = [], [], []
+            for j in range(len(new)):
+                row = np.zeros(len(new)*3); row[j*3:j*3+3] = 1
+                matrix.append(row); lower.append(1); upper.append(1)
+            for c in sorted(classes):
+                for role, name in enumerate(names):
+                    row = np.zeros(len(new)*3)
+                    for j, group in enumerate(new):
+                        row[j*3+role] = np.sum((groups == group) & (targets == c))
+                    reserved = sum(targets[i] == c and mapping.get(g) == name
+                                   for i, g in enumerate(groups))
+                    matrix.append(row)
+                    lower.append(max(0, (2 if role == 0 else 1)-reserved))
+                    upper.append(np.inf)
+            solution = milp(np.tile([0., 1., 1.], len(new)),
+                            integrality=np.ones(len(new)*3), bounds=Bounds(0, 1),
+                            constraints=LinearConstraint(np.array(matrix), lower, upper),
+                            options={'time_limit': 5.0})
+            if solution.x is not None:
+                trial = dict(mapping)
+                trial.update({g:names[int(np.argmax(solution.x[j*3:j*3+3]))]
+                              for j,g in enumerate(new)})
+                candidate = tuple(np.flatnonzero([trial[g] == name for g in groups]) for name in names)
+                if (all(set(targets[idx].tolist()) == classes for idx in candidate)
+                        and all(np.sum(targets[candidate[0]] == c) >= 2 for c in classes)):
+                    best = (trial, candidate)
+        if best is None:
+            raise ValueError('No se encontró un reparto compatible de las sesiones seleccionadas. '
+                             'Las sesiones compartidas entre clases deben permanecer juntas. '
+                             'Graba sesiones adicionales de las clases nuevas; tus tomas y modelos se conservan.')
         mapping,parts=best
     path.parent.mkdir(parents=True,exist_ok=True)
     samples = stored.get('samples', {}) if path.exists() else {}

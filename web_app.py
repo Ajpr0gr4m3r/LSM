@@ -116,7 +116,8 @@ class Session:
         self.owner_id = None
         self.holistic = None
         self.detail_regions = {}
-        self.detail_detector = None
+        self.detail_detectors = {}
+        self.detail_crops = {}
         self.inverted_detector = None
         self.inverted_until = 0.
         self.hand_detector = None
@@ -134,7 +135,7 @@ class Session:
 
     # Vacía la secuencia y sus votos de reconocimiento sin cerrar la cámara ni borrar tomas guardadas.
     def reset(self):
-        self.frames = deque(maxlen=SEQUENCE_LENGTH)
+        self.frames = deque(maxlen=SEQUENCE_LENGTH + SEQUENCE_LENGTH//2)
         self.probabilities = deque(maxlen=5)
         self.stable_label = None
         self.stable_count = 0
@@ -147,8 +148,8 @@ class Session:
 
     # Libera los detectores de video e imagen independientes de esta sesión.
     def close(self):
-        if self.detail_detector is not None:
-            self.detail_detector.close()
+        for detector in self.detail_detectors.values():
+            detector.close()
         if self.inverted_detector is not None:
             self.inverted_detector.close()
         if self.hand_detector is not None:
@@ -515,7 +516,7 @@ class Runtime:
         return item.snapshot_detector
 
     def refine_downward_hand(self, item, image, result):
-        """Refina dedos descendentes sobre el mismo cuadro y conserva su lado original."""
+        """Refina dedos en un recorte local, conservando orientación y lateralidad."""
         import cv2
         from types import SimpleNamespace
         from utils import extract_keypoints
@@ -533,9 +534,7 @@ class Runtime:
                 hand = previous['seed']
             xy = np.array([(p.x*width,p.y*height) for p in hand.landmark])
             axis = xy[9] - xy[0]
-            if axis[1] < max(8, .4 * np.linalg.norm(axis)):
-                item.detail_regions.pop(side,None)
-                continue
+            inverted = bool(axis[1] >= max(8, .4 * np.linalg.norm(axis)))
             low, high = xy.min(axis=0), xy.max(axis=0)
             size = min(height, width, int(np.ceil(1.9 * max(high-low))))
             if size < 32:
@@ -553,22 +552,45 @@ class Runtime:
                 size = min(height,width,max(32,int(np.ceil(1.9*max(high-low)))))
                 center = (low+high)/2
                 x,y = np.clip((center-size/2).astype(int),0,[width-size,height-size])
-            roi = image[y:y+size,x:x+size]
-            if item.detail_detector is None:
+            # Un recorte fijo permite que Hands siga la misma palma entre
+            # cuadros. No alternar dos manos dentro de un único tracker.
+            from capture_quality import stable_hand_crop
+            crop = stable_hand_crop(xy, (int(x), int(y), int(size)),
+                                    item.detail_crops.get((side, inverted)), (width, height), now)
+            x, y, size = crop[:3]
+            old_crop = item.detail_crops.get((side, inverted))
+            detector_key = (side, inverted)
+            detector = item.detail_detectors.get(detector_key)
+            if detector is None:
                 import mediapipe as mp
-                item.detail_detector = mp.solutions.hands.Hands(static_image_mode=True,max_num_hands=1)
-            rgb = cv2.cvtColor(cv2.rotate(roi,cv2.ROTATE_180),cv2.COLOR_BGR2RGB)
-            found = item.detail_detector.process(rgb).multi_hand_landmarks
+                detector = mp.solutions.hands.Hands(static_image_mode=False,
+                    max_num_hands=1, model_complexity=1)
+                item.detail_detectors[detector_key] = detector
+            elif old_crop is None or crop[:3] != old_crop[:3] or now-old_crop[3] > .35:
+                # Cambió el sistema local de coordenadas: descartar el ROI
+                # interno del tracker antes de procesar la imagen actual.
+                detector.reset()
+            item.detail_crops[detector_key] = crop
+            roi = image[y:y+size,x:x+size]
+            rgb = cv2.cvtColor(cv2.rotate(roi,cv2.ROTATE_180) if inverted else roi,cv2.COLOR_BGR2RGB)
+            found = detector.process(rgb).multi_hand_landmarks
             if not found:
                 continue
             candidate = found[0]
             for point in candidate.landmark:
-                point.x = (x+(1-point.x)*size)/width
-                point.y = (y+(1-point.y)*size)/height
+                point.x = (x+(1-point.x if inverted else point.x)*size)/width
+                point.y = (y+(1-point.y if inverted else point.y)*size)/height
                 point.z *= size/width
             wrist = candidate.landmark[0]
             if np.linalg.norm([wrist.x*width-xy[0,0],wrist.y*height-xy[0,1]]) > .18*size:
                 continue
+            # Comparar solo detecciones del cuadro actual, nunca contra una
+            # postura antigua: la mano puede moverse libremente entre cuadros.
+            if getattr(result, side, None) is not None:
+                from capture_quality import consistent_palm
+                candidate_xy = np.array([(p.x*width, p.y*height) for p in candidate.landmark])
+                if not consistent_palm(xy, candidate_xy):
+                    continue
             fields = {k:getattr(result,k) for k in ('pose_landmarks','face_landmarks','left_hand_landmarks','right_hand_landmarks')}
             fields[side] = candidate
             refined = SimpleNamespace(**fields)
@@ -717,6 +739,9 @@ class Runtime:
             model = tf.keras.models.load_model(directory / 'model.keras', compile=False, safe_mode=True)
             if tuple(model.input_shape[1:]) != (SEQUENCE_LENGTH, feature_dimension(meta.get('preprocessing'))) or model.output_shape[-1] != len(meta['labels']):
                 raise ValueError('Las dimensiones del modelo no coinciden con sus metadatos.')
+            # Reutilizar el grafo de inferencia evita ejecutar cada paso LSTM
+            # desde Python en cada fotograma. El objeto conserva su API Keras.
+            model.call = tf.function(model.call, reduce_retracing=True)
             for guard_name in ('hand_guard', 'temporal_guard'):
                 for item in (meta.get(guard_name) or {}).get('classes', []):
                     item['references'] = np.asarray(item['references'], dtype=np.float32)
@@ -725,6 +750,30 @@ class Runtime:
             self.models[language] = directory, model, meta
         self.model_signatures[language] = self.model_signature(language, directory)
         return self.models[language][1:]
+
+    def retry_longer_motion(self, history, model, metadata, strict):
+        """Recover a truncated gesture only when two longer views agree."""
+        from motion_features import longer_motion_windows
+        moving = set((metadata.get('motion_profile') or {}).get('moving_classes', []))
+        if not moving:
+            return None
+        windows = longer_motion_windows(history, SEQUENCE_LENGTH)
+        if not windows:
+            return None
+        prepared = np.stack([prepare_sequence(w, metadata.get('preprocessing')) for w in windows])
+        probabilities = model(prepared, training=False).numpy()
+        probabilities = temperature_probabilities(probabilities, metadata.get('temperature', 1.))
+        probabilities = apply_vote(prepared, probabilities, metadata.get('posture_vote'))
+        winners = probabilities.argmax(axis=1)
+        if winners[0] not in moving or not np.all(winners == winners[0]):
+            return None
+        verdicts = [decision_details(w, p, metadata, strict=strict, test_mode=True)
+                    for w,p in zip(windows, probabilities)]
+        if not all(v['accepted'] for v in verdicts):
+            return None
+        # Return the weaker accepted view, never a synthetic averaged score.
+        index = int(np.argmin(probabilities[:, winners[0]]))
+        return probabilities[index], verdicts[index]
 
     def retry_viewpoint(self, points, probabilities, model, metadata, strict):
         """Reevalúa una ventana rechazada bajo dos variaciones leves de cámara."""
@@ -844,7 +893,7 @@ class Runtime:
         results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
         points = extract_keypoints(results)
         hands = hands_detected(results)
-        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': len(session.frames), 'captured': 0, 'draft_id': None,
+        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': min(len(session.frames), SEQUENCE_LENGTH), 'captured': 0, 'draft_id': None,
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
@@ -908,7 +957,7 @@ class Runtime:
             output['rejection_reason'] = quality['message']
             return output
         session.frames.append(points)
-        output['buffer'] = len(session.frames)
+        output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
         if not hands:
             session.frames.clear()
             session.probabilities.clear()
@@ -941,7 +990,7 @@ class Runtime:
             output['inference_skipped'] = True
             return output
         session.last_inference = now
-        raw_sequence = np.stack(session.frames)
+        raw_sequence = np.stack(session.frames)[-SEQUENCE_LENGTH:]
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
         probs = model(sequence[None, ...], training=False).numpy()[0]
         probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
@@ -968,6 +1017,11 @@ class Runtime:
             retry = self.retry_i_with_other_hand(raw_sequence, model, metadata, strict)
             if retry is not None and int(np.argmax(retry[0])) == original_index:
                 probs, details = retry
+        if not details['accepted']:
+            retry = self.retry_longer_motion(np.stack(session.frames), model, metadata, strict)
+            if retry is not None:
+                probs, details = retry
+                output['temporal_window'] = 'extended'
         if not details['accepted'] and metadata.get('decision_input') == 'single-window-v1':
             retry = self.retry_viewpoint(raw_sequence, probs, model, metadata, strict)
             if retry is not None:

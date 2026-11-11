@@ -193,7 +193,7 @@ class SnapshotTests(unittest.TestCase):
             time=10.,center=np.array([65.,60.]),wrist=np.array([64.,36.]),
             size=70,seed=seed,image_size=(160,120))
         calls=[]
-        item.detail_detector=types.SimpleNamespace(process=lambda image:
+        item.detail_detectors[('left_hand_landmarks', True)]=types.SimpleNamespace(reset=lambda:None, process=lambda image:
             calls.append(image) or types.SimpleNamespace(multi_hand_landmarks=None))
         absent=types.SimpleNamespace(pose_landmarks=None,face_landmarks=None,
                                     left_hand_landmarks=None,right_hand_landmarks=None)
@@ -207,3 +207,58 @@ class SnapshotTests(unittest.TestCase):
             self.assertIs(runtime.refine_downward_hand(item,image,absent),absent)
         self.assertFalse(item.detail_regions)
         self.assertEqual(len(calls),1)
+
+    def test_detail_video_tracker_keeps_crop_and_resets_after_pause(self):
+        from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+        runtime=Runtime(); item=runtime.session(runtime.new_session('lsm'))
+        seed=NormalizedLandmarkList()
+        for i in range(21):
+            seed.landmark.add(x=.4+.01*(i%4),y=.3+.05*(i//4))
+        resets=[]; images=[]
+        item.detail_detectors[('left_hand_landmarks', True)]=types.SimpleNamespace(
+            reset=lambda:resets.append(True),
+            process=lambda image:images.append(image.shape) or types.SimpleNamespace(multi_hand_landmarks=None))
+        result=types.SimpleNamespace(pose_landmarks=None,face_landmarks=None,
+                                    left_hand_landmarks=seed,right_hand_landmarks=None)
+        image=np.zeros((120,160,3),np.uint8)
+        with patch('web_app.time.monotonic',return_value=10.):
+            self.assertIs(runtime.refine_downward_hand(item,image,result),result)
+        first=item.detail_crops[('left_hand_landmarks', True)][:3]
+        with patch('web_app.time.monotonic',return_value=10.1):
+            self.assertIs(runtime.refine_downward_hand(item,image,result),result)
+        self.assertEqual(first,item.detail_crops[('left_hand_landmarks', True)][:3])
+        self.assertEqual(len(resets),1)
+        with patch('web_app.time.monotonic',return_value=11.):
+            runtime.refine_downward_hand(item,image,result)
+        self.assertEqual(len(resets),2)
+        self.assertEqual(len(images),3)
+        self.assertNotIn('right_hand_landmarks',item.detail_crops)
+
+    def test_detail_preserves_coordinates_for_both_orientations(self):
+        from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+        for inverted in (False, True):
+            with self.subTest(inverted=inverted):
+                runtime=Runtime(); item=runtime.session(runtime.new_session('lsm'))
+                seed=NormalizedLandmarkList()
+                for i in range(21):
+                    seed.landmark.add(x=.4+.01*(i%4),
+                                      y=(.3+.05*(i//4)) if inverted else (.7-.05*(i//4)),z=.01)
+                key=('left_hand_landmarks',inverted)
+                def process(image):
+                    x,y,size=item.detail_crops[key][:3]
+                    found=NormalizedLandmarkList()
+                    for point in seed.landmark:
+                        u,v=(point.x*160-x)/size,(point.y*120-y)/size
+                        found.landmark.add(x=1-u if inverted else u,
+                                           y=1-v if inverted else v,z=point.z*160/size)
+                    return types.SimpleNamespace(multi_hand_landmarks=[found])
+                item.detail_detectors[key]=types.SimpleNamespace(reset=lambda:None,process=process)
+                result=types.SimpleNamespace(pose_landmarks=None,face_landmarks=None,
+                                             left_hand_landmarks=seed,right_hand_landmarks=None)
+                with patch('web_app.landmark_quality',return_value={'usable':True}):
+                    refined=runtime.refine_downward_hand(item,np.zeros((120,160,3),np.uint8),result)
+                self.assertIsNot(refined,result)
+                np.testing.assert_allclose(
+                    [(p.x,p.y,p.z) for p in refined.left_hand_landmarks.landmark],
+                    [(p.x,p.y,p.z) for p in seed.landmark],atol=1e-6)
+                self.assertIsNone(refined.right_hand_landmarks)

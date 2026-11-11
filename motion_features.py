@@ -131,3 +131,17 @@ def motion_challenges(points, targets, profile, guard, labels):
             counts['partial_rejected']+=int(not temporal_guard_accept(partial,i,guard))
         rows.append({**labels[i],'evaluated':len(selected),**counts})
     return {'by_class':rows,'note':'Variantes sintéticas con clase fijada: diagnóstico del filtro temporal, no precisión del clasificador ni tasa de falsos positivos reales.'}
+
+
+def longer_motion_windows(history, length=30):
+    """Two ordered views of a longer gesture; retain original detected frames.
+
+    Subsample rather than interpolating missing hands. Both windows include the
+    newest frame and must independently pass the existing recognition policy.
+    """
+    points = np.asarray(history, dtype=np.float32)
+    span = length + length//2
+    if len(points) < span:
+        return []
+    return [points[-n:][np.rint(np.linspace(0,n-1,length)).astype(int)]
+            for n in (span, span-max(1,length//10))]

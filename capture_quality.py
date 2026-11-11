@@ -84,3 +84,45 @@ def hand_image_quality(image, points):
     return {'scope':'hands','brightness':min(report['brightness'] for report in reports),
             'sharpness':min(report['sharpness'] for report in reports),'warnings':warnings,
             'hands_evaluated':len(reports)}
+
+
+def consistent_palm(reference, candidate):
+    """Compare two detections of the same frame, allowing finger articulation.
+
+    Wrist-only matching can accept an inverted or collapsed palm from the ROI
+    detector. Compare MCPs in image pixels; do not normalize away orientation.
+    This is not a temporal motion filter and does not restrict moving signs.
+    """
+    a, b = np.asarray(reference, float), np.asarray(candidate, float)
+    if a.shape != (21, 2) or b.shape != (21, 2):
+        return False
+    if not (np.isfinite(a).all() and np.isfinite(b).all()):
+        return False
+    axis_a, axis_b = a[9]-a[0], b[9]-b[0]
+    scale_a, scale_b = np.linalg.norm(axis_a), np.linalg.norm(axis_b)
+    if min(scale_a, scale_b) < 1e-6:
+        return False
+    if not .5 <= scale_b/scale_a <= 2.0 or np.dot(axis_a, axis_b) <= 0:
+        return False
+    palm = [5, 9, 13, 17]
+    error = np.linalg.norm((a[palm]-a[0])-(b[palm]-b[0]), axis=1)
+    return bool(np.median(error) <= .65 * max(scale_a, scale_b))
+
+
+def stable_hand_crop(xy, proposed, previous, image_size, now):
+    """Keep video-tracker coordinates fixed until fingers approach the ROI edge.
+
+    The crop is only a search region, never a replacement for a fresh detection.
+    Reframe when the hand grows, becomes too small, or the frame size changes.
+    """
+    width, height = image_size
+    if previous is not None and now-previous[3] <= .35 and previous[4:] == (width, height):
+        x, y, size = previous[:3]
+        low, high = np.min(xy, axis=0), np.max(xy, axis=0)
+        margin = .10*size
+        span = float(np.max(high-low))
+        if (np.all(low >= [x+margin, y+margin])
+                and np.all(high <= [x+size-margin, y+size-margin])
+                and span >= .25*size):
+            return (x, y, size, now, width, height)
+    return (*proposed, now, width, height)
