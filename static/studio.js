@@ -38,7 +38,7 @@ function animateHomeOverview() {
     const eased = 1-Math.pow(1-progress,3);
     const intro = $('home-intro');
     const phrase = reduced || now-homeAnimationStart >= 2400
-      ? 'Lengua de Señas Mexicana. Un espacio para comunicar.'
+      ? 'Prueba el reconocimiento de señas con tu cámara.'
       : 'Comunicar también está en tus manos.';
     if (intro.textContent !== phrase) {
       intro.textContent = phrase;

@@ -113,24 +113,47 @@
           </div>
           <div id="notice" role="status" aria-live="polite" hidden></div>
           <section id="view-home" class="view folio" aria-labelledby="folio-title">
-            <header class="folio-head"><div><span class="folio-caption">SEÑA / ARCHIVO LSM</span>
-              <h1 id="folio-title">Atlas de señas</h1><p id="home-intro" class="home-intro">Comunicar también está en tus manos.</p></div><div id="profile-grid" class="folio-profiles"></div></header>
+            <header class="folio-head">
+              <div class="folio-lead">
+                <p class="folio-caption">Laboratorio LIA · Proyecto Seña</p>
+                <h1 id="folio-title">Atlas de señas</h1>
+                <p id="home-intro" class="home-intro">Comunicar también está en tus manos.</p>
+                <button type="button" class="primary folio-start" data-view="recognition">
+                  <svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide.svg#scan"></use></svg>
+                  Probar modelo
+                </button>
+              </div>
+              <div class="folio-cover">
+                <div class="folio-illustration" aria-hidden="true">
+                  <div class="folio-viewfinder">
+                    <svg class="icon folio-hand"><use href="/static/vendor/lucide.svg#hand"></use></svg>
+                  </div>
+                  <span class="folio-sample-mark"></span>
+                  <span class="folio-sample-mark"></span>
+                  <span class="folio-sample-mark"></span>
+                </div>
+                <div class="folio-cover-caption">
+                  <span>Lengua de Señas Mexicana</span>
+                  <div id="profile-grid" class="folio-profiles"></div>
+                </div>
+              </div>
+            </header>
             <dl id="dashboard-stats" class="folio-counts"></dl>
             <div class="folio-spread">
               <section class="folio-plot">
-                <div class="folio-rule"><span>01</span><h2>Muestras por seña</h2></div>
+                <div class="folio-rule"><h2>Muestras por seña</h2></div>
                 <div id="folio-chart" class="folio-chart"></div>
 
               </section>
               <section class="folio-directory">
-                <div class="folio-rule"><span>02</span><h2>Herramientas</h2></div>
-                <button type="button" class="folio-action" data-view="recognition"><span>Reconocer señas</span><span aria-hidden="true">↗</span></button>
+                <div class="folio-rule"><h2>Herramientas</h2></div>
+                <button type="button" class="folio-action" data-view="settings"><span>Configuración</span><span aria-hidden="true">↗</span></button>
                 <button type="button" class="folio-action" data-view="dataset" data-admin-only hidden><span>Registrar ejemplos</span><span aria-hidden="true">↗</span></button>
                 <button type="button" class="folio-action" data-view="training" data-admin-only hidden><span>Evaluar el modelo</span><span aria-hidden="true">↗</span></button>
                 <p id="next-step" class="folio-note"></p>
               </section>
             </div>
-            <section class="folio-log" data-admin-only hidden><div class="folio-rule"><span>03</span><h2>Bitácora reciente</h2></div>
+            <section class="folio-log" data-admin-only hidden><div class="folio-rule"><h2>Bitácora reciente</h2></div>
               <div id="recent-activity" class="folio-events"></div>
             </section>
           </section>

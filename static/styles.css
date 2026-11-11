@@ -2546,3 +2546,139 @@ input:focus,select:focus { border-color:var(--action); }
 html[data-reduce-motion="true"] .home-reveal { animation:none; }
 html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,
 html[data-reduce-motion="true"] *::after { transition:none !important; }
+
+/* Portada del atlas: retícula de captura y acentos de arcilla. */
+.folio-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--action);
+  background: var(--surface);
+}
+.folio-lead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 64px);
+}
+.folio-lead .folio-caption { margin: 0 0 12px; text-transform: uppercase; }
+.folio-lead h1 { font-size: clamp(36px, 5.6vw, 76px); }
+.folio-lead .home-intro { margin: 12px 0 22px; font-size: clamp(14px, 1.6vw, 18px); }
+.folio-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  font-size: 14px;
+}
+.folio-start .icon { width: 17px; height: 17px; }
+.folio-cover {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--rail);
+  color: var(--rail-ink);
+}
+.folio-illustration {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: clamp(170px, 22vw, 260px);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 55%, color-mix(in srgb, var(--signal) 15%, transparent), transparent 70%),
+    radial-gradient(circle, color-mix(in srgb, var(--rail-ink) 24%, transparent) 1px, transparent 1.5px) center / 16px 16px;
+}
+.folio-viewfinder {
+  display: grid;
+  place-items: center;
+  width: clamp(120px, 16vw, 200px);
+  aspect-ratio: 1;
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--signal) 58%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 14px color-mix(in srgb, var(--signal) 7%, transparent);
+}
+.folio-viewfinder::before,
+.folio-viewfinder::after {
+  position: absolute;
+  content: '';
+  inset: 11%;
+  border: 1px dashed color-mix(in srgb, var(--rail-ink) 40%, transparent);
+  border-radius: 50%;
+}
+.folio-viewfinder::after {
+  inset: -9%;
+  border-radius: 8px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--rail-ink) 15%, transparent);
+}
+.folio-viewfinder .folio-hand {
+  width: 56%;
+  height: 56%;
+  color: var(--signal);
+  stroke-width: 1.15;
+  transform: rotate(-12deg);
+}
+.folio-sample-mark {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--signal) 16%, transparent);
+}
+.folio-sample-mark:nth-of-type(1) { top: 25%; left: 22%; }
+.folio-sample-mark:nth-of-type(2) { top: 31%; right: 20%; }
+.folio-sample-mark:nth-of-type(3) { bottom: 23%; right: 25%; }
+.folio-cover-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--rail-ink) 24%, transparent);
+  font-size: 12px;
+}
+.folio-cover-caption .folio-profile {
+  color: var(--rail-ink);
+  border-color: color-mix(in srgb, var(--rail-ink) 32%, transparent);
+}
+.folio-cover-caption .folio-profile:hover {
+  background: color-mix(in srgb, var(--rail-ink) 12%, transparent);
+}
+.folio-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  padding: 0;
+  border: 0;
+}
+.folio-counts > div {
+  min-width: 0;
+  padding: 10px 13px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--stamp);
+  flex-wrap: wrap;
+}
+.folio-plot,
+.folio-directory {
+  padding: clamp(14px, 2vw, 24px);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+.folio-plot .folio-rule,
+.folio-directory .folio-rule {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+@media (max-width: 690px) {
+  .folio-head { grid-template-columns: 1fr; }
+  .folio-illustration { min-height: 168px; }
+}
