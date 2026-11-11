@@ -15,7 +15,7 @@ const streamMock = () => ({getTracks:() => [{stop:() => stopped++}], getVideoTra
 $('shared-camera-consent').checked = true;
 const sandbox = { $, navigator:{mediaDevices:{enumerateDevices:async () => devices, getUserMedia:async c => { constraints = c; return streamMock(); }}},
   makeOption:(value, text) => ({value, text}), api:async path => { if (path === '/api/close') closed++; return {session:'session-id'}; },
-  clearHandRig:() => {}, render:() => {}, notice:(text,error) => messages.push({text,error}), sendFrame:() => sent++, clearTimeout, console,
+  clearHandRig:() => {}, render:() => {}, notice:(text,error) => messages.push({text,error}), sendFrame:() => sent++, setTimeout, clearTimeout, console,
   cameraFingerprint:async () => 'anonymous-device', profile:() => ({model:true}), batch:{stop:() => {}}, language:'lsm', mode:'train', state:{} };
 vm.createContext(sandbox);
 vm.runInContext('let stream=null, session=null, generation=0, timer=null, countdown=false, recording=false, frameReady=false, cameraStarting=false, cameraListing=false;'+cameraCode, sandbox);
@@ -30,6 +30,25 @@ vm.runInContext('let stream=null, session=null, generation=0, timer=null, countd
   assert.equal(sent, 1);
   await sandbox.stopCamera();
   assert.equal(stopped, 1); assert.equal(closed, 1);
+  // Una caída del servidor deja visible el video y permite conectar de nuevo.
+  let attempts = 0;
+  const previousApi = sandbox.api;
+  sandbox.api = async (path, body) => {
+    if (path === '/api/session') {
+      assert.equal($('camera').hidden, false, 'La vista previa debe estar visible antes de la conexión');
+      if (++attempts === 1) throw new Error('Servidor temporalmente ocupado');
+    }
+    return previousApi(path, body);
+  };
+  await sandbox.startCamera();
+  assert.equal($('retry-camera-connection').hidden, false);
+  assert.equal(stopped, 1);
+  await sandbox.startCamera();
+  assert.equal($('retry-camera-connection').hidden, true);
+  assert.equal(attempts, 2);
+  await sandbox.stopCamera();
+  assert.equal(stopped, 2);
+  sandbox.api = previousApi;
   // Preserve selection on refresh, remove it if disconnected.
   await sandbox.refreshCameras(); assert.equal($('camera-device').value, 'usb');
   devices = devices.filter(x => x.deviceId !== 'usb');
@@ -44,12 +63,12 @@ vm.runInContext('let stream=null, session=null, generation=0, timer=null, countd
   await sandbox.startCamera();
   assert.equal(constraints.video.facingMode, 'user');
   devices = []; await sandbox.refreshCameras();
-  assert.equal(stopped, 2);
+  assert.equal(stopped, 3);
   assert(messages.some(x => x.error && x.text.includes('desconectó')));
   // Late permission grant after cancellation must release the acquired camera.
   let grant;
   sandbox.navigator.mediaDevices.getUserMedia = () => new Promise(resolve => { grant = resolve; });
   const pending = sandbox.startCamera(); await sandbox.stopCamera(); grant(streamMock()); await pending;
-  assert.equal(stopped, 3);
+  assert.equal(stopped, 4);
   console.log('Cámaras: enumeración, selección exacta, desconexión, permiso denegado y cancelación comprobados.');
 })().catch(error => { console.error(error); process.exitCode=1; });

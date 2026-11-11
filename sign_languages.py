@@ -44,7 +44,10 @@ def labels_for(language):
     index = next(i for i, item in enumerate(LANGUAGES) if item['id'] == language)
     defaults = [{'id': str(a), 'meaning': str(a).replace('_', ' '),
                  'text': WORDS[str(a)][index] if str(a) in WORDS else str(a).replace('_', ' ')} for a in ACTIONS]
-    return defaults + custom_labels(language)
+    custom = custom_labels(language)
+    if not any(item['text'].casefold() == 'espacio' for item in defaults + custom):
+        defaults.append({'id': 'espacio', 'text': 'Espacio', 'meaning': 'espacio'})
+    return defaults + custom
 
 # Rechaza etiquetas que no pertenecen al vocabulario de la lengua seleccionada.
 def validate_label(language, label):

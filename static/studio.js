@@ -54,10 +54,12 @@ function animateHomeOverview() {
   update(performance.now());
 }
 const trainingChoices = new Map();
+const ADMIN_VIEWS = new Set(['dataset', 'training', 'deletreo']);
 const headings = {
   home: ['ESTUDIO', 'Resumen del estudio', 'Estado del modelo activo.'],
   recognition: ['CÁMARA', 'Probar modelo', 'Realiza una seña del vocabulario entrenado.'],
   conversation: ['COMUNICACIÓN', 'Sala de conversación', 'Intercambia mensajes escritos y señas desde dos dispositivos.'],
+  deletreo: ['EXPERIMENTAL', 'Deletreo', 'Combina letras confirmadas para escribir palabras en español.'],
   dataset: ['EJEMPLOS', 'Dataset', 'Graba, nombra y revisa las tomas de cada seña.'],
   training: ['MODELO', 'Entrenamiento', 'Configura una versión y consulta su evaluación.'],
   settings: ['PREFERENCIAS', 'Configuración', 'Ajustes de cámara, apariencia y reconocimiento.'],
@@ -66,6 +68,7 @@ const labelsByView = {
   home: 'Inicio',
   recognition: 'Probar modelo',
   conversation: 'Conversación',
+  deletreo: 'Deletreo',
   dataset: 'Dataset',
   training: 'Entrenamiento',
   settings: 'Configuración',
@@ -124,7 +127,7 @@ function renderAlternatives(items) {
 async function navigateStudio(view) {
   if (!Object.hasOwn(headings, view) ||
       (view === 'conversation' && !SENA_FEATURES.conversation) ||
-      (['dataset', 'training'].includes(view) && !state?.user?.studio_admin)) view = 'home';
+      (ADMIN_VIEWS.has(view) && !state?.user?.studio_admin)) view = 'home';
   if (currentView !== view) {
     await stopCamera();
     if (view === 'home') homeAnimationStart = null;
@@ -143,7 +146,13 @@ async function navigateStudio(view) {
   for (const button of document.querySelectorAll('.main-nav [data-view]'))
     button.setAttribute('aria-current', String(button.dataset.view === view));
   $('camera-workspace').hidden = false;
-  $(view === 'dataset' ? 'dataset-camera' : 'recognition-camera').append($('camera-workspace'));
+  const cameraHost = {dataset: 'dataset-camera', deletreo: 'spelling-camera'};
+  $(cameraHost[view] || 'recognition-camera').append($('camera-workspace'));
+  if (view === 'deletreo') {
+    $('snapshot-mode').checked = false;
+    $('spelling-status').textContent = 'Activa la cámara para empezar.';
+    renderSpelling();
+  }
   $('capture-controls').hidden = view !== 'dataset';
   $('test-controls').hidden = view !== 'recognition';
   $('test-results').hidden = false;
@@ -156,6 +165,134 @@ async function navigateStudio(view) {
   if (state) render();
   if (view === 'training' && state) await loadVersions();
 }
+const spellingWords = [
+  'HOLA', 'ADIÓS', 'GRACIAS', 'SÍ', 'NO', 'BIEN', 'AGUA', 'COMIDA', 'AYUDA',
+  'PERDÓN', 'FAVOR', 'QUIERO', 'NECESITO', 'ESPERA', 'VEN', 'MÁS',
+  'CHAO', 'AHÍ', 'ALLÍ', 'DÍA', 'DIGA', 'DILO', 'OIGA', 'OJO',
+];
+let spellingDraft = '';
+let spellingMessage = [];
+let spellingNoHandsSince = null;
+let spellingLastRead = '';
+const SPELLING_READ_PAUSE_MS = 1200;
+
+function spellingKey(value) {
+  // Quita la tilde de las vocales y conserva la Ñ como letra independiente.
+  return value.toLocaleUpperCase('es-MX').normalize('NFD').replace(/\u0301/g, '').normalize('NFC');
+}
+
+function renderSpelling() {
+  $('spelling-draft').textContent = spellingDraft || '—';
+  $('spelling-message').textContent = spellingMessage.join(' ') || 'Tu mensaje aparecerá aquí.';
+  const hasText = !!(spellingDraft || spellingMessage.length);
+  $('spelling-add').disabled = !spellingDraft;
+  $('spelling-backspace').disabled = !hasText;
+  $('spelling-clear').disabled = !hasText;
+  $('spelling-speak').disabled = !hasText || !('speechSynthesis' in window);
+  const model = profile()?.model;
+  const letters = new Set((model?.labels || [])
+    .filter((_, index) => model.decision_policy?.classes?.[index]?.supported !== false)
+    .map(label => spellingKey(label.text.trim())).filter(label => /^[A-ZÑ]$/.test(label)));
+  const suggestions = spellingWords.filter(word => {
+    const key = spellingKey(word);
+    return key.startsWith(spellingDraft) && [...key].every(letter => letters.has(letter));
+  }).slice(0, 8);
+  $('spelling-examples-title').hidden = !suggestions.length;
+  $('spelling-examples').replaceChildren(...suggestions.map(word => node('li', word, 'chip')));
+}
+
+function clearSpelling() {
+  if (!spellingDraft && !spellingMessage.length) return;
+  spellingDraft = '';
+  spellingMessage = [];
+  spellingLastRead = '';
+  resetSpellingPause();
+  renderSpelling();
+}
+
+function spellingWord() {
+  return spellingWords.find(word => spellingKey(word) === spellingDraft) || spellingDraft;
+}
+
+function spellingText() {
+  return [...spellingMessage, spellingWord()].filter(Boolean).join(' ');
+}
+
+function speakSpelling(text) {
+  if (text) automaticSpeech.enqueue(text.toLocaleLowerCase('es-MX'), profile()?.locale || 'es-MX');
+}
+
+function resetSpellingPause() {
+  spellingNoHandsSince = null;
+}
+
+function observeSpellingHands(hands) {
+  if (hands !== false) {
+    resetSpellingPause();
+    return;
+  }
+  const now = performance.now();
+  spellingNoHandsSince ??= now;
+  const text = spellingText();
+  if (text && text !== spellingLastRead && now - spellingNoHandsSince >= SPELLING_READ_PAUSE_MS) {
+    spellingLastRead = text;
+    speakSpelling(text);
+  }
+}
+
+function addSpellingSpace() {
+  if (!state?.user?.studio_admin || !spellingDraft) return;
+  spellingMessage.push(spellingWord());
+  spellingDraft = '';
+  $('spelling-status').textContent = 'Palabra añadida. Puedes empezar la siguiente.';
+  renderSpelling();
+}
+
+function showSpellingPrediction(result) {
+  if (!state?.user?.studio_admin) return;
+  observeSpellingHands(result.hands);
+  if (!result.confirmed) {
+    $('spelling-status').textContent = result.rejection_reason ||
+      (result.phase === 'held' ? 'Haz la siguiente letra. Baja la mano si quieres repetir la anterior.' :
+        result.hands ? 'Esperando una letra confirmada…' : 'Coloca la mano dentro del encuadre.');
+    return;
+  }
+  if (result.confirmation_id && result.confirmation_id === lastConfirmationId) return;
+  if (result.confirmation_id) lastConfirmationId = result.confirmation_id;
+  const letter = spellingKey(result.confirmed.text.trim());
+  if (result.confirmed.id === 'espacio' || letter === 'ESPACIO') {
+    addSpellingSpace();
+    return;
+  }
+  if (!/^[A-ZÑ]$/.test(letter)) {
+    $('spelling-status').textContent = 'Haz una letra del alfabeto o la seña de Espacio.';
+    return;
+  }
+  spellingDraft += letter;
+  $('spelling-status').textContent = `${letter} añadida.`;
+  renderSpelling();
+}
+
+$('spelling-add').addEventListener('click', addSpellingSpace);
+$('spelling-backspace').addEventListener('click', () => {
+  if (!state?.user?.studio_admin) return;
+  if (!spellingDraft && spellingMessage.length) spellingDraft = spellingKey(spellingMessage.pop());
+  spellingDraft = spellingDraft.slice(0, -1);
+  $('spelling-status').textContent = 'Letra borrada.';
+  renderSpelling();
+});
+$('spelling-speak').addEventListener('click', () => {
+  if (!state?.user?.studio_admin) return;
+  const text = spellingText();
+  spellingLastRead = text;
+  speakSpelling(text);
+});
+$('spelling-clear').addEventListener('click', () => {
+  if (!state?.user?.studio_admin) return;
+  clearSpelling();
+  $('spelling-status').textContent = 'Mensaje limpio.';
+});
+
 // Actualiza el fragmento de URL para conservar la vista sin recargar la aplicación.
 function historyReplace(view) {
   window.history.replaceState(null, '', '#' + view);
@@ -256,6 +393,7 @@ function renderStudio() {
     );
   animateHomeOverview();
   if (!state.user?.studio_admin) return;
+  if (currentView === 'deletreo') renderSpelling();
   $('vocabulary-total').textContent = `${p.labels.length} etiquetas`;
   filterVocabulary();
   const classes = $('train-classes');

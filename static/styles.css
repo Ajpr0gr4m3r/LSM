@@ -2682,3 +2682,27 @@ html[data-reduce-motion="true"] *::after { transition:none !important; }
   .folio-head { grid-template-columns: 1fr; }
   .folio-illustration { min-height: 168px; }
 }
+
+.spelling-card { padding: clamp(16px, 3vw, 28px); }
+.spelling-output {
+  margin: 18px 0 12px;
+  padding: 16px;
+  background: var(--wash);
+  border-left: 3px solid var(--stamp);
+}
+.spelling-output p { color: var(--type); overflow-wrap: anywhere; margin: 4px 0 12px; }
+.spelling-output p:last-child { margin-bottom: 0; }
+.spelling-output .spelling-draft { font: normal clamp(26px, 4vw, 40px) var(--folio-serif); letter-spacing: .06em; }
+.spelling-actions { flex-wrap: wrap; margin-bottom: 18px; }
+.spelling-examples { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; list-style: none; }
+
+#camera-consent-dialog .input-row { flex-wrap: wrap; justify-content: flex-end; margin-top: 18px; }
+.recognition-grid > * { min-width: 0; }
+@media (max-width: 1000px) {
+  .recognition-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .recognition-grid .desk-label { flex-wrap: wrap; gap: 4px 8px; }
+  .recognition-grid .camera-actions { flex-wrap: wrap; }
+  .recognition-grid .camera-placeholder { padding-inline: 12px; }
+}

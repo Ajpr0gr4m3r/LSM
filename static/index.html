@@ -202,6 +202,7 @@
                   ></progress>
                   <div class="camera-actions">
                     <span id="hands-status">Tu mano derecha aparecerá a la derecha.</span
+                    ><button id="retry-camera-connection" class="text-button" type="button" hidden>Reintentar detección</button
                     ><button id="stop-camera" class="text-button" disabled>Apagar cámara</button>
                   </div>
                   <div id="capture-controls" hidden>
@@ -364,6 +365,32 @@
                 </svg>
                 La imagen se procesa en el servidor y no se almacena.</span
               ><span>Solo reconoce las señas de tu modelo activo.</span>
+            </div>
+          </section>
+          <section id="view-deletreo" class="view" hidden>
+            <div class="recognition-grid instrument">
+              <div id="spelling-camera">
+                <div class="desk-label"><h2>Cámara</h2></div>
+              </div>
+              <article class="card spelling-card" aria-labelledby="spelling-title">
+                <h2 id="spelling-title">Arma un mensaje</h2>
+                <p class="help">Haz las letras de una en una. Para repetir una letra, baja la mano un momento. Usa «Espacio» para separar palabras. Cuando dejes de mostrar las manos un momento, Seña leerá lo escrito.</p>
+                <div class="spelling-output">
+                  <span class="small-label">Palabra en curso</span>
+                  <p id="spelling-draft" class="spelling-draft" aria-live="polite">—</p>
+                  <span class="small-label">Mensaje</span>
+                  <p id="spelling-message" aria-live="polite">Tu mensaje aparecerá aquí.</p>
+                </div>
+                <p id="spelling-status" class="help" role="status">Activa la cámara para empezar.</p>
+                <div class="input-row spelling-actions">
+                  <button id="spelling-add" class="primary" type="button" disabled>Espacio</button>
+                  <button id="spelling-backspace" class="secondary" type="button" disabled>Borrar letra</button>
+                  <button id="spelling-speak" class="secondary" type="button" disabled>Escuchar</button>
+                  <button id="spelling-clear" class="text-button" type="button" disabled>Limpiar mensaje</button>
+                </div>
+                <h3 id="spelling-examples-title">Palabras para practicar</h3>
+                <ul id="spelling-examples" class="spelling-examples" aria-labelledby="spelling-examples-title"></ul>
+              </article>
             </div>
           </section>
           <section id="view-conversation" class="view" hidden>
@@ -743,6 +770,7 @@
               <article id="preferences-recognition" class="card preference-sheet">
                 <span class="small-label">OPCIONES AVANZADAS</span>
                 <h2>Reconocimiento</h2>
+                <button type="button" class="text-button" data-view="deletreo" data-admin-only hidden>Abrir deletreo experimental ↗</button>
                 <label for="inference-mode">Modo de confirmación</label
                 ><select id="inference-mode">
                   <option value="balanced">Equilibrado · umbrales del modelo</option>
@@ -786,6 +814,14 @@
       </div>
     </div>
     <button type="button" id="studio-admin-toggle" class="studio-admin-toggle" aria-label="Modo administrador">Admin</button>
+    <dialog id="camera-consent-dialog" aria-labelledby="camera-consent-title" aria-describedby="camera-consent-description">
+      <h2 id="camera-consent-title">Permitir el uso de la cámara</h2>
+      <p id="camera-consent-description">Seña enviará imágenes de tu cámara al servidor para reconocer las señas. Las imágenes no se guardan.</p>
+      <div class="input-row">
+        <button id="camera-consent-cancel" class="secondary" type="button" autofocus>Cancelar</button>
+        <button id="camera-consent-accept" class="primary" type="button">Permitir y activar</button>
+      </div>
+    </dialog>
     <dialog id="studio-admin-dialog" aria-labelledby="studio-admin-title">
       <form id="studio-admin-form">
         <h2 id="studio-admin-title">Modo administrador</h2>

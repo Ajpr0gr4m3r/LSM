@@ -40,8 +40,9 @@ function renderTeam() {
   const adminToggle = $('studio-admin-toggle');
   adminToggle.textContent = admin ? 'Cerrar admin' : 'Admin';
   adminToggle.setAttribute('aria-label', admin ? 'Cerrar modo administrador' : 'Modo administrador');
-  if (!admin && typeof currentView !== 'undefined' && ['dataset', 'training'].includes(currentView)) {
-    void navigateStudio('home');
+  if (!admin && typeof ADMIN_VIEWS !== 'undefined') {
+    clearSpelling();
+    if (ADMIN_VIEWS.has(currentView)) void navigateStudio('home');
   }
   const local = !!user.local;
   $('team-settings').hidden = local || !!user.guest || admin;

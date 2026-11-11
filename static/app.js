@@ -57,7 +57,12 @@ async function api(path, body) {
   let response, data;
   try {
     response = await fetch(path, options);
-    data = await response.json();
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (response.ok) throw error;
+      data = {};
+    }
   } catch (error) {
     // Un fallo de transporte es recuperable; un error HTTP o JSON inválido no lo es.
     if (error.name === 'TypeError' || error.name === 'NetworkError') {
@@ -72,7 +77,9 @@ async function api(path, body) {
         'El servidor activo es una versión anterior sin administración. Detén web_app.py con Ctrl+C, vuelve a ejecutarlo y recarga la página.',
       );
     }
-    throw new Error(data.error || 'No se pudo completar la solicitud.');
+    const error = new Error(data?.error || `El servidor no pudo completar la solicitud (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -568,41 +575,79 @@ async function refreshCameras() {
 }
 // Solicita permiso, abre la cámara seleccionada y crea su sesión de procesamiento en el servidor.
 async function startCamera() {
-  if (stream || cameraStarting) return;
-  if (!$('shared-camera-consent').checked) return notice('Acepta el procesamiento en el servidor antes de activar la cámara.', true);
+  if (session || cameraStarting) return;
+  if (!$('shared-camera-consent').checked) {
+    const dialog = $('camera-consent-dialog');
+    $('camera-consent-description').textContent = state?.user?.local
+      ? 'Seña procesará las imágenes de tu cámara en esta computadora. Las imágenes no se guardan.'
+      : 'Seña enviará imágenes de tu cámara al servidor para reconocer las señas. Las imágenes no se guardan.';
+    if (!dialog.open) dialog.showModal();
+    return;
+  }
+  notice('');
   cameraStarting = true;
   $('start-camera').disabled = true;
   $('camera-device').disabled = true;
   const mark = ++generation;
+  let previewReady = !!stream;
+  const video = $('camera');
+  $('retry-camera-connection').hidden = true;
   try {
-    if (!navigator.mediaDevices?.getUserMedia)
-      throw new Error(
-        'La cámara necesita HTTPS o localhost. Abre la dirección segura de Seña.',
-      );
-    const deviceId = $('camera-device').value;
-    const acquired = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }),
-      },
-      audio: false,
-    });
-    if (mark !== generation) {
-      acquired.getTracks().forEach((t) => t.stop());
-      return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('La cámara necesita HTTPS o localhost. Abre la dirección segura de Seña.');
     }
-    stream = acquired;
-    acquired.getVideoTracks()[0].addEventListener(
-      'ended',
-      () => {
-        if (stream === acquired) {
-          stopCamera();
-          notice('La cámara se desconectó. Selecciona otra cámara.', true);
-        }
-      },
-      { once: true },
-    );
+    const deviceId = $('camera-device').value;
+    if (!stream) {
+      const acquired = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }),
+        },
+        audio: false,
+      });
+      if (mark !== generation) {
+        acquired.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      stream = acquired;
+      acquired.getVideoTracks()[0].addEventListener(
+        'ended',
+        () => {
+          if (stream === acquired) {
+            void stopCamera();
+            notice('La cámara se desconectó. Selecciona otra cámara.', true);
+          }
+        },
+        { once: true },
+      );
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      video.hidden = false;
+      $('camera-placeholder').hidden = true;
+      $('stop-camera').disabled = false;
+      $('camera-state').textContent = 'Abriendo video…';
+      let playbackTimeout;
+      try {
+        await Promise.race([
+          video.play(),
+          new Promise((_, reject) => {
+            playbackTimeout = setTimeout(() => reject(new Error(
+              'El navegador no entregó video. Prueba con otra cámara en Configuración.',
+            )), 8000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(playbackTimeout);
+      }
+      if (mark !== generation) return;
+      previewReady = true;
+    }
+    $('camera-state').textContent = 'Conectando con el servidor…';
+    $('capture-instruction').textContent = 'La vista previa está activa. Conectando la detección.';
+    if (!state?.token && typeof bootstrapAccounts === 'function') await bootstrapAccounts();
+    if (mark !== generation) return;
     const created = await api('/api/session', {
       language,
       participant: $('capture-participant').value.trim(),
@@ -615,31 +660,34 @@ async function startCamera() {
       return;
     }
     session = created.session;
-    $('camera').srcObject = stream;
-    await $('camera').play();
-    $('camera').hidden = false;
-    $('camera-placeholder').hidden = true;
-    $('stop-camera').disabled = false;
     $('camera-state').textContent = 'Preparando detección…';
     $('capture-instruction').textContent =
       mode === 'train'
         ? 'Pulsa “Grabar una seña”. Le pondrás nombre al terminar.'
-        : profile().model
+        : profile()?.model
           ? 'Realiza una seña dentro del encuadre.'
           : 'Vista previa · Esta lengua todavía no tiene modelo.';
     notice('');
     sendFrame(mark);
     await refreshCameras();
   } catch (error) {
+    if (mark !== generation) return;
+    if (previewReady && !session) {
+      $('camera-state').textContent = 'Vista previa · sin detección';
+      $('capture-instruction').textContent = 'La cámara está encendida. Reintenta conectar la detección.';
+      $('retry-camera-connection').hidden = false;
+      notice(`No se pudo conectar la detección. ${error.message}`, true);
+      return;
+    }
     await stopCamera();
-    notice(
-      error.name === 'NotAllowedError'
-        ? 'Permite la cámara para este sitio y para tu navegador en la configuración de privacidad de macOS.'
-        : error.name === 'OverconstrainedError' || error.name === 'NotFoundError'
-          ? 'La cámara seleccionada no está disponible. Pulsa Detectar cámaras y elige otra.'
-          : error.message,
-      true,
-    );
+    const reason = {
+      NotAllowedError: 'Permite la cámara para este sitio y para tu navegador en los ajustes del dispositivo.',
+      OverconstrainedError: 'La cámara seleccionada no está disponible. Elige otra en Configuración.',
+      NotFoundError: 'No se encontró una cámara disponible. Revisa la cámara en Configuración.',
+      NotReadableError: 'No se pudo abrir la cámara. Cierra otras aplicaciones o pestañas que puedan estar usándola.',
+      AbortError: 'El navegador interrumpió la apertura de la cámara. Vuelve a intentarlo.',
+    };
+    notice(reason[error.name] || error.message || 'No se pudo reproducir el video de la cámara.', true);
   } finally {
     cameraStarting = false;
     render();
@@ -647,6 +695,9 @@ async function startCamera() {
 }
 // Cancela cuentas atrás y tandas, apaga pistas y libera la sesión de cámara remota.
 async function stopCamera() {
+  const consentDialog = $('camera-consent-dialog');
+  if (consentDialog.open) consentDialog.close();
+  if (typeof resetSpellingPause === 'function') resetSpellingPause();
   clearHandRig();
   batch.stop();
   ++generation;
@@ -662,6 +713,7 @@ async function stopCamera() {
   if ($('quality-message'))
     $('quality-message').textContent = 'Activa la cámara para comprobar el encuadre.';
   $('stop-camera').disabled = true;
+  $('retry-camera-connection').hidden = true;
   $('record').disabled = true;
   $('record').textContent = 'Grabar una seña';
   $('camera-state').textContent = 'Cámara apagada';
@@ -679,14 +731,21 @@ async function stopCamera() {
   if (state) render();
 }
 // Captura un fotograma conservando proporción y calidad, lo procesa y programa el siguiente sin solapar envíos.
-async function sendFrame(mark, failures = 0) {
+async function sendFrame(mark, failures = 0, waitingSince = null) {
   if (!stream || mark !== generation || !session) return;
   const started = performance.now();
   try {
-    const canvas = $('frame-canvas'),
-      video = $('camera');
-    const width = Math.round((video.videoWidth || 640) * Math.min(640 / (video.videoWidth || 640), 480 / (video.videoHeight || 480), 1));
-    const height = Math.round((width * (video.videoHeight || 480)) / (video.videoWidth || 640));
+    const video = $('camera');
+    if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+      if (started - (waitingSince ?? started) >= 8000)
+        throw new Error('La cámara está abierta, pero el navegador no está entregando video. Prueba otra cámara en Configuración.');
+      timer = setTimeout(() => sendFrame(mark, failures, waitingSince ?? started), 100);
+      return;
+    }
+    const canvas = $('frame-canvas');
+    const scale = Math.min(640 / video.videoWidth, 480 / video.videoHeight, 1);
+    const width = Math.max(1, Math.round(video.videoWidth * scale));
+    const height = Math.max(1, Math.round(video.videoHeight * scale));
     if (canvas.width !== width) canvas.width = width;
     if (canvas.height !== height) canvas.height = height;
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -767,21 +826,36 @@ async function sendFrame(mark, failures = 0) {
         return;
       }
     }
-    if (mode === 'test' && !$('snapshot-mode').checked && (!result.inference_skipped || result.confirmed)) showPrediction(result);
+    const spelling = typeof currentView !== 'undefined' && currentView === 'deletreo';
+    if (mode === 'test' && !$('snapshot-mode').checked && (spelling || !result.inference_skipped || result.confirmed)) showPrediction(result);
   } catch (error) {
     if (mark !== generation) return;
     // No reenviar la misma imagen ni reintentar capturas: el servidor podría
     // haber recibido el fotograma aunque se haya perdido su respuesta.
     if (error.networkFailure && !recording && !countdown && !batch.active && failures < 3) {
       frameReady = false;
+      if (typeof resetSpellingPause === 'function') resetSpellingPause();
       clearHandRig();
       $('camera-state').textContent = 'Reconectando…';
       notice(`Se interrumpió la conexión. Reintentando ${failures + 1}/3…`, true);
       timer = setTimeout(() => sendFrame(mark, failures + 1), 500 * (failures + 1));
       return;
     }
+    if (error.status >= 500 && !recording && !countdown && !batch.active) {
+      const previous = session;
+      session = null;
+      frameReady = false;
+      clearHandRig();
+      $('camera-state').textContent = 'Vista previa · sin detección';
+      $('capture-instruction').textContent = 'La cámara está encendida. Reintenta conectar la detección.';
+      $('retry-camera-connection').hidden = false;
+      notice(`La detección se detuvo. ${error.message}`, true);
+      render();
+      try { await api('/api/close', {session: previous}); } catch (_) {}
+      return;
+    }
     notice(error.networkFailure
-      ? 'No se pudo recuperar la conexión con Seña. Comprueba que web_app.py siga abierto y vuelve a activar la cámara.'
+      ? 'Se perdió la conexión con el servidor. Vuelve a activar la cámara.'
       : error.message, true);
     // Cerrar la sesión también descarta cualquier captura parcial en el servidor.
     await stopCamera();
@@ -797,6 +871,10 @@ async function sendFrame(mark, failures = 0) {
 function showPrediction(result) {
   if (!profile().model) {
     resetResult();
+    return;
+  }
+  if (typeof currentView !== 'undefined' && currentView === 'deletreo') {
+    showSpellingPrediction(result);
     return;
   }
   const trial = $('expected-label').value;
@@ -1078,6 +1156,13 @@ function speak() {
   if (lastSpoken) automaticSpeech.enqueue(lastSpoken, profile().locale);
 }
 $('start-camera').addEventListener('click', startCamera);
+$('retry-camera-connection').addEventListener('click', startCamera);
+$('camera-consent-cancel').addEventListener('click', () => $('camera-consent-dialog').close());
+$('camera-consent-accept').addEventListener('click', () => {
+  $('shared-camera-consent').checked = true;
+  $('camera-consent-dialog').close();
+  void startCamera();
+});
 $('admin-delete-form').addEventListener('submit', deleteRecordings);
 $('admin-label').addEventListener('change', () => {
   $('admin-confirm').checked = false;
