@@ -7,10 +7,14 @@ HAND_PREPROCESSING = 'body-hand-relative-v2'
 STABLE_PREPROCESSING = 'stable-body-hand-v3'
 FINGER_PREPROCESSING = 'stable-finger-geometry-v4'
 DISCRIMINATIVE_PREPROCESSING = 'articulation-motion-v5'
+CHEST_PREPROCESSING = 'chest-location-v6'
+CHEST_CHANNELS = 13
 
 
 # Devuelve el número de canales esperado por cada versión y rechaza versiones desconocidas.
 def feature_dimension(preprocessing):
+    if preprocessing == CHEST_PREPROCESSING:
+        return feature_dimension(DISCRIMINATIVE_PREPROCESSING) + CHEST_CHANNELS
     if preprocessing == DISCRIMINATIVE_PREPROCESSING:
         return FEATURE_DIM + 244
     if preprocessing == FINGER_PREPROCESSING:
@@ -40,12 +44,15 @@ def local_hands(points):
 # Aplica exactamente el preprocesamiento indicado por los metadatos del modelo.
 def prepare_sequence(points, preprocessing=HAND_PREPROCESSING):
     feature_dimension(preprocessing)
-    if preprocessing == DISCRIMINATIVE_PREPROCESSING:
+    if preprocessing in (DISCRIMINATIVE_PREPROCESSING, CHEST_PREPROCESSING):
         stable = smooth_landmarks(points)
         body = normalize_sequence(stable)
         normalize_face(body)
         fingers = np.concatenate([body, local_hands(stable), finger_geometry(stable)], axis=-1)
-        return np.concatenate([fingers, articulation_motion(stable)], axis=-1)
+        features = [fingers, articulation_motion(stable)]
+        if preprocessing == CHEST_PREPROCESSING:
+            features.append(chest_location(stable))
+        return np.concatenate(features, axis=-1)
     if preprocessing is None:
         return np.asarray(points, dtype=np.float32)
     if preprocessing in (STABLE_PREPROCESSING, FINGER_PREPROCESSING):
@@ -58,6 +65,43 @@ def prepare_sequence(points, preprocessing=HAND_PREPROCESSING):
     if preprocessing in (HAND_PREPROCESSING, STABLE_PREPROCESSING):
         return np.concatenate([body, local_hands(points)], axis=-1)
     return body
+
+
+def chest_location(points):
+    """Posiciones 2D de muñecas y palmas en un marco basado en hombros.
+
+    El centro estimado del pecho está debajo del punto medio entre hombros.
+    Los desplazamientos se expresan en anchos de hombros y se preservan por
+    lado. La distancia de las puntas es una referencia visual, no contacto.
+    """
+    raw = np.asarray(points, dtype=np.float32)
+    pose, _, left, right = regions(raw)
+    shoulders = pose[:, [11, 12]]
+    across = shoulders[:, 1, :2] - shoulders[:, 0, :2]
+    width = np.linalg.norm(across, axis=-1)
+    visible = (shoulders[:, :, 3] >= .4).all(axis=-1) & (width >= .03)
+    scale = np.maximum(width, .03)
+    across = across / scale[:, None]
+    across = np.where(across[:, :1] < 0, -across, across)
+    down = np.stack([-across[:, 1], across[:, 0]], axis=-1)
+    center = shoulders[:, :, :2].mean(axis=1) + (.45 * scale[:, None]) * down
+    basis = np.stack([across, down], axis=-1)
+    output = [visible[:, None].astype(np.float32)]
+    for hand in (left, right):
+        present = visible & (np.linalg.norm(hand[:, 9] - hand[:, 0], axis=-1) > 1e-4)
+        wrist = hand[:, 0, :2]
+        palm = hand[:, [0, 5, 9, 13, 17], :2].mean(axis=1)
+        anchors = np.stack([wrist, palm], axis=1)
+        offset = (anchors - center[:, None]) / scale[:, None, None]
+        relative = np.matmul(offset, basis).reshape(len(raw), 4)
+        tips = (hand[:, [4, 8, 12, 16, 20], :2] - center[:, None]) / scale[:, None, None]
+        nearest = np.linalg.norm(tips, axis=-1).min(axis=1, keepdims=True)
+        geometry = np.concatenate([relative, nearest], axis=-1)
+        output.append(np.concatenate([
+            np.where(present[:, None], np.clip(geometry, -6, 6), 0),
+            present[:, None].astype(np.float32),
+        ], axis=-1))
+    return np.concatenate(output, axis=-1)
 
 
 # Resume la forma de manos y, según la versión, la flexión y orientación de sus articulaciones.

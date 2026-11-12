@@ -1094,7 +1094,7 @@ class Runtime:
         language_info(language)
         if self.training():
             raise ValueError('Ya hay un entrenamiento en curso.')
-        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust'):
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
             raise ValueError('Estrategia de entrenamiento desconocida.')
         if not isinstance(epochs, int) or not 5 <= epochs <= 200:
             raise ValueError('Selecciona entre 5 y 200 épocas.')

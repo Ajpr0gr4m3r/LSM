@@ -1,10 +1,45 @@
 """Autorización local de operaciones administrativas; nunca guarda texto claro."""
+import argparse
+import getpass
 import hashlib
 import hmac
 import json
 import os
+import secrets
+import tempfile
 import time
+import warnings
 from pathlib import Path
+
+
+ITERATIONS = 600000
+LOCAL_CONFIG = Path(__file__).resolve().parent / 'web_data' / 'admin' / 'auth.json'
+
+
+def configure_password(path, password, *, replace=False):
+    """Guarda un verificador privado y conserva la configuración anterior si falla."""
+    if not isinstance(password, str) or not 0 < len(password) <= 256:
+        raise ValueError('La contraseña debe tener entre 1 y 256 caracteres.')
+    path = Path(path)
+    if path.exists() and not replace:
+        raise FileExistsError('Ya hay una contraseña local. Usa --replace si quieres cambiarla.')
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, ITERATIONS)
+    config = {
+        'algorithm': 'pbkdf2-sha256', 'iterations': ITERATIONS,
+        'salt': salt.hex(), 'digest': digest.hex(),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+                                         prefix='.admin-', delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(config, stream)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 # Protege las operaciones administrativas con contraseña derivada y límite de intentos.
@@ -32,12 +67,15 @@ class AdminGuard:
             return
         try:
             config = json.loads(self.config_path.read_text(encoding='utf-8'))
-            if config['algorithm'] != 'pbkdf2-sha256' or config['iterations'] != 600000:
+            if config['algorithm'] != 'pbkdf2-sha256' or config['iterations'] != ITERATIONS:
                 raise ValueError('Configuración administrativa incompatible.')
             salt = bytes.fromhex(config['salt'])
             expected = bytes.fromhex(config['digest'])
         except (OSError, ValueError, KeyError, TypeError):
-            raise PermissionError('No está configurado el acceso de administrador en este servidor.') from None
+            raise PermissionError(
+                'Admin no está configurado en esta instalación. Si ejecutas Seña en tu equipo, '
+                'ejecuta admin_auth.py desde Terminal. En un servidor compartido, solicita la configuración a quien lo administra.'
+            ) from None
         digest = hashlib.pbkdf2_hmac('sha256', supplied, salt, config['iterations'])
         self._check(valid_input and hmac.compare_digest(digest, expected), now)
 
@@ -49,3 +87,33 @@ class AdminGuard:
             raise PermissionError('Contraseña de administrador incorrecta.')
         self.failures = 0
         self.window_started = now
+
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Configura la contraseña de Admin en esta copia local de Seña.')
+    parser.add_argument('--replace', action='store_true', help='Reemplaza la contraseña local ya configurada.')
+    args = parser.parse_args()
+    if os.environ.get('SENA_ADMIN_PASSWORD'):
+        parser.error('SENA_ADMIN_PASSWORD ya configura Admin en este entorno.')
+    if LOCAL_CONFIG.exists() and not args.replace:
+        parser.error('Ya hay una contraseña local. Usa --replace si quieres cambiarla.')
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', getpass.GetPassWarning)
+            password = getpass.getpass('Contraseña acordada para Admin: ')
+            confirmation = getpass.getpass('Confirma la contraseña: ')
+        if password != confirmation:
+            parser.error('Las contraseñas no coinciden.')
+        configure_password(LOCAL_CONFIG, password, replace=args.replace)
+    except (EOFError, getpass.GetPassWarning):
+        parser.error('Abre una terminal interactiva para escribir la contraseña de forma oculta.')
+    except KeyboardInterrupt:
+        parser.exit(1, '\nConfiguración cancelada.\n')
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    print('Admin configurado para esta instalación de Seña.')
+
+
+if __name__ == '__main__':
+    main()

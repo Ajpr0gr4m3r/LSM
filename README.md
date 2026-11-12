@@ -91,6 +91,17 @@ cd "/Users/apple/Documents/python_work/lia projects/LSM" && .venv/bin/python web
 
 El comando inicia el servidor, imprime la URL `http://127.0.0.1:8765` en Terminal y abre esa dirección en el navegador. En modo local no hace falta iniciar sesión manualmente. Deja el programa abierto mientras usas la página; para detenerlo, vuelve a Terminal y presiona **Ctrl+C**. Para iniciar sin abrir el navegador automáticamente, añade `--no-open`.
 
+### Configurar Admin para colaboradores
+
+Si cada colaborador ejecuta Seña desde su propio clon, abre una terminal en la carpeta del proyecto y configura Admin una vez:
+
+- macOS o Linux: `python3 admin_auth.py`
+- Windows: `py -3.11 admin_auth.py`
+
+Introduce dos veces la contraseña acordada. La terminal oculta lo que escribes. El comando guarda un verificador en `web_data/admin/auth.json`, que Git ignora. Luego abre Seña y pulsa **Admin**. Si tu copia ya tiene otra contraseña, repite el comando con `--replace`.
+
+Si el equipo usa la misma página de Render, configura `SENA_ADMIN_PASSWORD` una sola vez en el servicio. Los colaboradores entran desde sus dispositivos con **Admin** y la contraseña acordada. La pertenencia al repositorio de GitHub no interviene en ese acceso.
+
 ### Abrir Seña temporalmente sin Tailscale
 
 Para que personas fuera de tu red puedan entrar y usar la cámara del teléfono, instala `cloudflared` una vez en la Mac:

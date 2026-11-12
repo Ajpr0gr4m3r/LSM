@@ -623,13 +623,14 @@
                     </div>
                     <label for="training-strategy">Estrategia</label>
                     <select id="training-strategy">
+                      <option value="torso" selected>Torso y pecho</option>
                       <option value="baseline">Referencia compatible</option>
                       <option value="discriminative">Articulaciones y ejemplos difíciles · experimental</option>
                       <option value="robust">Distancia, dedos y movimiento · experimental</option>
                       <option value="trajectory">Trayectoria y velocidad · experimental</option>
                       <option value="contrastive">Contrastivo · experimental</option>
                     </select>
-                    <details class="training-notes"><summary>Preparación de los ejemplos</summary><p class="help">En las señas con movimiento, graba el recorrido completo desde la posición de partida y conserva brevemente la posición final. Una toma debe contener una sola seña.</p>
+                    <details class="training-notes"><summary>Preparación de los ejemplos</summary><p class="help">Para señas a la altura del pecho, encuadra ambos hombros y las manos. Usa la estrategia Torso y pecho. En las señas con movimiento, graba el recorrido completo desde la posición de partida y conserva brevemente la posición final. Una toma debe contener una sola seña.</p>
                     <p class="help">Cada versión guarda su evaluación. Se mantienen los ejemplos de las clases del modelo activo. Una versión sin evidencia suficiente se guarda para revisión.</p></details>
                     <button id="train-model" class="primary wide" disabled>
                       Entrenar modelo ↗

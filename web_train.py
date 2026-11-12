@@ -17,7 +17,7 @@ from posture_vote import apply_vote, fit_vote
 from motion_features import fit_motion_profile, augment_timing, motion_challenges
 from validation_protocol import calibration_split, validation_support
 from recognition_decision import batch_evidence, calibrate_joint_policy, policy_allowed, rejection_report, decision_details
-from recognition_features import DISCRIMINATIVE_PREPROCESSING, augment_articulation, augment_robust
+from recognition_features import CHEST_PREPROCESSING, DISCRIMINATIVE_PREPROCESSING, augment_articulation, augment_robust
 from recognition_analysis import (evaluate, temperature_probabilities, fit_temperature, calibrate_policy,
     dataset_summary, deduplicate, regression_check, preprocessing_probe, label_review_candidates)
 
@@ -101,7 +101,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         from model import build_web_model
 
         tf.keras.utils.set_random_seed(42)
-        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust'):
+        if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
             raise ValueError('Estrategia de entrenamiento desconocida.')
         label_ids = retained_label_ids(language, label_ids)
         raw, y, labels = read_dataset(language, MIN_SAMPLES, label_ids)
@@ -126,7 +126,10 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         protocol.update(independent_calibration=protocol['independent'],
                         selection_samples=len(selection), calibration_samples=len(calibration_indices))
         dataset_diagnostics = dataset_summary(raw, y, labels, groups, provenance)
-        preprocessing = FINGER_PREPROCESSING if strategy == 'baseline' else DISCRIMINATIVE_PREPROCESSING
+        preprocessing = {
+            'baseline': FINGER_PREPROCESSING,
+            'torso': CHEST_PREPROCESSING,
+        }.get(strategy, DISCRIMINATIVE_PREPROCESSING)
         X = np.stack([prepare_sequence(sequence, preprocessing) for sequence in raw])
         onehot = tf.keras.utils.to_categorical(y, len(labels))
         directory = model_dir(language) / job_id
@@ -146,7 +149,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
-        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory') else augment_articulation)(view_points, view_targets)
+        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory', 'torso') else augment_articulation)(view_points, view_targets)
         X_fit = np.stack([prepare_sequence(sequence, preprocessing) for sequence in fit_points])
 
         from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
@@ -190,7 +193,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             tf.keras.callbacks.EarlyStopping(monitor='val_balanced_score', mode='max', min_delta=1e-6, patience=16, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5)]
         initial_weights = model.get_weights()
-        if strategy in ('baseline', 'trajectory', 'robust'):
+        if strategy in ('baseline', 'trajectory', 'robust', 'torso'):
             fit_args = dict(x=X_fit, y=y_fit, batch_size=min(16,len(train)), class_weight=weights)
             fit_callbacks = callbacks+[Progress()]
         else:
@@ -337,12 +340,12 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'diagnostics':diagnostics, 'contrastive_history':contrastive_history,
             'split_groups':{name:sorted(set(groups[indices].tolist())) for name,indices in (('train',train),('validation',validation),('test',test))},
             'provenance': provenance, 'history': history, 'temporal_guard': temporal_guard, 'motion_profile': motion_profile,
-            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy in ('baseline', 'trajectory', 'robust') else None,
+            'motion_evaluation': motion_challenges(raw[test], y[test], motion_profile, temporal_guard, labels) if strategy in ('baseline', 'trajectory', 'robust', 'torso') else None,
             'input_dim': int(X.shape[-1]), 'hand_guard': guard,
             'dataset_sha256': hashlib.sha256(raw.tobytes()).hexdigest(),
             'augmentation': {'training_only': True, 'variants_per_original': 8,
-                             'jitter': 'distance-timing-articulation-v1' if strategy == 'robust' else 'ordered-time-warp' if strategy in ('baseline', 'trajectory') else 'palm-scaled-temporally-correlated',
-                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy in ('baseline', 'trajectory', 'robust') else None,
+                             'jitter': 'distance-timing-articulation-v1' if strategy == 'robust' else 'ordered-time-warp' if strategy in ('baseline', 'trajectory', 'torso') else 'palm-scaled-temporally-correlated',
+                             'temporal_warp': {'exponents': [.8, 1.2], 'end_hold_frames': 4, 'direction_preserved': True} if strategy in ('baseline', 'trajectory', 'robust', 'torso') else None,
                              'distance_scale': [.72, 1.12] if strategy == 'robust' else None,
                              'camera_roll_degrees': [4, 10], 'horizontal_scale': [.95, 1.05]},
             'validation_decisions': validation_evaluation,
@@ -376,7 +379,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=40)
     parser.add_argument('--job-id', required=True)
     parser.add_argument('--labels', nargs='+', help='IDs de las señas seleccionadas; cada una requiere el mínimo real.')
-    parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory','robust'], default='baseline')
+    parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory','robust','torso'], default='baseline')
     parser.add_argument('--no-activate', action='store_true', help='Guardar evaluación sin cambiar el modelo activo.')
     args = parser.parse_args()
     if not 5 <= args.epochs <= 200:
