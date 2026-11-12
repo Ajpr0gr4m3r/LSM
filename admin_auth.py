@@ -14,6 +14,7 @@ from pathlib import Path
 
 ITERATIONS = 600000
 LOCAL_CONFIG = Path(__file__).resolve().parent / 'web_data' / 'admin' / 'auth.json'
+TEAM_CONFIG = Path(__file__).resolve().with_name('admin_default.json')
 
 
 def configure_password(path, password, *, replace=False):
@@ -45,8 +46,9 @@ def configure_password(path, password, *, replace=False):
 # Protege las operaciones administrativas con contraseña derivada y límite de intentos.
 class AdminGuard:
     # Inicializa la ruta de credenciales y los contadores de bloqueo temporal.
-    def __init__(self, config_path):
+    def __init__(self, config_path, *, default_config=None):
         self.config_path = Path(config_path)
+        self.default_config = Path(default_config) if default_config is not None else None
         self.failures = 0
         self.window_started = 0
         self.blocked_until = 0
@@ -66,7 +68,13 @@ class AdminGuard:
             self._check(valid_input and hmac.compare_digest(supplied, secret.encode('utf-8')), now)
             return
         try:
-            config = json.loads(self.config_path.read_text(encoding='utf-8'))
+            try:
+                stored = self.config_path.read_text(encoding='utf-8')
+            except FileNotFoundError:
+                if self.default_config is None:
+                    raise
+                stored = self.default_config.read_text(encoding='utf-8')
+            config = json.loads(stored)
             if config['algorithm'] != 'pbkdf2-sha256' or config['iterations'] != ITERATIONS:
                 raise ValueError('Configuración administrativa incompatible.')
             salt = bytes.fromhex(config['salt'])

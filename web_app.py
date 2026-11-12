@@ -29,7 +29,7 @@ from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD,
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
 from web_dataset import inventory, stored_sample_counts, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
-from admin_auth import AdminGuard
+from admin_auth import AdminGuard, TEAM_CONFIG
 from accounts import Accounts
 import team_access
 from process_status import process_alive
@@ -196,7 +196,7 @@ class Runtime:
         self.job_id = None
         self.recovered_training_checked = False
         self.recovered_training_pid = None
-        self.admin = AdminGuard(WEB_DATA / 'admin' / 'auth.json')
+        self.admin = AdminGuard(WEB_DATA / 'admin' / 'auth.json', default_config=TEAM_CONFIG)
 
     # Abre una sala temporal con llaves separadas y genera su QR local cuando existe origen móvil HTTPS.
     def create_conversation(self, language, phone_origin):

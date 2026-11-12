@@ -91,16 +91,11 @@ cd "/Users/apple/Documents/python_work/lia projects/LSM" && .venv/bin/python web
 
 El comando inicia el servidor, imprime la URL `http://127.0.0.1:8765` en Terminal y abre esa dirección en el navegador. En modo local no hace falta iniciar sesión manualmente. Deja el programa abierto mientras usas la página; para detenerlo, vuelve a Terminal y presiona **Ctrl+C**. Para iniciar sin abrir el navegador automáticamente, añade `--no-open`.
 
-### Configurar Admin para colaboradores
+### Acceso de Admin para colaboradores
 
-Si cada colaborador ejecuta Seña desde su propio clon, abre una terminal en la carpeta del proyecto y configura Admin una vez:
+Actualiza el proyecto, abre Seña y pulsa **Admin**. Las copias nuevas usan la contraseña acordada del equipo sin ejecutar un configurador. El repositorio guarda su verificador PBKDF2 con sal en `admin_default.json`.
 
-- macOS o Linux: `python3 admin_auth.py`
-- Windows: `py -3.11 admin_auth.py`
-
-Introduce dos veces la contraseña acordada. La terminal oculta lo que escribes. El comando guarda un verificador en `web_data/admin/auth.json`, que Git ignora. Luego abre Seña y pulsa **Admin**. Si tu copia ya tiene otra contraseña, repite el comando con `--replace`.
-
-Si el equipo usa la misma página de Render, configura `SENA_ADMIN_PASSWORD` una sola vez en el servicio. Los colaboradores entran desde sus dispositivos con **Admin** y la contraseña acordada. La pertenencia al repositorio de GitHub no interviene en ese acceso.
+Si esta instalación tiene una contraseña configurada explícitamente, `SENA_ADMIN_PASSWORD` tiene prioridad, seguido de `web_data/admin/auth.json`. Para alinear una copia con una contraseña local distinta, ejecuta `python3 admin_auth.py --replace` en macOS o Linux, o `py -3.11 admin_auth.py --replace` en Windows, e introduce la contraseña del equipo. Si el sitio de Render tiene `SENA_ADMIN_PASSWORD` configurada con otro valor, actualízala allí.
 
 ### Abrir Seña temporalmente sin Tailscale
 
@@ -116,7 +111,7 @@ Después inicia el programa con un solo comando:
 cd "/Users/apple/Documents/python_work/lia projects/LSM" && .venv/bin/python web_app.py --quick-tunnel
 ```
 
-Seña creará una dirección HTTPS temporal, la imprimirá en Terminal y la abrirá en el navegador. Comparte esa misma dirección con el equipo. La cámara del teléfono y los enlaces QR de **Conversación** usarán automáticamente ese origen HTTPS. El público puede abrir Inicio, Probar modelo y Configuración sin cuenta. Para abrir Dataset y Entrenamiento, pulsa **Admin** en la esquina inferior derecha e introduce la contraseña administrativa. En Render, configura `SENA_ADMIN_PASSWORD` en **Environment** con la contraseña acordada. En local se usa el archivo privado `web_data/admin/auth.json` si esa variable no está configurada.
+Seña creará una dirección HTTPS temporal, la imprimirá en Terminal y la abrirá en el navegador. Comparte esa misma dirección con el equipo. La cámara del teléfono y los enlaces QR de **Conversación** usarán automáticamente ese origen HTTPS. El público puede abrir Inicio, Probar modelo y Configuración sin cuenta. Para abrir Dataset y Entrenamiento, pulsa **Admin** en la esquina inferior derecha e introduce la contraseña administrativa. Las instalaciones sin configuración propia usan la contraseña acordada del equipo.
 
 El enlace es accesible por quien lo conozca y el tráfico pasa por Cloudflare. Úsalo solo para pruebas o colaboración temporal y compártelo con cuidado. La dirección deja de funcionar al cerrar la Terminal con **Ctrl+C**; al volver a iniciar puede ser distinta. No hace falta iniciar Tailscale.
 
