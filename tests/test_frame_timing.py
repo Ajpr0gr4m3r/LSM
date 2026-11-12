@@ -53,6 +53,31 @@ class FrameTimingTests(unittest.TestCase):
     def test_real_gap_discards_partial_take_without_closing_camera(self):
         self.run_capture(interrupt=True)
 
+    def test_brief_tracking_gap_preserves_buffer_but_long_gap_clears_it(self):
+        session = web_app.Session('lsm')
+        session.frames.extend(['frame-1', 'frame-2'])
+        session.stable_label, session.stable_count = 'hola', 2
+
+        self.assertEqual(session.update_recognition_tracking(False, False, 10), 'tracking-gap')
+        self.assertEqual(session.update_recognition_tracking(True, False, 10.2), 'tracking-gap')
+        self.assertEqual(list(session.frames), ['frame-1', 'frame-2'])
+        self.assertEqual(session.stable_count, 2)
+        self.assertEqual(session.update_recognition_tracking(True, True, 10.4), 'observing')
+        self.assertEqual(len(session.frames), 2)
+
+        session.update_recognition_tracking(False, False, 11)
+        session.update_recognition_tracking(True, True, 11.6)
+        self.assertFalse(session.frames)
+        self.assertIsNone(session.stable_label)
+        self.assertEqual(session.stable_count, 0)
+
+        session.gesture_confirmed = True
+        session.last_confirmed = 'hola'
+        for frame in range(5):
+            session.update_recognition_tracking(False, False, 12 + frame * .1)
+        self.assertFalse(session.gesture_confirmed)
+        self.assertIsNone(session.last_confirmed)
+
     def test_completion_time_recorded_after_failure(self):
         runtime=web_app.Runtime();sid=runtime.new_session('lsm')
         with patch.object(runtime,'_process_frame',side_effect=ValueError('failed')), \

@@ -780,7 +780,9 @@ async function sendFrame(mark, failures = 0, waitingSince = null) {
       frameReady = true;
       render();
     }
-    $('camera-state').textContent = result.hands ? (quality?.usable ? (result.tracking_recovered ? 'Seguimiento recuperado' : 'Manos visibles') : 'Revisando encuadre') : 'Buscando manos';
+    $('camera-state').textContent = result.phase === 'tracking-gap' ? 'Recuperando seguimiento…'
+      : result.hands ? (quality?.usable ? (result.tracking_recovered ? 'Seguimiento recuperado' : 'Manos visibles') : 'Revisando encuadre')
+        : 'Buscando manos';
     $('hands-status').textContent = result.hands
       ? 'Manos detectadas · Mantén el movimiento natural.'
       : 'Encuadra la mano que hace la seña, incluida la muñeca.';
@@ -877,6 +879,7 @@ function showPrediction(result) {
     showSpellingPrediction(result);
     return;
   }
+  if (result.phase === 'tracking-gap') return;
   const trial = $('expected-label').value;
   if (trial && !result.inference_skipped && (result.rejection_code || result.candidate)) {
     const proposed = result.alternatives?.[0]?.text || result.candidate?.text || '—';
@@ -1263,6 +1266,7 @@ const handRigEdges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
   [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
   [13,17],[0,17],[17,18],[18,19],[19,20]];
 let handRigExpiry;
+const HAND_RIG_HOLD_MS = 850;
 // Borra el dibujo y cancela su vencimiento para no dejar puntos antiguos sobre la cámara.
 function clearHandRig() {
   clearTimeout(handRigExpiry);
@@ -1272,15 +1276,29 @@ function clearHandRig() {
 }
 // El rig es transparente: nunca tapa el video en vivo con una foto antigua.
 function drawHandRig(hands, width, height, sourceFrame = null) {
-  clearHandRig();
-  if (!$('show-hand-rig').checked || !stream || !hands?.length) return;
+  if (!$('show-hand-rig').checked || !stream) {
+    clearHandRig();
+    return;
+  }
   const canvas = $('hand-rig');
-  canvas.width = width; canvas.height = height; canvas.hidden = false;
+  const visibleHands = (hands || []).filter(hand =>
+    hand.length === 21 && hand.every(p => p.length === 2 && p.every(Number.isFinite)));
+  if (!visibleHands.length) {
+    // Mantén el último dibujo brevemente, con menos intensidad. No renueves
+    // el vencimiento hasta recibir puntos nuevos de la cámara.
+    if (!canvas.hidden) canvas.style.opacity = '.45';
+    return;
+  }
+  clearTimeout(handRigExpiry);
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
   const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, width, height);
+  canvas.hidden = false;
+  canvas.style.opacity = '1';
   ctx.lineWidth = 2; ctx.strokeStyle = canvas.dataset?.stroke || '#efb08b'; ctx.fillStyle = '#ffffff';
   ctx.shadowColor = '#172139'; ctx.shadowBlur = 3;
-  for (const hand of hands) {
-    if (hand.length !== 21 || !hand.every(p => p.length === 2 && p.every(Number.isFinite))) continue;
+  for (const hand of visibleHands) {
     ctx.beginPath();
     for (const [a,b] of handRigEdges) {
       ctx.moveTo(hand[a][0]*width, hand[a][1]*height);
@@ -1294,7 +1312,7 @@ function drawHandRig(hands, width, height, sourceFrame = null) {
   handRigExpiry = setTimeout(() => {
     clearHandRig();
     if (stream) $('camera-state').textContent = 'Esperando nueva detección…';
-  }, 300);
+  }, HAND_RIG_HOLD_MS);
 }
 // Activa o desactiva el rig y conserva la preferencia visual en el navegador.
 function setHandRig(enabled, persist = true) {

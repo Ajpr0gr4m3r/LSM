@@ -162,9 +162,36 @@ class Session:
         self.last_confirmed = None
         self.cooldown = 0
         self.no_hands = 0
+        self.tracking_gap_start = None
+        self.tracking_gap_frames = 0
         self.gesture_confirmed = False
         self.last_inference = 0
         self.last_model = None
+
+    def update_recognition_tracking(self, hands, usable, now):
+        """Tolera hasta dos cuadros malos sin añadir puntos antiguos al modelo."""
+        self.no_hands = 0 if hands else self.no_hands + 1
+        if not usable:
+            if self.tracking_gap_start is None:
+                self.tracking_gap_start = now
+            self.tracking_gap_frames += 1
+        if self.tracking_gap_start is not None:
+            expired = (self.tracking_gap_frames > 2
+                       or now - self.tracking_gap_start >= .55)
+            if expired:
+                self.frames.clear()
+                self.probabilities.clear()
+                self.stable_label = None
+                self.stable_count = 0
+            if self.no_hands >= 5:
+                self.gesture_confirmed = False
+                self.last_confirmed = None
+            if usable:
+                self.tracking_gap_start = None
+                self.tracking_gap_frames = 0
+            elif not expired and self.frames:
+                return 'tracking-gap'
+        return 'observing' if usable else 'quality-rejected'
 
     # Libera los detectores de video e imagen independientes de esta sesión.
     def close(self):
@@ -965,32 +992,16 @@ class Runtime:
             return output
         if payload.get('mode') != 'test':
             return output
-        if session.quality_gate and not quality['usable']:
-            session.frames.clear()
-            session.probabilities.clear()
-            session.stable_count = 0
-            session.stable_label = None
-            session.no_hands = session.no_hands + 1 if not hands else 0
-            output['phase'] = 'quality-rejected'
+        usable = hands and (quality['usable'] or not session.quality_gate)
+        tracking_phase = session.update_recognition_tracking(hands, usable, now)
+        if not usable:
+            output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
+            output['phase'] = tracking_phase
             output['rejection_code'] = 'capture_quality'
-            if session.no_hands >= 5:
-                session.gesture_confirmed = False
-                session.last_confirmed = None
             output['rejection_reason'] = quality['message']
             return output
         session.frames.append(points)
         output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
-        if not hands:
-            session.frames.clear()
-            session.probabilities.clear()
-            session.stable_label, session.stable_count = None, 0
-            session.no_hands += 1
-            if session.no_hands >= 5:
-                session.last_confirmed = None
-                session.gesture_confirmed = False
-                session.frames.clear()
-            return output
-        session.no_hands = 0
         bundle = self.load_model(session.language)
         if not bundle or len(session.frames) < SEQUENCE_LENGTH:
             return output
