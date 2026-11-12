@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+from importlib.util import find_spec
 from collections import deque
 from functools import lru_cache
 import json
@@ -1133,6 +1134,20 @@ class Runtime:
 RUNTIME = Runtime()
 
 
+def check_camera_dependencies():
+    """Informa de librerías ausentes antes de reservar una sesión de cámara."""
+    packages = {'cv2': 'OpenCV', 'mediapipe': 'MediaPipe'}
+    missing = [name for module, name in packages.items() if find_spec(module) is None]
+    if not missing:
+        return
+    python = r'.\.venv\Scripts\python.exe' if os.name == 'nt' else '.venv/bin/python'
+    raise ValueError(
+        f'Faltan dependencias de cámara en el Python de Seña: {", ".join(missing)}. '
+        f'Desde la carpeta LSM instala con {python} -m pip install -r requirements.txt '
+        f'y reinicia con {python} web_app.py.'
+    )
+
+
 # Implementa las rutas HTTP, la entrega de recursos y los controles de origen y autorización.
 class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
@@ -1296,6 +1311,7 @@ class Handler(BaseHTTPRequestHandler):
                     RUNTIME.close_conversation(room['id'])
                     result = {'closed': True}
                 elif route == '/api/session':
+                    check_camera_dependencies()
                     result = {'session': RUNTIME.new_session(payload.get('language'), (str(payload.get('participant', '')).strip()[:80] if auth['user'].get('local') else 'user:' + auth['user']['id']), payload.get('camera'), payload.get('quality_gate'))}
                     item = RUNTIME.session(result['session'])
                     item.owner_id = auth['user']['id']
