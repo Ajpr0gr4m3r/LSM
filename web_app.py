@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
-from importlib.util import find_spec
+from importlib import import_module
 from collections import deque
 from functools import lru_cache
 import json
@@ -38,7 +38,7 @@ from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
-from studio_services import versions, activate_latest_version, recent_activity, dataset_operation
+from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
 
@@ -786,7 +786,7 @@ class Runtime:
         cached = self.models.get(language)
         if not cached or cached[0] != directory or language in self.model_signatures:
             import tensorflow as tf
-            model = tf.keras.models.load_model(directory / 'model.keras', compile=False, safe_mode=True)
+            model = load_inference_model(directory / 'model.keras')
             if tuple(model.input_shape[1:]) != (SEQUENCE_LENGTH, feature_dimension(meta.get('preprocessing'))) or model.output_shape[-1] != len(meta['labels']):
                 raise ValueError('Las dimensiones del modelo no coinciden con sus metadatos.')
             # Reutilizar el grafo de inferencia evita ejecutar cada paso LSTM
@@ -1135,17 +1135,17 @@ RUNTIME = Runtime()
 
 
 def check_camera_dependencies():
-    """Informa de librerías ausentes antes de reservar una sesión de cámara."""
-    packages = {'cv2': 'OpenCV', 'mediapipe': 'MediaPipe'}
-    missing = [name for module, name in packages.items() if find_spec(module) is None]
-    if not missing:
-        return
+    """Comprueba que las librerías nativas puedan cargarse antes de abrir una sesión."""
     python = r'.\.venv\Scripts\python.exe' if os.name == 'nt' else '.venv/bin/python'
-    raise ValueError(
-        f'Faltan dependencias de cámara en el Python de Seña: {", ".join(missing)}. '
-        f'Desde la carpeta LSM instala con {python} -m pip install -r requirements.txt '
-        f'y reinicia con {python} web_app.py.'
-    )
+    for module, name in (('cv2', 'OpenCV'), ('mediapipe', 'MediaPipe')):
+        try:
+            import_module(module)
+        except (ImportError, OSError) as error:
+            raise ValueError(
+                f'El Python de Seña no pudo cargar {name}: {error}. '
+                f'Desde la carpeta LSM, ejecuta {python} -m pip install -r requirements.txt. '
+                f'Reinicia con {python} web_app.py.'
+            ) from error
 
 
 # Implementa las rutas HTTP, la entrega de recursos y los controles de origen y autorización.
@@ -1183,6 +1183,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'")
         self.end_headers()
         self.wfile.write(data)
+
+    def reject_post_access(self, route, status, code, message):
+        if route == '/api/session':
+            self.log_message('Apertura de cámara rechazada: %s', code)
+        return self.send_data(status, {'code': code, 'error': message})
 
     # Permite únicamente los Hosts configurados para la aplicación principal.
     def trusted_host(self):
@@ -1266,12 +1271,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(500, {'error': f'No se pudo completar la operación: {exc}'})
         auth = team_access.authenticate(self, ACCOUNTS, require_user=not route.startswith('/api/auth/'))
         if not auth:
-            return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
+            return self.reject_post_access(route, 401, 'access_expired',
+                                           'Se perdió el acceso. Recarga la página e inténtalo de nuevo.')
         if not self.trusted_host() or (origin and origin not in expected):
-            return self.send_data(403, {'error': 'Abre la URL de Seña que aparece en la terminal directamente en tu navegador.'})
+            return self.reject_post_access(route, 403, 'unexpected_origin',
+                                           'Abre la URL de Seña que aparece en la terminal directamente en tu navegador.')
         if not team_access.csrf_valid(self, auth):
-            return self.send_data(403, {'code': 'csrf_mismatch',
-                                        'error': 'El acceso de esta pestaña cambió. Recarga la página e inténtalo de nuevo.'})
+            return self.reject_post_access(route, 403, 'csrf_mismatch',
+                                           'El acceso de esta pestaña cambió. Recarga la página e inténtalo de nuevo.')
         try:
             length = int(self.headers.get('Content-Length', '0'))
             max_length = 48 * 1024 * 1024 if urlsplit(self.path).path == '/api/dataset/import' else 2000000
@@ -1286,6 +1293,8 @@ class Handler(BaseHTTPRequestHandler):
             if (route not in ('/api/admin/unlock', '/api/admin/lock', '/api/close')
                     and not RUNTIME.startup_models_ready.wait(timeout=10)):
                 return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.'})
+            if route == '/api/session' and payload.get('shared_consent') is True:
+                check_camera_dependencies()
             with RUNTIME.lock:
                 auth = team_access.authenticate(self, ACCOUNTS)
                 if not auth:
@@ -1314,7 +1323,6 @@ class Handler(BaseHTTPRequestHandler):
                     RUNTIME.close_conversation(room['id'])
                     result = {'closed': True}
                 elif route == '/api/session':
-                    check_camera_dependencies()
                     result = {'session': RUNTIME.new_session(payload.get('language'), (str(payload.get('participant', '')).strip()[:80] if auth['user'].get('local') else 'user:' + auth['user']['id']), payload.get('camera'), payload.get('quality_gate'))}
                     item = RUNTIME.session(result['session'])
                     item.owner_id = auth['user']['id']

@@ -98,6 +98,7 @@ vm.runInContext('let stream=null, session=null, generation=0, timer=null, countd
   assert.equal(attempts, 1);
   assert.equal($('retry-camera-connection').hidden, false);
   assert(messages.some(x => x.error && x.text.includes('Origen incorrecto')));
+  assert.equal($('hands-status').textContent, 'Origen incorrecto');
   await sandbox.stopCamera();
   console.log('Cámaras: enumeración, selección exacta, desconexión, permiso denegado y cancelación comprobados.');
 })().catch(error => { console.error(error); process.exitCode=1; });

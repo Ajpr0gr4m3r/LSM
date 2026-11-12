@@ -50,6 +50,27 @@ def versions(language):
     return [row for _, row in sorted(result, key=lambda item: item[0], reverse=True)]
 
 
+def load_inference_model(path):
+    """Carga todos los pesos del modelo y da un diagnóstico de compatibilidad."""
+    from importlib.metadata import version
+    import tensorflow as tf
+
+    try:
+        return tf.keras.models.load_model(path, compile=False, safe_mode=True)
+    except ValueError as error:
+        message = str(error)
+        if 'expected ' not in message or 'received 0 variables' not in message:
+            raise
+        python = r'.\.venv\Scripts\python.exe' if os.name == 'nt' else '.venv/bin/python'
+        raise ValueError(
+            f'No se pudieron cargar todos los pesos del modelo {path.parent.name} '
+            f'con TensorFlow {tf.__version__} y Keras {version("keras")}. '
+            f'En la carpeta LSM ejecuta {python} -m pip install -r requirements.txt '
+            'y reinicia Seña. Si ya usas esas versiones, verifica que el archivo model.keras '
+            'coincida con el del repositorio.'
+        ) from error
+
+
 # Valida vocabulario, archivos y dimensiones antes de cambiar atómicamente la versión activa.
 def activate_version(language, version):
     validate_identifier(version)
@@ -64,8 +85,7 @@ def activate_version(language, version):
     if any(counts.get(r['id'],0)<languages.MIN_SAMPLES for r in metadata['labels']):
         raise ValueError('Esta versión incluye señas eliminadas o con menos de 30 ejemplos. Reúne los ejemplos y reentrena.')
     # Comprobar dimensiones y serialización antes de tocar el puntero activo.
-    import tensorflow as tf
-    model=tf.keras.models.load_model(root/version/'model.keras',compile=False,safe_mode=True)
+    model = load_inference_model(root / version / 'model.keras')
     expected=(pipeline_spec()['sequence_length'],feature_dimension(metadata.get('preprocessing')))
     if tuple(model.input_shape[1:])!=expected or model.output_shape[-1]!=len(metadata['labels']):
         raise ValueError('Dimensiones incompatibles con los metadatos.')
