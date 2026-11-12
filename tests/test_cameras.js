@@ -70,5 +70,34 @@ vm.runInContext('let stream=null, session=null, generation=0, timer=null, countd
   sandbox.navigator.mediaDevices.getUserMedia = () => new Promise(resolve => { grant = resolve; });
   const pending = sandbox.startCamera(); await sandbox.stopCamera(); grant(streamMock()); await pending;
   assert.equal(stopped, 4);
+  // Un token obsoleto debe renovar el acceso sin pedir la cámara otra vez.
+  devices = [{kind:'videoinput', deviceId:'usb', label:'USB'}];
+  sandbox.navigator.mediaDevices.getUserMedia = async () => streamMock();
+  sandbox.state = {token:'old', user:{id:'local'}};
+  sandbox.refresh = async () => { sandbox.state = {token:'new', user:{id:'local'}}; };
+  attempts = 0;
+  sandbox.api = async (path, body) => {
+    if (path === '/api/session' && ++attempts === 1) {
+      throw Object.assign(new Error('Token obsoleto'), {status:403, code:'csrf_mismatch'});
+    }
+    return previousApi(path, body);
+  };
+  await sandbox.startCamera();
+  assert.equal(attempts, 2);
+  assert.equal(stopped, 4);
+  assert.equal($('retry-camera-connection').hidden, true);
+  await sandbox.stopCamera();
+
+  // Una negativa por origen no debe volver a enviar la solicitud.
+  attempts = 0;
+  sandbox.api = async () => {
+    attempts++;
+    throw Object.assign(new Error('Origen incorrecto'), {status:403});
+  };
+  await sandbox.startCamera();
+  assert.equal(attempts, 1);
+  assert.equal($('retry-camera-connection').hidden, false);
+  assert(messages.some(x => x.error && x.text.includes('Origen incorrecto')));
+  await sandbox.stopCamera();
   console.log('Cámaras: enumeración, selección exacta, desconexión, permiso denegado y cancelación comprobados.');
 })().catch(error => { console.error(error); process.exitCode=1; });

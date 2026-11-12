@@ -58,9 +58,16 @@ class RuntimeSpeedTests(unittest.TestCase):
             second=connection.getresponse();second.read()
             self.assertIs(connection.sock,socket)
             connection.request('POST','/api/session',body='{}',headers={'X-LSM-Token':'wrong'})
-            rejected=connection.getresponse();rejected.read()
-            self.assertEqual(rejected.status,403)
+            rejected = connection.getresponse()
+            self.assertIn(b'"csrf_mismatch"', rejected.read())
+            self.assertEqual(rejected.status, 403)
             self.assertTrue(rejected.will_close)
+            connection.request('POST', '/api/session', body='{}', headers={
+                'X-LSM-Token': 'wrong', 'Origin': 'https://other.example',
+            })
+            wrong_origin = connection.getresponse()
+            self.assertNotIn(b'"csrf_mismatch"', wrong_origin.read())
+            self.assertEqual(wrong_origin.status, 403)
         finally:
             connection.close();server.shutdown();server.server_close();thread.join()
 

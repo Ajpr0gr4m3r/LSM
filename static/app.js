@@ -79,6 +79,7 @@ async function api(path, body) {
     }
     const error = new Error(data?.error || `El servidor no pudo completar la solicitud (HTTP ${response.status}).`);
     error.status = response.status;
+    error.code = data?.code;
     throw error;
   }
   return data;
@@ -647,14 +648,31 @@ async function startCamera() {
     $('camera-state').textContent = 'Conectando con el servidor…';
     $('capture-instruction').textContent = 'La vista previa está activa. Conectando la detección.';
     if (!state?.token && typeof bootstrapAccounts === 'function') await bootstrapAccounts();
+    const camera = deviceId ? await cameraFingerprint(deviceId) : '';
     if (mark !== generation) return;
-    const created = await api('/api/session', {
+    const payload = {
       language,
       participant: $('capture-participant').value.trim(),
-      camera: deviceId ? await cameraFingerprint(deviceId) : '',
+      camera,
       quality_gate: true,
       shared_consent: $('shared-camera-consent').checked,
-    });
+    };
+    const openingToken = state?.token;
+    const openingUser = state?.user?.id;
+    let created;
+    try {
+      created = await api('/api/session', payload);
+    } catch (error) {
+      if (error.code !== 'csrf_mismatch' || mark !== generation) throw error;
+      // El servidor rechazó la solicitud antes de crear la sesión de cámara.
+      await refresh();
+      if (mark !== generation) return;
+      if (!state?.token || state.token === openingToken || state.user?.id !== openingUser) throw error;
+      created = await api('/api/session', {
+        ...payload,
+        shared_consent: $('shared-camera-consent').checked,
+      });
+    }
     if (mark !== generation) {
       await api('/api/close', { session: created.session });
       return;

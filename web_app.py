@@ -1267,8 +1267,11 @@ class Handler(BaseHTTPRequestHandler):
         auth = team_access.authenticate(self, ACCOUNTS, require_user=not route.startswith('/api/auth/'))
         if not auth:
             return self.send_data(401, {'error': 'Se perdió el acceso. Recarga la página e inténtalo de nuevo.'})
-        if not self.trusted_host() or (origin and origin not in expected) or not team_access.csrf_valid(self, auth):
-            return self.send_data(403, {'error': 'Sesión no autorizada. Recarga la página.'})
+        if not self.trusted_host() or (origin and origin not in expected):
+            return self.send_data(403, {'error': 'Abre la URL de Seña que aparece en la terminal directamente en tu navegador.'})
+        if not team_access.csrf_valid(self, auth):
+            return self.send_data(403, {'code': 'csrf_mismatch',
+                                        'error': 'El acceso de esta pestaña cambió. Recarga la página e inténtalo de nuevo.'})
         try:
             length = int(self.headers.get('Content-Length', '0'))
             max_length = 48 * 1024 * 1024 if urlsplit(self.path).path == '/api/dataset/import' else 2000000
