@@ -438,6 +438,7 @@ node tests/test_studio_ui.js
 | Síntoma | Qué comprobar |
 |---|---|
 | `Address already in use` al iniciar | El puerto ya tiene un proceso escuchando. Abre primero <http://127.0.0.1:8765>. Si necesitas reiniciar, identifica el proceso con `lsof -nP -iTCP:8765 -sTCP:LISTEN` y detén la instancia de Seña desde la Terminal que la inició. |
+| Keras muestra `expected 2 variables, but received 0 variables` | Actualiza las dependencias del entorno de Seña con `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` en Windows o `.venv/bin/python -m pip install -r requirements.txt` en macOS/Linux. Los modelos del repositorio se guardaron con Keras 2.15.0. Reinicia Seña y prueba el modelo existente. |
 | `ModuleNotFoundError: No module named cv2` | OpenCV falta en el Python que ejecuta Seña. En Windows, desde LSM, ejecuta `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` y reinicia con `.\.venv\Scripts\python.exe web_app.py`. En macOS o Linux, usa `.venv/bin/python` en ambos comandos. |
 | El navegador no encuentra cámara | Permite cámara para el navegador, pulsa **Detectar cámaras** y selecciona el dispositivo correcto. En el teléfono abre el enlace HTTPS completo de la sala. |
 | Se pierde la mano o la toma no empieza | Mejora la iluminación, deja espacio alrededor de las manos y acerca el cuerpo para que los puntos sean visibles. La captura espera calidad suficiente antes de guardar cuadros. |

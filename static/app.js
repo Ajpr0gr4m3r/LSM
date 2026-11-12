@@ -646,6 +646,7 @@ async function startCamera() {
       previewReady = true;
     }
     $('camera-state').textContent = 'Conectando con el servidor…';
+    $('hands-status').textContent = 'Preparando la detección…';
     $('capture-instruction').textContent = 'La vista previa está activa. Conectando la detección.';
     if (!state?.token && typeof bootstrapAccounts === 'function') await bootstrapAccounts();
     const camera = deviceId ? await cameraFingerprint(deviceId) : '';
@@ -694,6 +695,7 @@ async function startCamera() {
       $('camera-state').textContent = 'Vista previa · sin detección';
       $('capture-instruction').textContent = 'La cámara está encendida. Reintenta conectar la detección.';
       $('retry-camera-connection').hidden = false;
+      $('hands-status').textContent = error.message;
       notice(`No se pudo conectar la detección. ${error.message}`, true);
       return;
     }

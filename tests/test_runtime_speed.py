@@ -11,6 +11,22 @@ from recognition_features import (prepare_sequence, smooth_landmarks, articulati
 
 # Ayudante de prueba para RuntimeSpeedTests.
 class RuntimeSpeedTests(unittest.TestCase):
+    def test_saved_lsm_model_loads_and_runs(self):
+        bundle = web_app.model_metadata('lsm')
+        if bundle is None:
+            self.skipTest('No hay un modelo LSM activo en esta copia del proyecto.')
+        model, metadata = web_app.Runtime().load_model('lsm')
+        frames = np.zeros((1, *model.input_shape[1:]), dtype=np.float32)
+        probabilities = model(frames, training=False).numpy()
+        self.assertEqual(probabilities.shape, (1, len(metadata['labels'])))
+        self.assertTrue(np.isfinite(probabilities).all())
+        np.testing.assert_allclose(probabilities.sum(axis=1), [1.0], atol=1e-5)
+
+    def test_camera_reports_native_import_failure(self):
+        with patch('web_app.import_module', side_effect=ImportError('DLL load failed')):
+            with self.assertRaisesRegex(ValueError, 'OpenCV: DLL load failed'):
+                web_app.check_camera_dependencies()
+
     # Prueba automatizada: verifica cached model skips json but changed artifacts reload.
     def test_cached_model_skips_json_but_changed_artifacts_reload(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -66,7 +82,7 @@ class RuntimeSpeedTests(unittest.TestCase):
                 'X-LSM-Token': 'wrong', 'Origin': 'https://other.example',
             })
             wrong_origin = connection.getresponse()
-            self.assertNotIn(b'"csrf_mismatch"', wrong_origin.read())
+            self.assertIn(b'"unexpected_origin"', wrong_origin.read())
             self.assertEqual(wrong_origin.status, 403)
         finally:
             connection.close();server.shutdown();server.server_close();thread.join()

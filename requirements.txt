@@ -12,7 +12,8 @@
 # ══════════════════════════════════════════════════════════════════
 
 # ── Deep Learning ─────────────────────────────────────────────────
-tensorflow>=2.12.0,<2.16.0          # Motor LSTM; conserva compatibilidad de modelos
+tensorflow==2.15.1                  # Motor LSTM validado con los modelos del repositorio
+keras==2.15.0                       # Versión con la que se guardaron los archivos .keras
 
 # ── Visión por Computadora ────────────────────────────────────────
 opencv-contrib-python>=4.8.0,<4.12.0                # Captura, procesamiento y UI de video

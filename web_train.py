@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sign_languages import WEB_DATA, MIN_SAMPLES, language_info, model_dir, pipeline_spec
+from studio_services import load_inference_model
 from web_dataset import read_dataset, split_per_class
 from recognition_features import (prepare_sequence, augment_training, augment_viewpoints, validation_threshold, decision_metrics,
                                   HAND_PREPROCESSING, STABLE_PREPROCESSING, FINGER_PREPROCESSING, fit_hand_guard, hand_guard_accept,
@@ -228,7 +229,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             model.compile(optimizer=optimizer,loss='categorical_crossentropy',
                           metrics=['accuracy'],run_eagerly=True)
             model.fit(**fit_args, **common, initial_epoch=start_epoch)
-        model = tf.keras.models.load_model(checkpoint, compile=False, safe_mode=True)
+        model = load_inference_model(checkpoint)
         val_probs = model(X[validation], training=False).numpy()
         cal_probs = model(X[calibration_indices], training=False).numpy()
         guard = fit_hand_guard(view_points, np.argmax(view_targets, axis=1), raw[calibration_indices], y[calibration_indices], contrastive=True, descriptor_version='finger-articulation-v3')
@@ -261,7 +262,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                 previous_path = model_dir(language) / previous_version
                 old_meta = json.loads((previous_path / 'metadata.json').read_text())
                 if old_meta['pipeline'] == pipeline_spec():
-                    old_model = tf.keras.models.load_model(previous_path / 'model.keras', compile=False, safe_mode=True)
+                    old_model = load_inference_model(previous_path / 'model.keras')
                     previous_bundle = (old_model, old_meta)
                 comparison_note = 'Se comparan clases comunes solo en ejemplos ajenos al entrenamiento y calibración anteriores.'
         class_validation = [{**row, 'precision': row['accepted_precision']} for row in validation_evaluation['by_class']]
