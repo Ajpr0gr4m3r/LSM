@@ -38,9 +38,10 @@ from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
-from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model
+from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model, _metadata_summary as metadata_summary
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
+from vocabulary_catalog import catalog_status, add_category, phrasebook
 
 
 QUICK_TUNNEL_URL = re.compile(r'https://[a-z0-9-]+\.trycloudflare\.com', re.IGNORECASE)
@@ -103,7 +104,7 @@ def public_model_metadata(path, modified, size):
     return summary
 
 
-def model_metadata(language, *, public=False):
+def model_metadata(language, *, public=False, summary=False):
     directory = model_dir(language)
     manifest = directory / 'current.json'
     if not manifest.exists():
@@ -119,6 +120,9 @@ def model_metadata(language, *, public=False):
     if public:
         stat = metadata_path.stat()
         meta = public_model_metadata(metadata_path, stat.st_mtime_ns, stat.st_size)
+    elif summary:
+        # Sin guardas pesadas y en caché: /api/state no relee decenas de MB cada vez.
+        meta = dict(metadata_summary(metadata_path))
     else:
         meta = json.loads(metadata_path.read_text())
     if meta['language'] != language or meta['pipeline'] != pipeline_spec():
@@ -507,7 +511,7 @@ class Runtime:
             metadata = None
             error = None
             try:
-                result = model_metadata(info['id'], public=not include_studio)
+                result = model_metadata(info['id'], public=not include_studio, summary=include_studio)
                 metadata = {k: v for k, v in result[1].items() if k not in ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
@@ -517,7 +521,9 @@ class Runtime:
                             error = selection.get('reason', 'Reentrena el modelo tras borrar ejemplos.')
             except (ValueError, KeyError, OSError) as exc:
                 error = str(exc)
-            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']) if include_studio else [], 'alphabet': alphabet_status(info['id'], rows, metadata) if include_studio else None})
+            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']) if include_studio else [], 'alphabet': alphabet_status(info['id'], rows, metadata) if include_studio else None,
+                             'catalog': catalog_status(info['id'], rows, metadata) if include_studio else None,
+                             'phrasebook': phrasebook(info['id'])})
         old_model = ROOT / 'models' / 'lsm_model.h5'
         return {'profiles': profiles, 'minimum_samples': MIN_SAMPLES, 'recommended_samples': RECOMMENDED_SAMPLES, 'sequence_length': SEQUENCE_LENGTH,
                 'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job() if include_studio else None,
@@ -1233,6 +1239,9 @@ class Handler(BaseHTTPRequestHandler):
                  '/static/conversation.js': ('conversation.js', 'text/javascript; charset=utf-8'),
                  '/static/phone.js': ('phone.js', 'text/javascript; charset=utf-8'),
                  '/static/studio.js': ('studio.js', 'text/javascript; charset=utf-8'),
+                 '/static/phrases.js': ('phrases.js', 'text/javascript; charset=utf-8'),
+                 '/static/vocabulary.js': ('vocabulary.js', 'text/javascript; charset=utf-8'),
+                 '/static/transcript.js': ('transcript.js', 'text/javascript; charset=utf-8'),
                  '/static/continuous.js': ('continuous.js', 'text/javascript; charset=utf-8'),
                  '/static/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/static/styles.css': ('styles.css', 'text/css; charset=utf-8')}
@@ -1292,7 +1301,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200, team_access.auth_post(self, route, payload, ACCOUNTS, RUNTIME, auth))
             if (route not in ('/api/admin/unlock', '/api/admin/lock', '/api/close')
                     and not RUNTIME.startup_models_ready.wait(timeout=10)):
-                return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.'})
+                return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.',
+                                            'code': 'model_preparing'})
             if route == '/api/session' and payload.get('shared_consent') is True:
                 check_camera_dependencies()
             with RUNTIME.lock:
@@ -1339,6 +1349,10 @@ class Handler(BaseHTTPRequestHandler):
                     result = {'reset': True}
                 elif route == '/api/capture':
                     result = RUNTIME.start_capture(payload.get('session'), payload.get('consecutive', False), payload.get('batch_id'))
+                elif route == '/api/vocabulary/category':
+                    if RUNTIME.training():
+                        raise ValueError('Espera a que termine el entrenamiento para añadir vocabulario.')
+                    result = add_category(payload.get('language'), payload.get('category'))
                 elif route == '/api/alphabet':
                     if RUNTIME.training():
                         raise ValueError('Espera a que termine el entrenamiento para añadir letras.')

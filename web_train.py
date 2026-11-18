@@ -100,6 +100,9 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         import tensorflow as tf
         from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
         from model import build_web_model
+        import keras_portability
+        # Guarda rutas internas con «/» para que el modelo cargue en Windows, macOS y Linux.
+        keras_portability.install()
 
         tf.keras.utils.set_random_seed(42)
         if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
