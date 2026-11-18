@@ -1147,6 +1147,18 @@ def check_camera_dependencies():
         try:
             import_module(module)
         except (ImportError, OSError) as error:
+            text = str(error)
+            if (getattr(error, 'winerror', None) == 4551 or 'Control de aplicaciones' in text
+                    or 'Application Control' in text):
+                # Windows (Smart App Control o una directiva WDAC) bloqueó una DLL sin firma.
+                # Reinstalar paquetes no lo arregla: el bloqueo es del sistema operativo.
+                raise ValueError(
+                    f'Windows bloqueó una librería que necesita {name} ({text}). '
+                    'No es un error de Seña ni se arregla reinstalando. Abre Seguridad de Windows → '
+                    'Control de aplicaciones y navegador → Configuración de Smart App Control y elige '
+                    '«Desactivado»; luego reinicia Seña. Si es una computadora de la escuela o del trabajo, '
+                    'pide al área de sistemas que permita la carpeta LSM\\.venv.'
+                ) from error
             raise ValueError(
                 f'El Python de Seña no pudo cargar {name}: {error}. '
                 f'Desde la carpeta LSM, ejecuta {python} -m pip install -r requirements.txt. '
