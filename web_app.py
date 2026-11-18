@@ -1,6 +1,4 @@
-"""Página local para recopilar ejemplos, entrenar y probar el modelo de LSM.
-Ejecución local: .venv/bin/python web_app.py
-Acceso HTTPS temporal: .venv/bin/python web_app.py --quick-tunnel
+"""Página local para recopilar ejemplos, entrenar y probar el modelo de LSM. Ejecución local: .venv/bin/python web_app.pyz Acceso HTTPS temporal: .venv/bin/python web_app.py --quick-tunnel
 """
 from __future__ import annotations
 import argparse
@@ -25,7 +23,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 import uuid
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError as error:
+    if __name__ != '__main__':
+        raise
+    command = 'py -3.11 iniciar.py' if os.name == 'nt' else 'python3.11 iniciar.py'
+    raise SystemExit(f'No se pudo cargar NumPy: {error}. Abre Seña con {command}.') from None
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
@@ -34,6 +38,7 @@ from admin_auth import AdminGuard, TEAM_CONFIG
 from accounts import Accounts
 import team_access
 from process_status import process_alive
+from rig_overlay import upper_body_rig
 from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
@@ -947,6 +952,7 @@ class Runtime:
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
+            output['body_rig'] = upper_body_rig(getattr(results, 'pose_landmarks', None))
             output['hand_rig'] = [
                 [[round(float(p.x), 5), round(float(p.y), 5)] for p in hand.landmark]
                 for hand in (results.left_hand_landmarks, results.right_hand_landmarks)
@@ -1435,7 +1441,7 @@ def main():
         server.phone_origin = args.phone_origin
         server.local_mode = not args.public_url
         server.local_csrf = secrets.token_urlsafe(32)
-        address = args.public_url or f'http://127.0.0.1:{args.port}'
+        address = args.public_url or f'http://127.0.0.1:{server.server_port}'
         print(f'\nPágina de Seña: {address}', flush=True)
         print('Modo: acceso público con administración protegida.' if args.public_url else 'Modo: solo esta computadora, sin inicio de sesión.', flush=True)
         if args.quick_tunnel:

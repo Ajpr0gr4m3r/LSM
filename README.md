@@ -10,34 +10,25 @@ El sistema no incluye un diccionario universal ni modelos preentrenados de todas
 
 El diagrama muestra cómo se conectan las partes principales. Este README también incluye la [referencia de funciones](#referencia-función-por-función) para consultar el propósito de cada función y método.
 
-## Abrir Seña en Windows
+## Abrir Seña en otra computadora
 
-**La primera vez**, instala Python 3.11 de 64 bits y abre PowerShell en la carpeta `LSM`, donde está `web_app.py`. Ejecuta estos comandos uno por uno para crear el entorno e instalar las dependencias.
+Instala Python 3.11 de 64 bits. Abre la terminal en la carpeta del proyecto y ejecuta el comando para tu sistema.
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-**Cada vez que quieras abrir Seña**, ejecuta este comando desde la misma carpeta.
+**Windows (PowerShell)**
 
 ```powershell
-.\.venv\Scripts\python.exe web_app.py
+py -3.11 iniciar.py
 ```
 
-El navegador se abre automáticamente. También puedes entrar desde esa computadora en [http://127.0.0.1:8765](http://127.0.0.1:8765). Deja PowerShell abierto mientras usas Seña. Para detener el servidor, presiona **Ctrl+C** en esa ventana.
-
-## Preparar Python en macOS o Linux
-
-El repositorio usa Python 3.11. Si la carpeta `.venv/` no está disponible, desde la raíz ejecuta:
+**macOS o Linux**
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
+python3.11 iniciar.py
 ```
 
-En la computadora del proyecto normalmente ya existe ese entorno; en ese caso basta con usar `.venv/bin/python web_app.py`. No instales paquetes con otro Python si vas a ejecutar la aplicación con `.venv`.
+La primera vez, el iniciador crea `.venv` e instala las dependencias con conexión a internet. Después abre Seña en el navegador y muestra la URL en la terminal. Presiona **Ctrl+C** para cerrar el servidor. Si ya tienes un entorno y quieres actualizar sus dependencias, añade `--instalar`. Si moviste una copia con un entorno que dejó de funcionar, renombra `.venv` a `.venv.bak` para que el iniciador cree el entorno de esa computadora.
+
+Una computadora con Seña también puede alojar el sitio para otros dispositivos. Desde un teléfono, abre la dirección HTTPS que comparte ese servidor y usa **Admin** para acceder a Dataset y Entrenamiento.
 
 ## Avisos de MediaPipe en otra computadora
 
@@ -61,7 +52,7 @@ Usa el entorno de Python 3.11 creado **en esa computadora** con `requirements.tx
 
 ## Compatibilidad y grabaciones en equipos diferentes
 
-El rig dibuja únicamente puntos sobre el video vivo; no coloca una captura fija encima. Los puntos desaparecen después de 300 ms sin actualización y el estado cambia a «Esperando nueva detección…». Esto indica una demora del procesamiento, no necesariamente que la cámara se haya desconectado. Durante el uso de cámara se suspenden las consultas automáticas del inventario; las actualizaciones solicitadas al guardar o terminar una tanda se conservan.
+El rig dibuja puntos de cabeza, torso y manos sobre el video en vivo. Actívalo desde el visor en Dataset o Probar modelo. Los puntos desaparecen después de 850 ms sin actualización y el estado cambia a «Esperando nueva detección…». Esto indica una demora del procesamiento, no necesariamente que la cámara se haya desconectado. Durante el uso de cámara se suspenden las consultas automáticas del inventario; las actualizaciones solicitadas al guardar o terminar una tanda se conservan.
 
 La aplicación web usa la cámara del navegador y un servidor Python local. El entorno de referencia es **Python 3.11 de 64 bits** en macOS (Intel/Apple Silicon), Windows x86-64 y Linux x86-64. Esto no garantiza soporte para cualquier arquitectura o versión de sistema: MediaPipe 0.10.14 y TensorFlow deben disponer de paquetes compatibles. Windows ARM y otros equipos requieren una comprobación específica antes de considerarlos compatibles. Crea `.venv` en cada computadora; nunca copies el entorno virtual entre sistemas.
 
@@ -95,7 +86,7 @@ El comando inicia el servidor, imprime la URL `http://127.0.0.1:8765` en Termina
 
 Actualiza el proyecto, abre Seña y pulsa **Admin**. Las copias nuevas usan la contraseña acordada del equipo sin ejecutar un configurador. El repositorio guarda su verificador PBKDF2 con sal en `admin_default.json`.
 
-Si esta instalación tiene una contraseña configurada explícitamente, `SENA_ADMIN_PASSWORD` tiene prioridad, seguido de `web_data/admin/auth.json`. Para alinear una copia con una contraseña local distinta, ejecuta `python3 admin_auth.py --replace` en macOS o Linux, o `py -3.11 admin_auth.py --replace` en Windows, e introduce la contraseña del equipo. Si el sitio de Render tiene `SENA_ADMIN_PASSWORD` configurada con otro valor, actualízala allí.
+La contraseña del equipo también se acepta en copias con una clave administrativa propia. Esa clave adicional puede venir de `SENA_ADMIN_PASSWORD` o, en su ausencia, de `web_data/admin/auth.json`.
 
 ### Abrir Seña temporalmente sin Tailscale
 

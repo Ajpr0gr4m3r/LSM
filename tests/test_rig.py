@@ -35,13 +35,25 @@ class RigTests(unittest.TestCase):
         runtime.session(sid).holistic = object()
         points = np.zeros(FEATURE_DIM, dtype=np.float32)
         regions(points)[2][0] = [.7,.6,.01]
-        fake = types.SimpleNamespace(mediapipe_detection=lambda image, model:(image, object()),
-                                     extract_keypoints=lambda result:points, hands_detected=lambda result:True)
+        landmarks = [types.SimpleNamespace(x=.2, y=.4, visibility=0) for _ in range(33)]
+        landmarks[0] = types.SimpleNamespace(x=.55, y=.2, visibility=.9)
+        landmarks[11] = types.SimpleNamespace(x=.3, y=.4, visibility=.8)
+        landmarks[23] = types.SimpleNamespace(x=.25, y=1.2, visibility=.9)
+        tracked = types.SimpleNamespace(
+            pose_landmarks=types.SimpleNamespace(landmark=landmarks),
+            left_hand_landmarks=None, right_hand_landmarks=None,
+        )
+        fake = types.SimpleNamespace(mediapipe_detection=lambda image, model: (image, tracked),
+                                     extract_keypoints=lambda result: points,
+                                     hands_detected=lambda result: False)
         image = cv2.imencode('.jpg', np.zeros((16,32,3), np.uint8))[1].tobytes()
-        payload = {'session':sid, 'image':base64.b64encode(image).decode(), 'mode':'train'}
-        with patch.dict('sys.modules', {'utils':fake}):
-            self.assertNotIn('rig', runtime.frame(payload))
-            result = runtime.frame({**payload, 'rig':True})
-            self.assertNotIn('rig', result, 'El protocolo actual no entrega un esqueleto para superponer.')
-            self.assertEqual(len(runtime.session(sid).frames), 0)
-            self.assertIsNone(result['candidate'])
+        payload = {'session': sid, 'image': base64.b64encode(image).decode(), 'mode': 'train'}
+        with patch.dict('sys.modules', {'utils': fake}), patch.object(
+            runtime, 'recover_hand_tracking', return_value=(tracked, False)
+        ):
+            self.assertNotIn('body_rig', runtime.frame(payload))
+            for mode in ('train', 'test'):
+                result = runtime.frame({**payload, 'mode': mode, 'show_hand_rig': True})
+                self.assertEqual(result['body_rig'], {0: [.55, .2], 11: [.3, .4]})
+                self.assertEqual(result['hand_rig'], [])
+                self.assertIsNone(result['candidate'])
