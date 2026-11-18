@@ -10,7 +10,10 @@
     <script defer src="/static/continuous.js"></script>
     <script defer src="/static/speech.js"></script>
     <script defer src="/static/app.js"></script>
+    <script defer src="/static/phrases.js"></script>
     <script defer src="/static/studio.js"></script>
+    <script defer src="/static/vocabulary.js"></script>
+    <script defer src="/static/transcript.js"></script>
     <script defer src="/static/accounts.js"></script>
     <script defer src="/static/conversation.js"></script>
   </head>
@@ -355,6 +358,45 @@
                     </div>
                     <button id="download" class="secondary" disabled>Descargar sesión ↓</button>
                   </div>
+                  <div id="transcript-card" class="history-card transcript-card">
+                    <div class="card-heading">
+                      <h3>Conversación continua</h3>
+                      <span id="transcript-duration" class="mini-badge">0:00</span>
+                    </div>
+                    <p class="help">
+                      Haz varias señas seguidas: Seña las une en una frase en español y la cierra
+                      cuando haces una pausa. No hay límite de tiempo.
+                    </p>
+                    <span class="small-label">Frase en curso</span>
+                    <p id="transcript-draft" class="transcript-draft" aria-live="polite">—</p>
+                    <div id="transcript-glosses" class="chips" aria-label="Señas de la frase en curso"></div>
+                    <ol id="transcript-list" class="transcript-list" aria-live="polite" aria-label="Frases traducidas"></ol>
+                    <p id="transcript-empty" class="help">Las frases completas aparecerán aquí.</p>
+                    <div class="transcript-settings">
+                      <label for="transcript-pause">Cerrar la frase tras una pausa de
+                        <select id="transcript-pause">
+                          <option value="2000">2 segundos</option>
+                          <option value="3000" selected>3 segundos</option>
+                          <option value="4000">4 segundos</option>
+                          <option value="6000">6 segundos</option>
+                        </select>
+                      </label>
+                      <label for="transcript-voice">Leer en voz alta
+                        <select id="transcript-voice">
+                          <option value="sentence" selected>Cada frase completa</option>
+                          <option value="sign">Cada seña</option>
+                          <option value="off">No leer</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="input-row transcript-actions">
+                      <button id="transcript-finish" class="primary" type="button" disabled>Terminar frase</button>
+                      <button id="transcript-undo" class="secondary" type="button" disabled>Quitar última seña</button>
+                      <button id="transcript-copy" class="secondary" type="button" disabled>Copiar</button>
+                      <button id="transcript-download" class="secondary" type="button" disabled>Descargar ↓</button>
+                      <button id="transcript-clear" class="text-button" type="button" disabled>Limpiar</button>
+                    </div>
+                  </div>
                 </div>
               </aside>
             </div>
@@ -534,6 +576,35 @@
                     <a id="alphabet-source" target="_blank" rel="noopener noreferrer"
                       >Referencia de dactilología ↗</a
                     >
+                  </details>
+                </section>
+                <section id="vocabulary-panel" class="alphabet-panel vocabulary-panel">
+                  <details open>
+                    <summary>Palabras y frases <span id="vocabulary-count"></span></summary>
+                    <h3>Vocabulario para conversar</h3>
+                    <p class="help">
+                      Elige una categoría y pulsa una palabra o frase para preparar su nombre antes de
+                      grabar. Las frases cortas (≈3 s) se graban como una sola seña; las largas se
+                      arman en Conversación con las palabras confirmadas.
+                    </p>
+                    <label for="vocabulary-category">Categoría</label>
+                    <select id="vocabulary-category"></select>
+                    <div class="alphabet-actions">
+                      <button id="add-vocabulary-category" class="primary" type="button">
+                        Añadir categoría al vocabulario
+                      </button>
+                    </div>
+                    <p id="vocabulary-progress" class="help"></p>
+                    <div id="vocabulary-grid" class="alphabet-grid vocabulary-grid" aria-label="Palabras, frases y ejemplos"></div>
+                    <p id="vocabulary-selection" class="help">
+                      Selecciona una palabra o frase para preparar su nombre al terminar la grabación.
+                    </p>
+                    <p class="help">
+                      Añadir una categoría solo crea etiquetas: para reconocerlas graba al menos 30
+                      ejemplos variados de cada una y entrena. Valida cada seña con una persona sorda
+                      usuaria de LSM o con el diccionario
+                      <a href="https://www.conapred.org.mx/documentos_cedoc/DiccioSenas_ManosVoz_ACCSS.pdf" target="_blank" rel="noopener noreferrer">Manos con voz ↗</a>.
+                    </p>
                   </details>
                 </section>
               </div>

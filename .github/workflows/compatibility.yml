@@ -26,4 +26,6 @@ jobs:
       - run: python -m unittest discover -s tests -p test_frame_timing.py
       - run: python -m unittest discover -s tests -p test_runtime_speed.py
       - run: python -m unittest discover -s tests -p test_confirmation_delivery.py
-      - run: node --test tests/test_frame_connection.js tests/test_cameras.js tests/test_confirmation_voice.js tests/test_live_rig.js
+      - run: python -m unittest discover -s tests -p test_keras_portability.py
+      - run: python -m unittest discover -s tests -p test_vocabulary_catalog.py
+      - run: node --test tests/test_frame_connection.js tests/test_cameras.js tests/test_confirmation_voice.js tests/test_live_rig.js tests/test_phrases.js tests/test_transcript.js

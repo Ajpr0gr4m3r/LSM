@@ -112,3 +112,7 @@ models/libras/
 # Credenciales administrativas locales y ejemplos retirados
 web_data/admin/
 web_data/trash/
+
+# Índice local de metadatos (caché para arrancar rápido; se regenera solo)
+models/*/.metadata_index.json
+models/*/.metadata_index.json.tmp

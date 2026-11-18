@@ -148,5 +148,875 @@
     "id": "custom_a25e5e3df76e411897cc22a7be66cae4",
     "text": "Te q",
     "meaning": "Te q"
+  },
+  {
+    "id": "custom_6bbd4d1346264cc2b3e533c5ff30630d",
+    "text": "Buenas tardes",
+    "meaning": "Buenas tardes"
+  },
+  {
+    "id": "custom_5412ef7ef6c340b699d376f6b57921d0",
+    "text": "Buenas noches",
+    "meaning": "Buenas noches"
+  },
+  {
+    "id": "custom_7ef8838e6cf541c580c8ba5b2eec0166",
+    "text": "De nada",
+    "meaning": "De nada"
+  },
+  {
+    "id": "custom_03cdb50e2e594ac292b41abf4dd51a11",
+    "text": "Perdón",
+    "meaning": "Perdón"
+  },
+  {
+    "id": "custom_ec7c7ae011b6413e863dc5a07e133754",
+    "text": "Con permiso",
+    "meaning": "Con permiso"
+  },
+  {
+    "id": "custom_e97998ece6f443408b34e2a4294535d0",
+    "text": "Bienvenido",
+    "meaning": "Bienvenido"
+  },
+  {
+    "id": "custom_f03b7c58aea5430d817ac0a9db229a75",
+    "text": "Hasta luego",
+    "meaning": "Hasta luego"
+  },
+  {
+    "id": "custom_624d222cdd654c94b4b6edabfddfe35c",
+    "text": "Hasta mañana",
+    "meaning": "Hasta mañana"
+  },
+  {
+    "id": "custom_e57b0a1f57eb4efa81e0165e9a62f7c1",
+    "text": "Yo",
+    "meaning": "Yo"
+  },
+  {
+    "id": "custom_2094fe43393d4755addb81f557dd922a",
+    "text": "Tú",
+    "meaning": "Tú"
+  },
+  {
+    "id": "custom_93a7f3b1e8e447dd842388231ab2c6ed",
+    "text": "Él",
+    "meaning": "Él"
+  },
+  {
+    "id": "custom_af61bdb296a346bb85a0698909aa340b",
+    "text": "Ella",
+    "meaning": "Ella"
+  },
+  {
+    "id": "custom_1335797b457e4309ac8e90828512163f",
+    "text": "Nosotros",
+    "meaning": "Nosotros"
+  },
+  {
+    "id": "custom_23769bf7531c49af875604b478818c4f",
+    "text": "Ustedes",
+    "meaning": "Ustedes"
+  },
+  {
+    "id": "custom_335e9e97f1e34a26859d0a034848be31",
+    "text": "Ellos",
+    "meaning": "Ellos"
+  },
+  {
+    "id": "custom_979aeb1ef8194103896bf9e49d95421f",
+    "text": "Nombre",
+    "meaning": "Nombre"
+  },
+  {
+    "id": "custom_5579b34ebfc244dcae578f75358c5ca4",
+    "text": "Persona",
+    "meaning": "Persona"
+  },
+  {
+    "id": "custom_0f80878f2b8345e588ddad3aef20b78a",
+    "text": "Amigo",
+    "meaning": "Amigo"
+  },
+  {
+    "id": "custom_540dac74d250441cb40980c50d70609f",
+    "text": "Sordo",
+    "meaning": "Sordo"
+  },
+  {
+    "id": "custom_64bfc24307824c77ae13ca799f886666",
+    "text": "Oyente",
+    "meaning": "Oyente"
+  },
+  {
+    "id": "custom_b0a34f6a310e429eb69e072f3935edc6",
+    "text": "Intérprete",
+    "meaning": "Intérprete"
+  },
+  {
+    "id": "custom_009b3cfc320e438d85dd2e5357da65fc",
+    "text": "Maestro",
+    "meaning": "Maestro"
+  },
+  {
+    "id": "custom_c023602721f84c87b5f0f4b7173a38b1",
+    "text": "Alumno",
+    "meaning": "Alumno"
+  },
+  {
+    "id": "custom_75b53f4f7c994cc0b14b33b73267fa0d",
+    "text": "Doctor",
+    "meaning": "Doctor"
+  },
+  {
+    "id": "custom_3922ea8b75dd45e79b3a19e925aa526e",
+    "text": "Familia",
+    "meaning": "Familia"
+  },
+  {
+    "id": "custom_e0121a4757bf4ffa9ece97f0ca22ba7a",
+    "text": "Mamá",
+    "meaning": "Mamá"
+  },
+  {
+    "id": "custom_0a5b97bd89e347f3a910ec0e052dc66a",
+    "text": "Papá",
+    "meaning": "Papá"
+  },
+  {
+    "id": "custom_484f380ebad544f499636fb2ccd213b8",
+    "text": "Hermano",
+    "meaning": "Hermano"
+  },
+  {
+    "id": "custom_3791b0b497db45778a4d02ab5c968b93",
+    "text": "Hermana",
+    "meaning": "Hermana"
+  },
+  {
+    "id": "custom_65c40a23175b4374a97c4e956a4e9503",
+    "text": "Hijo",
+    "meaning": "Hijo"
+  },
+  {
+    "id": "custom_7a076571b1e4489db470a6e2e7fc3595",
+    "text": "Hija",
+    "meaning": "Hija"
+  },
+  {
+    "id": "custom_2150e21cff59424fa2a69b9b5e25b96e",
+    "text": "Abuelo",
+    "meaning": "Abuelo"
+  },
+  {
+    "id": "custom_b566292c13f44ba3a5078f91bae9a1a3",
+    "text": "Abuela",
+    "meaning": "Abuela"
+  },
+  {
+    "id": "custom_bbe519421ab04b4d890a1d8f0db528bb",
+    "text": "Esposo",
+    "meaning": "Esposo"
+  },
+  {
+    "id": "custom_41161b23fc7049a78610086ec42895fe",
+    "text": "Esposa",
+    "meaning": "Esposa"
+  },
+  {
+    "id": "custom_bf6efe6f7e0f43d085e2dd1fb433128c",
+    "text": "Bebé",
+    "meaning": "Bebé"
+  },
+  {
+    "id": "custom_8412f0a6bf2943b5a068f5b57a763479",
+    "text": "Qué",
+    "meaning": "Qué"
+  },
+  {
+    "id": "custom_dd8666d4120a4bb9a5b71bc12bd3a345",
+    "text": "Quién",
+    "meaning": "Quién"
+  },
+  {
+    "id": "custom_0ce12cd06f204b088a0a2ed8ac488fd9",
+    "text": "Cómo",
+    "meaning": "Cómo"
+  },
+  {
+    "id": "custom_3016b9c582414878b3b59b9c14bd61f1",
+    "text": "Dónde",
+    "meaning": "Dónde"
+  },
+  {
+    "id": "custom_8db13cdfa7f54b91bf26d242117f5669",
+    "text": "Cuándo",
+    "meaning": "Cuándo"
+  },
+  {
+    "id": "custom_c6830cf269554a3c94676fb047f561ba",
+    "text": "Por qué",
+    "meaning": "Por qué"
+  },
+  {
+    "id": "custom_18b21aeebcb04bbab8bbfde2007d5d9c",
+    "text": "Cuánto",
+    "meaning": "Cuánto"
+  },
+  {
+    "id": "custom_53e24987f877400ba253148e2f020d5e",
+    "text": "Cuál",
+    "meaning": "Cuál"
+  },
+  {
+    "id": "custom_8fa363df15bf42f6a611e5db52f67121",
+    "text": "Querer",
+    "meaning": "Querer"
+  },
+  {
+    "id": "custom_8f2a346cb75541b29df815a895a6cf46",
+    "text": "Necesitar",
+    "meaning": "Necesitar"
+  },
+  {
+    "id": "custom_b4b6382912314d0da1fe38c4c6624045",
+    "text": "Tener",
+    "meaning": "Tener"
+  },
+  {
+    "id": "custom_84f9d93611274a3e9ef0fe2161dd0f26",
+    "text": "Ir",
+    "meaning": "Ir"
+  },
+  {
+    "id": "custom_073edda9bc90425484041120cba114ad",
+    "text": "Venir",
+    "meaning": "Venir"
+  },
+  {
+    "id": "custom_bbb9e9d49c784933b386f09fc49a1f6b",
+    "text": "Comer",
+    "meaning": "Comer"
+  },
+  {
+    "id": "custom_2337b5af04de43f0bfb75a57358ca881",
+    "text": "Beber",
+    "meaning": "Beber"
+  },
+  {
+    "id": "custom_92bfab5180a742c0bb1dcc8f3d8d5a3c",
+    "text": "Dormir",
+    "meaning": "Dormir"
+  },
+  {
+    "id": "custom_782bc22e8866452bb65a049a533ebec3",
+    "text": "Trabajar",
+    "meaning": "Trabajar"
+  },
+  {
+    "id": "custom_9b95ec66543e46caad8a2afca44645a3",
+    "text": "Estudiar",
+    "meaning": "Estudiar"
+  },
+  {
+    "id": "custom_a452561e0bc546e1adeebe6beaa3ee52",
+    "text": "Aprender",
+    "meaning": "Aprender"
+  },
+  {
+    "id": "custom_880b1b2d32a84070b4cea424bc9383cd",
+    "text": "Entender",
+    "meaning": "Entender"
+  },
+  {
+    "id": "custom_1a3443f1e8914ed7a102b4ecaa2c8417",
+    "text": "Saber",
+    "meaning": "Saber"
+  },
+  {
+    "id": "custom_2e983da074ae4a3fb359985f683fbe82",
+    "text": "Conocer",
+    "meaning": "Conocer"
+  },
+  {
+    "id": "custom_6bab64377df74640aeae3fc57edc36bf",
+    "text": "Ayudar",
+    "meaning": "Ayudar"
+  },
+  {
+    "id": "custom_5a6d0068d6e5496b9b9b4fb062f6f80c",
+    "text": "Hablar",
+    "meaning": "Hablar"
+  },
+  {
+    "id": "custom_17d3d2c137b649a09bfb0b1f56137a71",
+    "text": "Ver",
+    "meaning": "Ver"
+  },
+  {
+    "id": "custom_2e8d33b0c40342188f10b4adce500023",
+    "text": "Esperar",
+    "meaning": "Esperar"
+  },
+  {
+    "id": "custom_37282f70840440b383b9a9b5b8ac202f",
+    "text": "Llamar",
+    "meaning": "Llamar"
+  },
+  {
+    "id": "custom_8175e37f444a4d42a4cb4969b0084169",
+    "text": "Vivir",
+    "meaning": "Vivir"
+  },
+  {
+    "id": "custom_7596846a55b44f038f9a17c3b95d9fd7",
+    "text": "Gustar",
+    "meaning": "Gustar"
+  },
+  {
+    "id": "custom_9c4e25dccb0f486d8a76627015cad82c",
+    "text": "Poder",
+    "meaning": "Poder"
+  },
+  {
+    "id": "custom_397f688e294c4eacadb8639325661eea",
+    "text": "Hacer",
+    "meaning": "Hacer"
+  },
+  {
+    "id": "custom_34f268476ef04bc79bd251774c5cc7bc",
+    "text": "Jugar",
+    "meaning": "Jugar"
+  },
+  {
+    "id": "custom_6e345148016c4344bc4dea4d264ad714",
+    "text": "Pagar",
+    "meaning": "Pagar"
+  },
+  {
+    "id": "custom_bd2127044e484130b900fdbc13cc0d05",
+    "text": "Comprar",
+    "meaning": "Comprar"
+  },
+  {
+    "id": "custom_dfe88e542668439fbc8a3c4522fc0be0",
+    "text": "Bien",
+    "meaning": "Bien"
+  },
+  {
+    "id": "custom_9a81943fe1754be2b5587dd25abfde5d",
+    "text": "Mal",
+    "meaning": "Mal"
+  },
+  {
+    "id": "custom_99ea1bb5b8c04d0eba25dfbba4b1dbca",
+    "text": "Feliz",
+    "meaning": "Feliz"
+  },
+  {
+    "id": "custom_f856eb3c6fb24395bcb5e1c0dd573e50",
+    "text": "Triste",
+    "meaning": "Triste"
+  },
+  {
+    "id": "custom_de43be2b14724daba87142b2db5c05ec",
+    "text": "Enojado",
+    "meaning": "Enojado"
+  },
+  {
+    "id": "custom_752f3ac8989347a8a4c8c432c4ff53f5",
+    "text": "Cansado",
+    "meaning": "Cansado"
+  },
+  {
+    "id": "custom_0810967a8615426f8dac7cfe2e9da65b",
+    "text": "Enfermo",
+    "meaning": "Enfermo"
+  },
+  {
+    "id": "custom_9b59ee2e1a20421ab1ecdd049bfbb999",
+    "text": "Preocupado",
+    "meaning": "Preocupado"
+  },
+  {
+    "id": "custom_f674d4ea431141048e31b08617b9c08f",
+    "text": "Nervioso",
+    "meaning": "Nervioso"
+  },
+  {
+    "id": "custom_81fb652370d84baea567f3b2bc06e384",
+    "text": "Tranquilo",
+    "meaning": "Tranquilo"
+  },
+  {
+    "id": "custom_88c29c49bb084fbd83e4c24af39a6cfb",
+    "text": "Hambre",
+    "meaning": "Hambre"
+  },
+  {
+    "id": "custom_a4e94388e0144b5fb6c47b99b0e83881",
+    "text": "Sed",
+    "meaning": "Sed"
+  },
+  {
+    "id": "custom_43802c22a7654ed691243204a9799085",
+    "text": "Dolor",
+    "meaning": "Dolor"
+  },
+  {
+    "id": "custom_5b998c5ca5814f78a9ff5efa81950947",
+    "text": "Miedo",
+    "meaning": "Miedo"
+  },
+  {
+    "id": "custom_71377bb4b32f472fa3cc5f5d061e030a",
+    "text": "Hoy",
+    "meaning": "Hoy"
+  },
+  {
+    "id": "custom_a0f1c29cdcfc43dfb0ac6bfadb3d18bd",
+    "text": "Mañana",
+    "meaning": "Mañana"
+  },
+  {
+    "id": "custom_4254719ade964f2d80d6dd0871b2b371",
+    "text": "Ayer",
+    "meaning": "Ayer"
+  },
+  {
+    "id": "custom_c62c8aa8e75f4925b23e3ad2ef7a669b",
+    "text": "Ahora",
+    "meaning": "Ahora"
+  },
+  {
+    "id": "custom_00fbcc9c52ca4b5d9a301274ac309cd0",
+    "text": "Después",
+    "meaning": "Después"
+  },
+  {
+    "id": "custom_fc346218ae394e87b32170d7a780e766",
+    "text": "Antes",
+    "meaning": "Antes"
+  },
+  {
+    "id": "custom_1c373ab9cf584ad7a18e685a928d492b",
+    "text": "Siempre",
+    "meaning": "Siempre"
+  },
+  {
+    "id": "custom_e33d24e6026c4b93954b6fad87f3880e",
+    "text": "Nunca",
+    "meaning": "Nunca"
+  },
+  {
+    "id": "custom_272e408c2e2949289db8244bfc6a8091",
+    "text": "Día",
+    "meaning": "Día"
+  },
+  {
+    "id": "custom_e0eb0969a2c346d1833314029fd5cd69",
+    "text": "Noche",
+    "meaning": "Noche"
+  },
+  {
+    "id": "custom_202c192fab2b4055ac979223f89a5b51",
+    "text": "Semana",
+    "meaning": "Semana"
+  },
+  {
+    "id": "custom_47754e2aa915404391130e27f4655f00",
+    "text": "Mes",
+    "meaning": "Mes"
+  },
+  {
+    "id": "custom_e58ccba4df5b49c9a55fc4bca52fafc7",
+    "text": "Año",
+    "meaning": "Año"
+  },
+  {
+    "id": "custom_782ca5478e0a43e1ada8a0e7e57edd8e",
+    "text": "Hora",
+    "meaning": "Hora"
+  },
+  {
+    "id": "custom_13cee507a5ff4e2cbed1f4fafcbdf741",
+    "text": "Edad",
+    "meaning": "Edad"
+  },
+  {
+    "id": "custom_ca068ba282f04a38ad4ade0d39016d7f",
+    "text": "Casa",
+    "meaning": "Casa"
+  },
+  {
+    "id": "custom_1991a31f00414c8dbc2e57d9f216512e",
+    "text": "Escuela",
+    "meaning": "Escuela"
+  },
+  {
+    "id": "custom_58f8083e7b26429583deb00e79866d83",
+    "text": "Trabajo",
+    "meaning": "Trabajo"
+  },
+  {
+    "id": "custom_b644bd89c5a3438f86ef459b7818c787",
+    "text": "Hospital",
+    "meaning": "Hospital"
+  },
+  {
+    "id": "custom_8c6aefa10ef542ddab5de075eee25a9d",
+    "text": "Baño",
+    "meaning": "Baño"
+  },
+  {
+    "id": "custom_4c3c61331e63420ab77fb948ed42fb75",
+    "text": "Tienda",
+    "meaning": "Tienda"
+  },
+  {
+    "id": "custom_fa94c2e0ac3448168b57b2d5545b3daa",
+    "text": "Restaurante",
+    "meaning": "Restaurante"
+  },
+  {
+    "id": "custom_86ea32026c6b4bccb1f01b2348af129d",
+    "text": "Parque",
+    "meaning": "Parque"
+  },
+  {
+    "id": "custom_29eca8a260af417a84749c2f64e2faae",
+    "text": "Banco",
+    "meaning": "Banco"
+  },
+  {
+    "id": "custom_9a64de7d786746f5810c2d3e10491f99",
+    "text": "Farmacia",
+    "meaning": "Farmacia"
+  },
+  {
+    "id": "custom_a457753504274632a3cfe1602a3db8c0",
+    "text": "Mercado",
+    "meaning": "Mercado"
+  },
+  {
+    "id": "custom_1ec2d6c7914f4cefb460e931a8a7ecd7",
+    "text": "Agua",
+    "meaning": "Agua"
+  },
+  {
+    "id": "custom_a27c4ccc31da4da89460d19406703ea5",
+    "text": "Comida",
+    "meaning": "Comida"
+  },
+  {
+    "id": "custom_f008eb1acaeb4df786beaaf485e47333",
+    "text": "Dinero",
+    "meaning": "Dinero"
+  },
+  {
+    "id": "custom_7f7a67e0e2bc4c41a19eedf45be224a5",
+    "text": "Teléfono",
+    "meaning": "Teléfono"
+  },
+  {
+    "id": "custom_520754dc296b4489ab61dfacb307d5d4",
+    "text": "Medicina",
+    "meaning": "Medicina"
+  },
+  {
+    "id": "custom_1431167185f0409fb59f052e1476213e",
+    "text": "Ropa",
+    "meaning": "Ropa"
+  },
+  {
+    "id": "custom_277b14fa6b9645ac8c8f9f4936c1104d",
+    "text": "Libro",
+    "meaning": "Libro"
+  },
+  {
+    "id": "custom_253f92c545df46e79ca5c368be0b7901",
+    "text": "Computadora",
+    "meaning": "Computadora"
+  },
+  {
+    "id": "custom_2defc601269c41dc82bd1f605e2e9e76",
+    "text": "Coche",
+    "meaning": "Coche"
+  },
+  {
+    "id": "custom_aa749cf66d43420683e91b892058433f",
+    "text": "Camión",
+    "meaning": "Camión"
+  },
+  {
+    "id": "custom_e219ec03656349f6b492bb1934a93f18",
+    "text": "Tal vez",
+    "meaning": "Tal vez"
+  },
+  {
+    "id": "custom_0df18421bfe24333aa0f70f2380b0575",
+    "text": "No sé",
+    "meaning": "No sé"
+  },
+  {
+    "id": "custom_ad97d7d062714d269ecc81d7fd1ce72c",
+    "text": "Más",
+    "meaning": "Más"
+  },
+  {
+    "id": "custom_1608a9ffe28e4561bf85fd77c522e4ab",
+    "text": "Menos",
+    "meaning": "Menos"
+  },
+  {
+    "id": "custom_72b3ea8ce593498db7e55ea115e71410",
+    "text": "Mucho",
+    "meaning": "Mucho"
+  },
+  {
+    "id": "custom_a490157608144682a9c9fd17e15d0f51",
+    "text": "Poco",
+    "meaning": "Poco"
+  },
+  {
+    "id": "custom_0b1abbfe6de74d9484fe14d0d39ad5c8",
+    "text": "Otra vez",
+    "meaning": "Otra vez"
+  },
+  {
+    "id": "custom_ed849b928f6947eeab1d5cdc0be1e908",
+    "text": "También",
+    "meaning": "También"
+  },
+  {
+    "id": "custom_bc576280baf54ea9be05ede61f28a1d7",
+    "text": "Pero",
+    "meaning": "Pero"
+  },
+  {
+    "id": "custom_cc5cbbd8c2fd4864be2b498635bbdcc8",
+    "text": "Con",
+    "meaning": "Con"
+  },
+  {
+    "id": "custom_0d862bbb418f4409ada90b6be889f290",
+    "text": "Sin",
+    "meaning": "Sin"
+  },
+  {
+    "id": "custom_f3e38b0c5ae14a2abf8ff5a961afd975",
+    "text": "Igual",
+    "meaning": "Igual"
+  },
+  {
+    "id": "custom_b9c45ed95c1745b7a0216766ff2dfe14",
+    "text": "Diferente",
+    "meaning": "Diferente"
+  },
+  {
+    "id": "custom_2ff06589ebfd4c369daee38c9954f608",
+    "text": "Listo",
+    "meaning": "Listo"
+  },
+  {
+    "id": "custom_ca0e93372be0469baaa9a4219857ca1a",
+    "text": "Uno",
+    "meaning": "Uno"
+  },
+  {
+    "id": "custom_3cc79676736140c6a612796d65ac69b8",
+    "text": "Dos",
+    "meaning": "Dos"
+  },
+  {
+    "id": "custom_3365c6316b1d466d899c20287c2a522d",
+    "text": "Tres",
+    "meaning": "Tres"
+  },
+  {
+    "id": "custom_f5431709861e49c4ae030e8dbe4db03a",
+    "text": "Cuatro",
+    "meaning": "Cuatro"
+  },
+  {
+    "id": "custom_8d2f76edb48749e6a50f1441c34dc2c8",
+    "text": "Cinco",
+    "meaning": "Cinco"
+  },
+  {
+    "id": "custom_cc950a8862a740adab7105332a1abd9b",
+    "text": "Seis",
+    "meaning": "Seis"
+  },
+  {
+    "id": "custom_b2c789163fe2408e93e0de8aac87203d",
+    "text": "Siete",
+    "meaning": "Siete"
+  },
+  {
+    "id": "custom_cdee557de6e7444691b056c703069fc6",
+    "text": "Ocho",
+    "meaning": "Ocho"
+  },
+  {
+    "id": "custom_d7b26e40d67b4c03a0b89cf0f075e570",
+    "text": "Nueve",
+    "meaning": "Nueve"
+  },
+  {
+    "id": "custom_54ca0f868f4d4739ad4d53b7741f0ff4",
+    "text": "Diez",
+    "meaning": "Diez"
+  },
+  {
+    "id": "custom_a6f76dbffc7843eea7c57c2de9abc1e6",
+    "text": "Emergencia",
+    "meaning": "Emergencia"
+  },
+  {
+    "id": "custom_cfbf4cf3c1bd480a8d964ee20d99c126",
+    "text": "Policía",
+    "meaning": "Policía"
+  },
+  {
+    "id": "custom_989584844e7645c39f149b7dde34cc50",
+    "text": "Ambulancia",
+    "meaning": "Ambulancia"
+  },
+  {
+    "id": "custom_ae296741f0864e1590c443eab9c6384a",
+    "text": "Incendio",
+    "meaning": "Incendio"
+  },
+  {
+    "id": "custom_57525c2528ca49ada1627839bb171e48",
+    "text": "Peligro",
+    "meaning": "Peligro"
+  },
+  {
+    "id": "custom_3a4b1b060cbe49ef907b27b9ebf71b91",
+    "text": "Accidente",
+    "meaning": "Accidente"
+  },
+  {
+    "id": "custom_76965ae7e4d946e69603654e1b3e9f46",
+    "text": "¿Cómo estás?",
+    "meaning": "¿Cómo estás?"
+  },
+  {
+    "id": "custom_8c697c8f00a74869bdb9365e417a51ce",
+    "text": "Estoy bien",
+    "meaning": "Estoy bien"
+  },
+  {
+    "id": "custom_106eaf73078c49a8ad9092a4765d6e69",
+    "text": "¿Cómo te llamas?",
+    "meaning": "¿Cómo te llamas?"
+  },
+  {
+    "id": "custom_1f545549d8bb4e9a84c369f1155c0c70",
+    "text": "¿Cuántos años tienes?",
+    "meaning": "¿Cuántos años tienes?"
+  },
+  {
+    "id": "custom_3fc9ba0dbc534939a1f80a1985c05a5a",
+    "text": "¿Dónde está el baño?",
+    "meaning": "¿Dónde está el baño?"
+  },
+  {
+    "id": "custom_cb683816faec45f9a032649730f5590b",
+    "text": "No entiendo",
+    "meaning": "No entiendo"
+  },
+  {
+    "id": "custom_8d80a1eeb855408da119a675b7435059",
+    "text": "¿Puedes repetir?",
+    "meaning": "¿Puedes repetir?"
+  },
+  {
+    "id": "custom_d6f6623f985042fb9c0e8d6c6babc105",
+    "text": "Más despacio, por favor",
+    "meaning": "Más despacio, por favor"
+  },
+  {
+    "id": "custom_6ffa68c189f04348848e11fe970fe98c",
+    "text": "Soy sordo",
+    "meaning": "Soy sordo"
+  },
+  {
+    "id": "custom_bc3c4da4905a455187dab33e928e9c1d",
+    "text": "Necesito ayuda",
+    "meaning": "Necesito ayuda"
+  },
+  {
+    "id": "custom_85eaa00c28d74f5c8016a227c394e96f",
+    "text": "Necesito un intérprete",
+    "meaning": "Necesito un intérprete"
+  },
+  {
+    "id": "custom_7d4c13cbc8234130a70eeb676f54567f",
+    "text": "Llama a una ambulancia",
+    "meaning": "Llama a una ambulancia"
+  },
+  {
+    "id": "custom_b051ce64f97244cdb149c8a6befef3a3",
+    "text": "Me duele",
+    "meaning": "Me duele"
+  },
+  {
+    "id": "custom_4fd37ed358ab4ce8be47cdc8a877336f",
+    "text": "Tengo hambre",
+    "meaning": "Tengo hambre"
+  },
+  {
+    "id": "custom_2c171a072d1f4678aef79433699577f9",
+    "text": "Tengo sed",
+    "meaning": "Tengo sed"
+  },
+  {
+    "id": "custom_0efe799ed17e420cb456b4d9d4db4e26",
+    "text": "¿Qué hora es?",
+    "meaning": "¿Qué hora es?"
+  },
+  {
+    "id": "custom_619f73b8185e44b9a1f7fbdfbce257f6",
+    "text": "¿Cuánto cuesta?",
+    "meaning": "¿Cuánto cuesta?"
+  },
+  {
+    "id": "custom_b90a10261f084b6baea9ff4b9a9a8304",
+    "text": "Nos vemos mañana",
+    "meaning": "Nos vemos mañana"
+  },
+  {
+    "id": "custom_0a2483e01a0144c280acd622c8f1742d",
+    "text": "Que tengas buen día",
+    "meaning": "Que tengas buen día"
+  },
+  {
+    "id": "custom_b409376d178049a2ad22e99d6a097f9e",
+    "text": "¿Me ayudas?",
+    "meaning": "¿Me ayudas?"
+  },
+  {
+    "id": "custom_23cdaabbfd50403bb28209e182c7ead0",
+    "text": "Lo siento",
+    "meaning": "Lo siento"
+  },
+  {
+    "id": "custom_f55442dcb91646968583a1e94dff6d67",
+    "text": "Escríbelo, por favor",
+    "meaning": "Escríbelo, por favor"
+  },
+  {
+    "id": "custom_00aaf560a30b4e7e970dbea170a9f113",
+    "text": "Feliz cumpleaños",
+    "meaning": "Feliz cumpleaños"
+  },
+  {
+    "id": "custom_e9eff701f5e24ea7a815079fdc856805",
+    "text": "Buen provecho",
+    "meaning": "Buen provecho"
   }
 ]

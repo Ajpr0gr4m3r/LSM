@@ -148,6 +148,14 @@ Puedes grabar tandas consecutivas de **5 a 60 tomas**. El contador muestra cuán
 
 Las secuencias guardadas contienen puntos (landmarks) y metadatos de captura, no archivos de video o audio. Revisa el vocabulario y borra o corrige ejemplos incorrectos antes de entrenar.
 
+#### Palabras y frases del catálogo
+
+En **Dataset → Palabras y frases** hay 186 entradas en 13 categorías (saludos, personas, familia, preguntas, verbos, estados, tiempo, lugares, cosas, respuestas, números, emergencias y frases completas). Elige una categoría, pulsa **Añadir categoría al vocabulario** y luego pulsa una palabra o frase para que su nombre quede preparado al terminar la grabación. El catálogo vive en `vocabulary_catalog.py`; para agregar entradas edita `CATEGORIES`.
+
+- Las **frases cortas** que caben en una ventana de 30 fotogramas (≈3 s a 10 fps), como «¿Cómo estás?», se pueden grabar como una sola seña.
+- Las **frases largas** se arman en la conversación continua a partir de palabras grabadas por separado (ver el paso 5).
+- Añadir una categoría solo crea etiquetas. Cada entrada necesita 30+ ejemplos y un reentrenamiento. Valida las señas con una persona sorda usuaria de LSM o con el diccionario [Manos con voz](https://www.conapred.org.mx/documentos_cedoc/DiccioSenas_ManosVoz_ACCSS.pdf).
+
 ### 4. Entrenar el modelo
 
 1. Abre **Entrenamiento**.
@@ -165,7 +173,24 @@ El reparto de ejemplos procura mantener sesiones y participantes completos en un
 3. Mantén el gesto el tiempo suficiente para que el sistema acumule ventanas estables. En modo de prueba, una puntuación de 90% o más puede satisfacer el umbral de confianza, pero todavía debe pasar estabilidad, forma, movimiento y ambigüedad. Una puntuación alta no garantiza que la respuesta sea correcta.
 4. Si el sistema rechaza la seña, repite el gesto con el recorrido completo o revisa los ejemplos y la matriz de confusión. No se debe añadir una regla manual para forzar una letra determinada.
 
-La voz se reproduce automáticamente al confirmar una etiqueta si el navegador ofrece síntesis de voz. **Escuchar** permite repetirla manualmente. La disponibilidad y el acento dependen de las voces instaladas en el sistema.
+La voz se lee automáticamente si el navegador ofrece síntesis de voz. **Escuchar** permite repetirla manualmente. La disponibilidad y el acento dependen de las voces instaladas en el sistema.
+
+#### Conversación continua
+
+La tarjeta **Conversación continua** acumula las señas confirmadas **sin límite de tiempo** y las convierte en frases en español. Una frase se cierra cuando pasa la pausa elegida (2–6 s) sin señas nuevas, o al pulsar **Terminar frase**. Cada frase cerrada se lee en voz alta (o cada seña, o ninguna: opción **Leer en voz alta**), queda en la lista con la hora y las señas que la formaron, y se puede copiar o descargar en `.txt`.
+
+El compositor (`static/phrases.js`, con reglas de `vocabulary_catalog.py`) toma en cuenta el orden de LSM:
+
+| Señas confirmadas | Texto |
+|---|---|
+| HOLA · YO · NOMBRE · A · N · A | Hola, me llamo Ana. |
+| TÚ · NOMBRE · QUÉ | ¿Cómo te llamas? |
+| YO · QUERER · NO | No quiero. |
+| MAÑANA · YO · IR · ESCUELA | Mañana voy a la escuela. |
+| ELLA · CANSADO | Ella está cansada. |
+| TÚ · COMER · QUÉ | ¿Qué comes? |
+
+Son reglas, no una traducción completa: no interpretan expresiones faciales, clasificadores ni el uso del espacio. Para agregar frases edita `PHRASE_RULES`, `CONJUGATIONS`, `COPULAS` o `ARTICLES`.
 
 ### 6. Foto experimental
 
@@ -334,14 +359,14 @@ Antes de modificar umbrales o dimensiones, lee el código y la versión de metad
 
 ## Mapa de módulos Python
 
-- **Configuración y perfil:** `config.py` contiene constantes del flujo heredado, dimensiones y rutas base. `sign_languages.py` define el perfil LSM, etiquetas predeterminadas en español, etiquetas personalizadas y carpetas. `alphabets.py` registra símbolos españoles vacíos para que luego se graben.
+- **Configuración y perfil:** `config.py` contiene constantes del flujo heredado, dimensiones y rutas base. `sign_languages.py` define el perfil LSM, etiquetas predeterminadas en español, etiquetas personalizadas y carpetas. `alphabets.py` registra símbolos españoles vacíos para que luego se graben. `vocabulary_catalog.py` contiene las palabras y frases sugeridas y las reglas para componer oraciones.
 - **Captura y calidad:** `web_app.py` gestiona las sesiones de cámara web; `capture_quality.py` evalúa la integridad de los landmarks, el encuadre y la calidad visual. `data_collection.py` es el capturador antiguo de escritorio.
 - **Dataset:** `web_dataset.py` guarda, enumera, carga, nombra y elimina tomas. `dataset_tools.py` comprueba duplicados/conflictos y valida ZIP de importación/exportación. `validation_protocol.py` preserva qué sesiones se usan para entrenamiento, validación y prueba.
 - **Características:** `recognition_features.py` normaliza puntos, extrae geometría de dedos y prepara los cuadros según la versión del modelo. `motion_features.py` analiza trayectorias, velocidades y clases con movimiento.
 - **Decisiones y evaluación:** `recognition_decision.py` aplica evidencia de forma/movimiento, confianza, margen y rechazo. `recognition_analysis.py` calcula matriz de confusión, métricas por clase, calibración y regresiones.
 - **Modelos:** `model.py` define arquitecturas. `web_train.py` es el proceso de entrenamiento web. `discriminative_learning.py` proporciona pesos para ejemplos difíciles y preentrenamiento contrastivo. `train.py` corresponde al flujo de escritorio antiguo.
 - **Experimento de foto:** `snapshot_recognition.py` compara el descriptor de una postura con referencias aprendidas y validadas; no llama al clasificador como si la foto fuera una secuencia.
-- **Servicios y control:** `studio_services.py` lista/activa versiones y administra dataset. `admin_auth.py` protege acciones que requieren permiso administrador. `accounts.py` y `team_access.py` conservan el sistema del modo compartido anterior. `private_server.py` y `deploy/` documentan un despliegue privado anterior.
+- **Servicios y control:** `studio_services.py` lista/activa versiones (con un índice ligero de metadatos) y administra dataset. `keras_portability.py` hace que los `.keras` carguen igual en Windows, macOS y Linux. `admin_auth.py` protege acciones que requieren permiso administrador. `accounts.py` y `team_access.py` conservan el sistema del modo compartido anterior. `private_server.py` y `deploy/` documentan un despliegue privado anterior.
 - **Escritorio antiguo:** `main.py` ejecuta el reconocedor local anterior; `utils.py` y `rig_overlay.py` contienen sus utilidades visuales.
 
 ## Mapa del frontend
@@ -351,6 +376,9 @@ Antes de modificar umbrales o dimensiones, lee el código y la versión de metad
 - `static/app.js`: cámara de la computadora, solicitud de cuadros, grabación, guardado de tomas, reconocimiento, historial y rig de manos.
 - `static/studio.js`: datos de inicio, entrenamiento, gráficas, auditoría de dataset, modelos y navegación entre vistas.
 - `static/continuous.js`: contador y estado de tandas consecutivas, incluida pausa con teclado.
+- `static/phrases.js`: compositor que convierte señas en orden LSM en oraciones en español.
+- `static/transcript.js`: conversación continua (frases por pausas, voz, copiar y descargar).
+- `static/vocabulary.js`: panel **Palabras y frases** del Dataset.
 - `static/conversation.js`: creación y actualización de la sala en la computadora.
 - `static/phone.html` / `static/phone.js`: interfaz móvil, consentimiento, cámara y mensajes.
 - `static/speech.js`: cola de voz del navegador para evitar que varias frases se reproduzcan encima.
@@ -438,7 +466,8 @@ node tests/test_studio_ui.js
 | Síntoma | Qué comprobar |
 |---|---|
 | `Address already in use` al iniciar | El puerto ya tiene un proceso escuchando. Abre primero <http://127.0.0.1:8765>. Si necesitas reiniciar, identifica el proceso con `lsof -nP -iTCP:8765 -sTCP:LISTEN` y detén la instancia de Seña desde la Terminal que la inició. |
-| Keras muestra `expected 2 variables, but received 0 variables` | Actualiza las dependencias del entorno de Seña con `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` en Windows o `.venv/bin/python -m pip install -r requirements.txt` en macOS/Linux. Los modelos del repositorio se guardaron con Keras 2.15.0. Reinicia Seña y prueba el modelo existente. |
+| Keras muestra `expected 2 variables, but received 0 variables` o «No se pudieron cargar todos los pesos» | Se debía a que Keras 2.15 busca los pesos con `\` en Windows y los modelos se guardaron en Mac con `/`. `keras_portability.py` lo corrige al cargar y guarda los modelos nuevos en formato portátil. Si persiste, actualiza las dependencias con `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` (Windows) o `.venv/bin/python -m pip install -r requirements.txt` (macOS/Linux) y reinicia Seña. |
+| «El modelo aún se está preparando» | Al primer arranque Seña crea `models/lsm/.metadata_index.json` (caché local, no se sube a Git). Los arranques siguientes son inmediatos y la página reintenta sola mientras el modelo carga. |
 | `ModuleNotFoundError: No module named cv2` | OpenCV falta en el Python que ejecuta Seña. En Windows, desde LSM, ejecuta `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` y reinicia con `.\.venv\Scripts\python.exe web_app.py`. En macOS o Linux, usa `.venv/bin/python` en ambos comandos. |
 | El navegador no encuentra cámara | Permite cámara para el navegador, pulsa **Detectar cámaras** y selecciona el dispositivo correcto. En el teléfono abre el enlace HTTPS completo de la sala. |
 | Se pierde la mano o la toma no empieza | Mejora la iluminación, deja espacio alrededor de las manos y acerca el cuerpo para que los puntos sean visibles. La captura espera calidad suficiente antes de guardar cuadros. |
