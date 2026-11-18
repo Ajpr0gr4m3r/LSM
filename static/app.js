@@ -1,7 +1,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let state,
-  language = ['lsm'].includes(
+  language = ['lsm', 'lsm_frases'].includes(
     localStorage.getItem('sena-profile'),
   )
     ? localStorage.getItem('sena-profile')
@@ -323,6 +323,8 @@ function render() {
 function renderAlphabet() {
   const p = profile(),
     alphabet = p.alphabet;
+  // El perfil de frases no tiene abecedario.
+  $('alphabet-panel').hidden = !alphabet && !!p.catalog;
   if (!alphabet) return;
   $('alphabet-title').textContent = `${alphabet.title} · ${p.code}`;
   $('alphabet-note').textContent = alphabet.note;
@@ -1020,7 +1022,9 @@ async function recordExample(automatic = false, serial = null) {
     if (mark !== generation || (automatic && !batch.active)) return;
     recording = true;
     $('record').textContent = 'Grabando…';
-    $('capture-instruction').textContent = 'Haz la seña completa ahora.';
+    $('capture-instruction').textContent = (profile()?.frame_stride || 1) > 1
+      ? 'Haz la frase completa ahora (≈6 s) y vuelve a bajar las manos.'
+      : 'Haz la seña completa ahora.';
   } catch (error) {
     notice(error.message, true);
     if (automatic) await stopCamera();

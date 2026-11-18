@@ -51,6 +51,8 @@ def load_split(metadata, split, language, limit):
 def replay(runtime, session_class, label, points, fps, hold):
     session = session_class(runtime_language)
     stream = list(points) + [points[-1 - (i % 10)] for i in range(hold)]  # seña + postura sostenida
+    # Perfil de frases: cada fotograma guardado representa «stride» fotogramas de cámara.
+    stream = [frame for frame in stream for _ in range(session.stride)]
     clock = 1000.0
     events = {'first_confirm': None, 'confirmed': None, 'wrong': None, 'codes': collections.Counter(),
               'accepted_windows': 0, 'windows': 0, 'ms': []}

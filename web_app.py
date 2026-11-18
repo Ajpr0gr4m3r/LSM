@@ -28,7 +28,7 @@ import uuid
 import numpy as np
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 STABILITY_TOLERATED_MISSES = int(os.environ.get('SENA_TOLERATED_MISSES', '1'))
-from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
+from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec, frame_stride
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
 from web_dataset import inventory, stored_sample_counts, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
 from admin_auth import AdminGuard, TEAM_CONFIG
@@ -161,7 +161,9 @@ class Session:
 
     # Vacía la secuencia y sus votos de reconocimiento sin cerrar la cámara ni borrar tomas guardadas.
     def reset(self):
-        self.frames = deque(maxlen=SEQUENCE_LENGTH + SEQUENCE_LENGTH//2)
+        # Las frases guardan 1 de cada «stride» fotogramas: el buffer cubre el mismo tiempo.
+        self.stride = frame_stride(self.language)
+        self.frames = deque(maxlen=(SEQUENCE_LENGTH + SEQUENCE_LENGTH//2) * self.stride)
         self.probabilities = deque(maxlen=5)
         self.stable_label = None
         self.stable_count = 0
@@ -951,7 +953,7 @@ class Runtime:
         results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
         points = extract_keypoints(results)
         hands = hands_detected(results)
-        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': min(len(session.frames), SEQUENCE_LENGTH), 'captured': 0, 'draft_id': None,
+        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': min(len(session.frames) // session.stride, SEQUENCE_LENGTH), 'captured': 0, 'draft_id': None,
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
@@ -983,8 +985,13 @@ class Runtime:
                     session.capture = None
                     raise ValueError('No se pudo iniciar una toma válida. Revisa la luz y el encuadre y vuelve a grabar.')
                 return output
-            capture['quality_bad'] = capture.get('quality_bad', 0) + int(not quality['usable'])
             output['phase'] = 'capturing'
+            capture['seen'] = capture.get('seen', 0) + 1
+            if (capture['seen'] - 1) % session.stride:
+                # Perfil de frases: este fotograma solo marca el paso del tiempo.
+                output['captured'] = len(capture['points'])
+                return output
+            capture['quality_bad'] = capture.get('quality_bad', 0) + int(not quality['usable'])
             capture['points'].append(points)
             capture['hands'] += int(hands)
             output['captured'] = len(capture['points'])
@@ -1009,15 +1016,15 @@ class Runtime:
         usable = hands and (quality['usable'] or not session.quality_gate)
         tracking_phase = session.update_recognition_tracking(hands, usable, now)
         if not usable:
-            output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
+            output['buffer'] = min(len(session.frames) // session.stride, SEQUENCE_LENGTH)
             output['phase'] = tracking_phase
             output['rejection_code'] = 'capture_quality'
             output['rejection_reason'] = quality['message']
             return output
         session.frames.append(points)
-        output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
+        output['buffer'] = min(len(session.frames) // session.stride, SEQUENCE_LENGTH)
         bundle = self.load_model(session.language)
-        if not bundle or len(session.frames) < SEQUENCE_LENGTH:
+        if not bundle or len(session.frames) < SEQUENCE_LENGTH * session.stride:
             return output
         model, metadata = bundle
         stability_frames = max(1, int(metadata.get('stability_frames', STABILITY_FRAMES)))
@@ -1037,7 +1044,9 @@ class Runtime:
             output['inference_skipped'] = True
             return output
         session.last_inference = now
-        raw_sequence = np.stack(session.frames)[-SEQUENCE_LENGTH:]
+        # Mismo muestreo que la captura, terminando en el fotograma más reciente.
+        history = np.stack(session.frames)[::-1][::session.stride][::-1]
+        raw_sequence = history[-SEQUENCE_LENGTH:]
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
         probs = model(sequence[None, ...], training=False).numpy()[0]
         probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
@@ -1065,7 +1074,7 @@ class Runtime:
             if retry is not None and int(np.argmax(retry[0])) == original_index:
                 probs, details = retry
         if not details['accepted']:
-            retry = self.retry_longer_motion(np.stack(session.frames), model, metadata, strict)
+            retry = self.retry_longer_motion(history, model, metadata, strict)
             if retry is not None:
                 probs, details = retry
                 output['temporal_window'] = 'extended'

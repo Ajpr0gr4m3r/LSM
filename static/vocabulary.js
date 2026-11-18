@@ -14,6 +14,11 @@ function renderVocabulary() {
   const catalog = p?.catalog;
   $('vocabulary-panel').hidden = !catalog?.length;
   if (!catalog?.length) return;
+  const phrases = (p.frame_stride || 1) > 1;
+  $('vocabulary-title').textContent = phrases ? 'Oraciones para conversar' : 'Vocabulario para conversar';
+  $('vocabulary-help').textContent = phrases
+    ? 'Perfil de frases: cada toma dura ≈6 s. Elige una oración, empieza con las manos abajo, hazla completa y vuelve a bajarlas. Graba 30+ tomas de cada una, de varias personas.'
+    : 'Elige una categoría y pulsa una palabra para preparar su nombre antes de grabar. Para oraciones completas usa el perfil «LSM · Frases».';
   const chosen = vocabularyCategoryId(catalog);
   const options = catalog.map((c) => {
     const registered = c.entries.filter((e) => e.label_id).length;

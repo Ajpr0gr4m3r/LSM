@@ -24,6 +24,8 @@ def find_symbol_label(labels, symbol):
 
 # Combina símbolos, ejemplos y vocabulario aprendido para mostrar el progreso del abecedario.
 def alphabet_status(language, rows, model):
+    if language not in CATALOGS:
+        return None  # p. ej. el perfil de frases no deletrea
     catalog = alphabet_for(language)
     trained = {label['id'] for label in (model or {}).get('labels', [])}
     # Construye las filas de símbolos con su etiqueta, cantidad de ejemplos y estado entrenado.
@@ -50,4 +52,4 @@ def add_alphabet(language, extras=False):
 
 # Registra los símbolos del perfil español sin crear ejemplos de entrenamiento.
 def add_all_alphabets():
-    return [add_alphabet(language['id']) for language in LANGUAGES]
+    return [add_alphabet(language['id']) for language in LANGUAGES if language['id'] in CATALOGS]
