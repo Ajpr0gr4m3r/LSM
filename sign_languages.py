@@ -14,7 +14,13 @@ MIN_SAMPLES = 30
 RECOMMENDED_SAMPLES = 60
 CAPTURE_FPS = 10
 LANGUAGES = [
-    {'id': 'lsm', 'code': 'LSM', 'name': 'Lengua de Señas Mexicana', 'region': 'México', 'written': 'Español', 'locale': 'es-MX'},
+    {'id': 'lsm', 'code': 'LSM', 'name': 'Lengua de Señas Mexicana', 'region': 'México', 'written': 'Español', 'locale': 'es-MX',
+     'kind': 'senas', 'frame_stride': 1},
+    # Frases y oraciones completas («Hola, ¿cómo estás?»). Cada toma conserva 1 de cada
+    # 2 fotogramas: los mismos 30 fotogramas cubren ≈6 s en lugar de ≈3 s. Tiene su
+    # propio dataset y su propio modelo (carpetas lsm_frases), sin tocar las letras.
+    {'id': 'lsm_frases', 'code': 'LSM·F', 'name': 'LSM · Frases y oraciones', 'region': 'Conversación', 'written': 'Frases',
+     'locale': 'es-MX', 'kind': 'frases', 'frame_stride': 2},
 ]
 
 # Estas son etiquetas de significado; NO son ejemplos ni modelos de las señas.
@@ -38,10 +44,18 @@ def language_info(language):
             return item
     raise ValueError('Lengua de señas desconocida.')
 
+# Fotogramas de cámara por cada fotograma guardado (1 = señas, 2 = frases de ≈6 s).
+def frame_stride(language):
+    return int(language_info(language).get('frame_stride', 1))
+
+
 # Combina las etiquetas predeterminadas en español con el vocabulario personalizado de LSM.
 def labels_for(language):
-    language_info(language)
-    index = next(i for i, item in enumerate(LANGUAGES) if item['id'] == language)
+    info = language_info(language)
+    if info.get('kind') == 'frases':
+        # Las frases salen del catálogo (vocabulary_catalog.py), no de las palabras sueltas.
+        return custom_labels(language)
+    index = 0
     defaults = [{'id': str(a), 'meaning': str(a).replace('_', ' '),
                  'text': WORDS[str(a)][index] if str(a) in WORDS else str(a).replace('_', ' ')} for a in ACTIONS]
     custom = custom_labels(language)

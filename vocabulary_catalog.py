@@ -66,6 +66,29 @@ CATEGORIES = [
         'Escríbelo, por favor', 'Feliz cumpleaños', 'Buen provecho', 'Te quiero', 'Te amo']},
 ]
 
+# ── Perfil «LSM · Frases»: oraciones completas grabadas como una sola toma ───
+# Cada toma dura ≈6 s, suficiente para una oración básica. Incluye respuestas
+# cortas (Sí, No, Gracias) porque en una conversación se alternan con las frases.
+PHRASE_CATEGORIES = [
+    {'id': 'saludos', 'title': 'Saludos', 'kind': 'frase', 'entries': [
+        'Hola, ¿cómo estás?', 'Hola', 'Buenos días', 'Buenas tardes', 'Buenas noches',
+        'Mucho gusto', 'Bienvenido']},
+    {'id': 'presentacion', 'title': 'Presentarse', 'kind': 'frase', 'entries': [
+        '¿Cómo te llamas?', 'Me llamo', '¿Cuántos años tienes?', '¿Dónde vives?', 'Soy sordo',
+        'Soy oyente', 'Estoy aprendiendo lengua de señas']},
+    {'id': 'respuestas', 'title': 'Responder', 'kind': 'frase', 'entries': [
+        'Estoy bien', 'Estoy mal', 'Más o menos', '¿Y tú?', 'Sí', 'No', 'No sé', 'Gracias',
+        'De nada', 'Por favor']},
+    {'id': 'comprension', 'title': 'Entender la conversación', 'kind': 'frase', 'entries': [
+        'No entiendo', '¿Puedes repetir?', 'Más despacio, por favor', 'Escríbelo, por favor',
+        '¿Qué significa?']},
+    {'id': 'necesidades', 'title': 'Necesidades', 'kind': 'frase', 'entries': [
+        'Necesito ayuda', '¿Dónde está el baño?', 'Tengo hambre', 'Tengo sed', 'Me duele',
+        'Llama a una ambulancia', '¿Qué hora es?', '¿Cuánto cuesta?']},
+    {'id': 'despedidas', 'title': 'Despedidas', 'kind': 'frase', 'entries': [
+        'Adiós', 'Hasta luego', 'Nos vemos mañana', 'Que tengas buen día', 'Cuídate']},
+]
+
 # ── Frases compuestas: secuencia de señas (orden LSM) → español escrito ──────
 # Se prueba primero la secuencia más larga. Pon variantes de orden habituales.
 PHRASE_RULES = [
@@ -175,8 +198,8 @@ GREETINGS = ['Hola', 'Buenos días', 'Buenas tardes', 'Buenas noches', 'Gracias'
 
 
 def catalog_for(language):
-    language_info(language)
-    return [{**category, 'entries': list(category['entries'])} for category in CATEGORIES]
+    source = PHRASE_CATEGORIES if language_info(language).get('kind') == 'frases' else CATEGORIES
+    return [{**category, 'entries': list(category['entries'])} for category in source]
 
 
 def phrasebook(language):

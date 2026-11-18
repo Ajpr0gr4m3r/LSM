@@ -175,6 +175,15 @@ El reparto de ejemplos procura mantener sesiones y participantes completos en un
 
 La voz se lee automáticamente si el navegador ofrece síntesis de voz. **Escuchar** permite repetirla manualmente. La disponibilidad y el acento dependen de las voces instaladas en el sistema.
 
+#### Perfil «LSM · Frases»: oraciones completas
+
+Para grabar oraciones como «Hola, ¿cómo estás?» elige el perfil **LSM·F · Frases** en el selector de arriba. Tiene sus propias grabaciones (`web_data/datasets/lsm_frases`) y su propio modelo (`models/lsm_frases`), así que no afecta al modelo de letras.
+
+- Cada toma dura **≈6 s**: se guarda 1 de cada 2 fotogramas, de modo que los mismos 30 fotogramas cubren el doble de tiempo. El reconocimiento usa la misma ventana, así que confirma después de ≈6 s.
+- En **Dataset → Palabras y frases** hay 42 oraciones básicas en 6 categorías (saludos, presentarse, responder, entender, necesidades y despedidas), ya añadidas al vocabulario.
+- Empieza cada toma con las manos abajo, haz la oración completa y vuelve a bajarlas. Graba 30+ tomas por oración, de varias personas, y entrena en **Entrenamiento** con este perfil seleccionado.
+- Solo un perfil reconoce a la vez: para deletrear un nombre después de «Me llamo» cambia al perfil de letras.
+
 #### Conversación continua
 
 La tarjeta **Conversación continua** acumula las señas confirmadas **sin límite de tiempo** y las convierte en frases en español. Una frase se cierra cuando pasa la pausa elegida (2–6 s) sin señas nuevas, o al pulsar **Terminar frase**. Cada frase cerrada se lee en voz alta (o cada seña, o ninguna: opción **Leer en voz alta**), queda en la lista con la hora y las señas que la formaron, y se puede copiar o descargar en `.txt`.
