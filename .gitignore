@@ -97,9 +97,15 @@ web_data/datasets/lsm/*
 !web_data/datasets/lsm/*/
 web_data/datasets/lsm/*/*
 !web_data/datasets/lsm/*/*.npz
+!web_data/datasets/lsm_frases/
+web_data/datasets/lsm_frases/*
+!web_data/datasets/lsm_frases/*/
+web_data/datasets/lsm_frases/*/*
+!web_data/datasets/lsm_frases/*/*.npz
 !web_data/vocabulary/
 web_data/vocabulary/*
 !web_data/vocabulary/lsm.json
+!web_data/vocabulary/lsm_frases.json
 # Pesos de las versiones web de LSM (excepcion a *.keras).
 !/models/lsm/*/model.keras
 models/dgs/
