@@ -27,6 +27,7 @@ import uuid
 
 import numpy as np
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
+STABILITY_TOLERATED_MISSES = int(os.environ.get('SENA_TOLERATED_MISSES', '1'))
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
 from web_dataset import inventory, stored_sample_counts, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
@@ -164,6 +165,7 @@ class Session:
         self.probabilities = deque(maxlen=5)
         self.stable_label = None
         self.stable_count = 0
+        self.stable_misses = 0
         self.last_confirmed = None
         self.cooldown = 0
         self.no_hands = 0
@@ -999,6 +1001,11 @@ class Runtime:
             return output
         if payload.get('mode') != 'test':
             return output
+        return self.recognize(session, points, hands, quality, output, now, payload)
+
+    # Reconoce a partir de los puntos de un fotograma: buffer, modelo, filtros y estabilidad.
+    # Separado de la cámara para poder reproducir tomas grabadas y medir la confirmación.
+    def recognize(self, session, points, hands, quality, output, now, payload):
         usable = hands and (quality['usable'] or not session.quality_gate)
         tracking_phase = session.update_recognition_tracking(hands, usable, now)
         if not usable:
@@ -1081,11 +1088,16 @@ class Runtime:
             if not output['rejection_reason']:
                 output['rejection_reason'] = 'Seña ambigua. Mantén el gesto o vuelve a empezar.'
             output['phase'] = 'uncertain'
-            session.stable_label, session.stable_count = None, 0
+            # Una sola ventana dudosa (parpadeo del seguimiento) no borra el avance:
+            # se reinicia solo tras dos rechazos seguidos o si cambia la propuesta.
+            session.stable_misses += 1
+            if session.stable_misses >= STABILITY_TOLERATED_MISSES + 1 or session.stable_label != label['id']:
+                session.stable_label, session.stable_count, session.stable_misses = None, 0, 0
         elif session.stable_label == label['id']:
             session.stable_count += 1
+            session.stable_misses = 0
         else:
-            session.stable_label, session.stable_count = label['id'], 1
+            session.stable_label, session.stable_count, session.stable_misses = label['id'], 1, 0
         immediate_test = payload.get('mode') == 'test' and confidence >= .90 - 1e-7 and decision
         switching = session.gesture_confirmed and label['id'] != session.last_confirmed
         # A new sign can follow the previous one without a no-hands gap.
