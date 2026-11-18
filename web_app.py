@@ -1360,7 +1360,7 @@ class Handler(BaseHTTPRequestHandler):
                     discard_draft(payload.get('language'), payload.get('draft_id'))
                     result = {'discarded': True}
                 elif route == '/api/snapshot':
-                    result = RUNTIME.analyze_snapshot(payload.get('session'), payload.get('image'))
+                    result = RUNTIME.analyze_snapshot(payload.get('session'), payload.get('image')) 
                 elif route == '/api/frame':
                     result = RUNTIME.frame(payload)
                 elif route == '/api/admin/delete-recordings':
