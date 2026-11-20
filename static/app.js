@@ -789,7 +789,7 @@ async function sendFrame(mark, failures = 0, waitingSince = null) {
     });
     if (mark !== generation) return;
     if (failures) notice('Conexión recuperada.');
-    drawHandRig(result.hand_rig, canvas.width, canvas.height, canvas);
+    drawHandRig(result.hand_rig, canvas.width, canvas.height, result.body_rig);
     const quality = result.quality;
     if (quality) {
       $('quality-status').dataset.quality = quality.usable ? 'good' : 'poor';
@@ -1301,6 +1301,7 @@ window.addEventListener('DOMContentLoaded', () => {
 const handRigEdges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
   [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
   [13,17],[0,17],[17,18],[18,19],[19,20]];
+const bodyRigEdges = [[7,2],[2,0],[0,5],[5,8],[11,12],[11,23],[12,24],[23,24]];
 let handRigExpiry;
 const HAND_RIG_HOLD_MS = 850;
 // Borra el dibujo y cancela su vencimiento para no dejar puntos antiguos sobre la cámara.
@@ -1311,7 +1312,7 @@ function clearHandRig() {
   canvas.hidden = true;
 }
 // El rig es transparente: nunca tapa el video en vivo con una foto antigua.
-function drawHandRig(hands, width, height, sourceFrame = null) {
+function drawHandRig(hands, width, height, body = {}) {
   if (!$('show-hand-rig').checked || !stream) {
     clearHandRig();
     return;
@@ -1319,7 +1320,9 @@ function drawHandRig(hands, width, height, sourceFrame = null) {
   const canvas = $('hand-rig');
   const visibleHands = (hands || []).filter(hand =>
     hand.length === 21 && hand.every(p => p.length === 2 && p.every(Number.isFinite)));
-  if (!visibleHands.length) {
+  const visibleBody = Object.fromEntries(Object.entries(body || {}).filter(([, point]) =>
+    Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)));
+  if (!visibleHands.length && !Object.keys(visibleBody).length) {
     // Mantén el último dibujo brevemente, con menos intensidad. No renueves
     // el vencimiento hasta recibir puntos nuevos de la cámara.
     if (!canvas.hidden) canvas.style.opacity = '.45';
@@ -1334,16 +1337,24 @@ function drawHandRig(hands, width, height, sourceFrame = null) {
   canvas.style.opacity = '1';
   ctx.lineWidth = 2; ctx.strokeStyle = canvas.dataset?.stroke || '#efb08b'; ctx.fillStyle = '#ffffff';
   ctx.shadowColor = '#172139'; ctx.shadowBlur = 3;
-  for (const hand of visibleHands) {
+  function drawPoints(points, edges, color) {
+    ctx.strokeStyle = color;
     ctx.beginPath();
-    for (const [a,b] of handRigEdges) {
-      ctx.moveTo(hand[a][0]*width, hand[a][1]*height);
-      ctx.lineTo(hand[b][0]*width, hand[b][1]*height);
+    for (const [a, b] of edges) {
+      if (!points[a] || !points[b]) continue;
+      ctx.moveTo(points[a][0] * width, points[a][1] * height);
+      ctx.lineTo(points[b][0] * width, points[b][1] * height);
     }
     ctx.stroke();
-    for (const [x,y] of hand) {
-      ctx.beginPath(); ctx.arc(x*width,y*height,3,0,Math.PI*2); ctx.fill();
+    for (const [x, y] of Object.values(points)) {
+      ctx.beginPath();
+      ctx.arc(x * width, y * height, 3, 0, Math.PI * 2);
+      ctx.fill();
     }
+  }
+  drawPoints(visibleBody, bodyRigEdges, '#9dd8e9');
+  for (const hand of visibleHands) {
+    drawPoints(hand, handRigEdges, canvas.dataset?.stroke || '#efb08b');
   }
   handRigExpiry = setTimeout(() => {
     clearHandRig();
@@ -1355,8 +1366,8 @@ function setHandRig(enabled, persist = true) {
   $('show-hand-rig').checked = enabled;
   const toggle = $('camera-rig-toggle');
   toggle.setAttribute('aria-pressed', String(enabled));
-  toggle.setAttribute('aria-label', enabled ? 'Ocultar rig de manos' : 'Mostrar rig de manos');
-  toggle.textContent = enabled ? 'Rig de manos · activo' : 'Rig de manos · apagado';
+  toggle.setAttribute('aria-label', enabled ? 'Ocultar rig de cabeza, torso y manos' : 'Mostrar rig de cabeza, torso y manos');
+  toggle.textContent = enabled ? 'Rig · activo' : 'Rig · apagado';
   clearHandRig();
   if (persist) {
     try { localStorage.setItem('sena.hand-rig', String(enabled)); } catch (_) {}

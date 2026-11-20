@@ -1,6 +1,4 @@
-"""Página local para recopilar ejemplos, entrenar y probar el modelo de LSM.
-Ejecución local: .venv/bin/python web_app.py
-Acceso HTTPS temporal: .venv/bin/python web_app.py --quick-tunnel
+"""Página local para recopilar ejemplos, entrenar y probar el modelo de LSM. Ejecución local: .venv/bin/python web_app.pyz Acceso HTTPS temporal: .venv/bin/python web_app.py --quick-tunnel
 """
 from __future__ import annotations
 import argparse
@@ -25,7 +23,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 import uuid
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError as error:
+    if __name__ != '__main__':
+        raise
+    command = 'py -3.11 iniciar.py' if os.name == 'nt' else 'python3.11 iniciar.py'
+    raise SystemExit(f'No se pudo cargar NumPy: {error}. Abre Seña con {command}.') from None
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
 STABILITY_TOLERATED_MISSES = int(os.environ.get('SENA_TOLERATED_MISSES', '1'))
 from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec, frame_stride
@@ -35,6 +39,7 @@ from admin_auth import AdminGuard, TEAM_CONFIG
 from accounts import Accounts
 import team_access
 from process_status import process_alive
+from rig_overlay import upper_body_rig
 from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
@@ -94,7 +99,7 @@ ACCOUNTS = Accounts(WEB_DATA / "accounts" / "team.sqlite3")
 @lru_cache(maxsize=4)
 def public_model_metadata(path, modified, size):
     """Retiene solo los campos de la vista pública, sin guardar referencias pesadas."""
-    full = json.loads(path.read_text())
+    full = json.loads(path.read_text(encoding='utf-8'))
     summary = {key: full[key] for key in (
         'language', 'pipeline', 'labels', 'created_at', 'preprocessing',
     ) if key in full}
@@ -110,7 +115,7 @@ def model_metadata(language, *, public=False, summary=False):
     manifest = directory / 'current.json'
     if not manifest.exists():
         return None
-    selection = json.loads(manifest.read_text())
+    selection = json.loads(manifest.read_text(encoding='utf-8'))
     if selection.get('requires_retraining'):
         return None
     version = selection['version']
@@ -125,7 +130,7 @@ def model_metadata(language, *, public=False, summary=False):
         # Sin guardas pesadas y en caché: /api/state no relee decenas de MB cada vez.
         meta = dict(metadata_summary(metadata_path))
     else:
-        meta = json.loads(metadata_path.read_text())
+        meta = json.loads(metadata_path.read_text(encoding='utf-8'))
     if meta['language'] != language or meta['pipeline'] != pipeline_spec():
         raise ValueError('El modelo no corresponde a esta lengua o a la configuración de captura actual.')
     feature_dimension(meta.get('preprocessing'))
@@ -391,11 +396,11 @@ class Runtime:
         manifest = model_dir(language) / 'current.json'
         if not manifest.is_file():
             return False
-        selection = json.loads(manifest.read_text())
+        selection = json.loads(manifest.read_text(encoding='utf-8'))
         version = selection['version']
         if not isinstance(version, str) or len(version) != 32 or any(c not in '0123456789abcdef' for c in version):
             raise ValueError('La versión del modelo es inválida.')
-        metadata = json.loads((manifest.parent / version / 'metadata.json').read_text())
+        metadata = json.loads((manifest.parent / version / 'metadata.json').read_text(encoding='utf-8'))
         if label not in {item['id'] for item in metadata['labels']}:
             return False
         selection['requires_retraining'] = True
@@ -481,7 +486,7 @@ class Runtime:
         path = WEB_DATA / 'jobs' / f'{self.job_id}.json'
         state = {'id': self.job_id, 'state': 'running', 'message': 'Preparando entrenamiento…', 'epoch': 0}
         if path.exists():
-            state = json.loads(path.read_text())
+            state = json.loads(path.read_text(encoding='utf-8'))
         if state.get('state') == 'running' and self.process is None:
             pid = state.get('pid')
             if not process_alive(pid):
@@ -520,7 +525,7 @@ class Runtime:
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
                     if manifest.is_file():
-                        selection = json.loads(manifest.read_text())
+                        selection = json.loads(manifest.read_text(encoding='utf-8'))
                         if selection.get('requires_retraining'):
                             error = selection.get('reason', 'Reentrena el modelo tras borrar ejemplos.')
             except (ValueError, KeyError, OSError) as exc:
@@ -957,6 +962,7 @@ class Runtime:
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
+            output['body_rig'] = upper_body_rig(getattr(results, 'pose_landmarks', None))
             output['hand_rig'] = [
                 [[round(float(p.x), 5), round(float(p.y), 5)] for p in hand.landmark]
                 for hand in (results.left_hand_landmarks, results.right_hand_landmarks)
@@ -1389,7 +1395,7 @@ class Handler(BaseHTTPRequestHandler):
                     discard_draft(payload.get('language'), payload.get('draft_id'))
                     result = {'discarded': True}
                 elif route == '/api/snapshot':
-                    result = RUNTIME.analyze_snapshot(payload.get('session'), payload.get('image'))
+                    result = RUNTIME.analyze_snapshot(payload.get('session'), payload.get('image')) 
                 elif route == '/api/frame':
                     result = RUNTIME.frame(payload)
                 elif route == '/api/admin/delete-recordings':
@@ -1470,7 +1476,7 @@ def main():
         server.phone_origin = args.phone_origin
         server.local_mode = not args.public_url
         server.local_csrf = secrets.token_urlsafe(32)
-        address = args.public_url or f'http://127.0.0.1:{args.port}'
+        address = args.public_url or f'http://127.0.0.1:{server.server_port}'
         print(f'\nPágina de Seña: {address}', flush=True)
         print('Modo: acceso público con administración protegida.' if args.public_url else 'Modo: solo esta computadora, sin inicio de sesión.', flush=True)
         if args.quick_tunnel:
