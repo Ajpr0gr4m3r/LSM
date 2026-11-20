@@ -54,7 +54,7 @@ function renderTeam() {
     for (const node of Array.from(label.childNodes)) {
       if (node.nodeType === Node.TEXT_NODE) node.remove();
     }
-    label.append(document.createTextNode(' Permito procesar mi cámara en esta Mac. Las imágenes no se guardan; solo se guardan los puntos de las tomas que confirme.'));
+    label.append(document.createTextNode(' Permito procesar mi cámara en esta computadora. Las imágenes no se guardan; solo se guardan los puntos de las tomas que confirme.'));
   }
   $('team-account-info').textContent = user.guest ? 'Estás usando Seña como visitante. El acceso no requiere cuenta.' : `${user.name} · @${user.username} · ${admin ? 'Administrador' : 'Colaborador'}`;
   $('capture-participant').readOnly = !local && !user.guest;

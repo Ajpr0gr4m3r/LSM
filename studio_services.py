@@ -13,7 +13,7 @@ from dataset_tools import audit_dataset, export_dataset, import_dataset, sample_
 
 def current_selection(root):
     try:
-        selected = json.loads((root / 'current.json').read_text())
+        selected = json.loads((root / 'current.json').read_text(encoding='utf-8'))
         return selected if isinstance(selected, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -38,7 +38,7 @@ def _metadata_summary(path):
     cached = _SUMMARY_CACHE.get(str(path))
     if cached and cached[0] == stamp:
         return cached[1]
-    meta = json.loads(path.read_text())
+    meta = json.loads(path.read_text(encoding='utf-8'))
     summary = {key: value for key, value in meta.items() if key not in HEAVY_METADATA_KEYS}
     _SUMMARY_CACHE[str(path)] = (stamp, summary)
     return summary
@@ -49,7 +49,7 @@ def _light_index(language):
     root = model_dir(language)
     index_path = root / INDEX_NAME
     try:
-        stored = json.loads(index_path.read_text())
+        stored = json.loads(index_path.read_text(encoding='utf-8'))
         stored = stored if isinstance(stored, dict) else {}
     except (OSError, ValueError):
         stored = {}
@@ -74,7 +74,7 @@ def _light_index(language):
     if changed or set(index) != set(stored):
         try:
             temporary = root / (INDEX_NAME + '.tmp')
-            temporary.write_text(json.dumps(index))
+            temporary.write_text(json.dumps(index), encoding='utf-8')
             os.replace(temporary, index_path)
         except OSError:
             pass  # El índice es solo una caché; sin él todo sigue funcionando.
@@ -151,7 +151,7 @@ def load_inference_model(path):
 def activate_version(language, version):
     validate_identifier(version)
     root=model_dir(language)
-    metadata=json.loads((root/version/'metadata.json').read_text())
+    metadata=json.loads((root/version/'metadata.json').read_text(encoding='utf-8'))
     if metadata['language']!=language or metadata['pipeline']!=pipeline_spec():
         raise ValueError('El modelo pertenece a otra lengua o configuración.')
     feature_dimension(metadata.get('preprocessing'))
@@ -209,7 +209,7 @@ def recent_activity():
     result=[]
     for p in files:
         try:
-            record=json.loads(p.read_text())
+            record=json.loads(p.read_text(encoding='utf-8'))
             result.append({'kind':'training' if p in jobs else 'deletion','time':p.stat().st_mtime,
                            'language':record.get('language'),'state':record.get('state','archived'),
                            'message':record.get('message',f"{record.get('samples',1)} ejemplos retirados")})
