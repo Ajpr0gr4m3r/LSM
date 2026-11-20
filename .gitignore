@@ -97,9 +97,15 @@ web_data/datasets/lsm/*
 !web_data/datasets/lsm/*/
 web_data/datasets/lsm/*/*
 !web_data/datasets/lsm/*/*.npz
+!web_data/datasets/lsm_frases/
+web_data/datasets/lsm_frases/*
+!web_data/datasets/lsm_frases/*/
+web_data/datasets/lsm_frases/*/*
+!web_data/datasets/lsm_frases/*/*.npz
 !web_data/vocabulary/
 web_data/vocabulary/*
 !web_data/vocabulary/lsm.json
+!web_data/vocabulary/lsm_frases.json
 # Pesos de las versiones web de LSM (excepcion a *.keras).
 !/models/lsm/*/model.keras
 models/dgs/
@@ -112,3 +118,7 @@ models/libras/
 # Credenciales administrativas locales y ejemplos retirados
 web_data/admin/
 web_data/trash/
+
+# Índice local de metadatos (caché para arrancar rápido; se regenera solo)
+models/*/.metadata_index.json
+models/*/.metadata_index.json.tmp

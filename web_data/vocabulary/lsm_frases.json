@@ -1,0 +1,212 @@
+[
+  {
+    "id": "custom_2dabd46046a74e7283df34869a5ffbda",
+    "text": "Hola, ¿cómo estás?",
+    "meaning": "Hola, ¿cómo estás?"
+  },
+  {
+    "id": "custom_c77901a6d1154618a903e3242b9cd80a",
+    "text": "Hola",
+    "meaning": "Hola"
+  },
+  {
+    "id": "custom_ff9a2023f18b4b9ab09670651e4d0fca",
+    "text": "Buenos días",
+    "meaning": "Buenos días"
+  },
+  {
+    "id": "custom_6b9c86f5b8f048e9a1532124994c6662",
+    "text": "Buenas tardes",
+    "meaning": "Buenas tardes"
+  },
+  {
+    "id": "custom_d3c52e911e094330ae0fd425a7640d0a",
+    "text": "Buenas noches",
+    "meaning": "Buenas noches"
+  },
+  {
+    "id": "custom_5ce46b5def9e4e39a0a4a0882c90551c",
+    "text": "Mucho gusto",
+    "meaning": "Mucho gusto"
+  },
+  {
+    "id": "custom_3fbee5fba0e7423d8869d51f95280821",
+    "text": "Bienvenido",
+    "meaning": "Bienvenido"
+  },
+  {
+    "id": "custom_56739290966442ebaa756b67e1f2e0bc",
+    "text": "¿Cómo te llamas?",
+    "meaning": "¿Cómo te llamas?"
+  },
+  {
+    "id": "custom_aa307c9e829649b7bd60edc7c6991306",
+    "text": "Me llamo",
+    "meaning": "Me llamo"
+  },
+  {
+    "id": "custom_c1859728e3fa417c9bfc4bc96106663d",
+    "text": "¿Cuántos años tienes?",
+    "meaning": "¿Cuántos años tienes?"
+  },
+  {
+    "id": "custom_d88063168972449ea9a3845658cdaaef",
+    "text": "¿Dónde vives?",
+    "meaning": "¿Dónde vives?"
+  },
+  {
+    "id": "custom_f0df5601dc4849028d272289ebc7e2ac",
+    "text": "Soy sordo",
+    "meaning": "Soy sordo"
+  },
+  {
+    "id": "custom_3d4e4694ba054b798e58ae198b568e1d",
+    "text": "Soy oyente",
+    "meaning": "Soy oyente"
+  },
+  {
+    "id": "custom_a284e6ba289e4a9da37b23d4d3a2bd0e",
+    "text": "Estoy aprendiendo lengua de señas",
+    "meaning": "Estoy aprendiendo lengua de señas"
+  },
+  {
+    "id": "custom_062e0a40711240c6a05a80aa9c03b176",
+    "text": "Estoy bien",
+    "meaning": "Estoy bien"
+  },
+  {
+    "id": "custom_2dfe6066df6c4634a611999aa32bca92",
+    "text": "Estoy mal",
+    "meaning": "Estoy mal"
+  },
+  {
+    "id": "custom_5db326f0563347098049e6cba30e2fd0",
+    "text": "Más o menos",
+    "meaning": "Más o menos"
+  },
+  {
+    "id": "custom_7c5db850e4bf4adc8168b9b4ded4ae21",
+    "text": "¿Y tú?",
+    "meaning": "¿Y tú?"
+  },
+  {
+    "id": "custom_99643c6ed1b4410e89807d03e22cfef3",
+    "text": "Sí",
+    "meaning": "Sí"
+  },
+  {
+    "id": "custom_23d39faae7d346848aa7c2f0d4b785b9",
+    "text": "No",
+    "meaning": "No"
+  },
+  {
+    "id": "custom_34223420d2b34998b68bc25ff1fd1edf",
+    "text": "No sé",
+    "meaning": "No sé"
+  },
+  {
+    "id": "custom_45f256a831264d8d9b33d664907551a7",
+    "text": "Gracias",
+    "meaning": "Gracias"
+  },
+  {
+    "id": "custom_4d30b8646bc4461bb22267f0856aa6ec",
+    "text": "De nada",
+    "meaning": "De nada"
+  },
+  {
+    "id": "custom_40b47bf0113d4d8b9cbebc5e7c5ca54b",
+    "text": "Por favor",
+    "meaning": "Por favor"
+  },
+  {
+    "id": "custom_90f4118457d44a36b60e17a07138742b",
+    "text": "No entiendo",
+    "meaning": "No entiendo"
+  },
+  {
+    "id": "custom_674933964ff443b986da58d06233ffb4",
+    "text": "¿Puedes repetir?",
+    "meaning": "¿Puedes repetir?"
+  },
+  {
+    "id": "custom_fa0db15383324590b5203fc18b7ce08a",
+    "text": "Más despacio, por favor",
+    "meaning": "Más despacio, por favor"
+  },
+  {
+    "id": "custom_1e139fca61454356bd8b3b15c84a10a5",
+    "text": "Escríbelo, por favor",
+    "meaning": "Escríbelo, por favor"
+  },
+  {
+    "id": "custom_c43a70f57f634eaf9a61f58fa20e6277",
+    "text": "¿Qué significa?",
+    "meaning": "¿Qué significa?"
+  },
+  {
+    "id": "custom_e0208337710746418a83131547337282",
+    "text": "Necesito ayuda",
+    "meaning": "Necesito ayuda"
+  },
+  {
+    "id": "custom_b1c9b511b0fd4b458107480319572f2b",
+    "text": "¿Dónde está el baño?",
+    "meaning": "¿Dónde está el baño?"
+  },
+  {
+    "id": "custom_845a20f35ede452f9b58746abd22fb87",
+    "text": "Tengo hambre",
+    "meaning": "Tengo hambre"
+  },
+  {
+    "id": "custom_042de60314fc49c69bb8bb82ef025b31",
+    "text": "Tengo sed",
+    "meaning": "Tengo sed"
+  },
+  {
+    "id": "custom_11c60c73c0f54a438453dbd2d2fb0bc0",
+    "text": "Me duele",
+    "meaning": "Me duele"
+  },
+  {
+    "id": "custom_392bd86d8ae74ef393efc62d19372dd8",
+    "text": "Llama a una ambulancia",
+    "meaning": "Llama a una ambulancia"
+  },
+  {
+    "id": "custom_3a30855303604953a3863e1e81b26298",
+    "text": "¿Qué hora es?",
+    "meaning": "¿Qué hora es?"
+  },
+  {
+    "id": "custom_fdbf66af57584a8b8ee8237cb20f2772",
+    "text": "¿Cuánto cuesta?",
+    "meaning": "¿Cuánto cuesta?"
+  },
+  {
+    "id": "custom_be92f15985ed48ddb478b4a6c25ee33f",
+    "text": "Adiós",
+    "meaning": "Adiós"
+  },
+  {
+    "id": "custom_9d25dcb1534e497fadb37a08da23a549",
+    "text": "Hasta luego",
+    "meaning": "Hasta luego"
+  },
+  {
+    "id": "custom_1ee7f495b1f34792b0b177d56e056871",
+    "text": "Nos vemos mañana",
+    "meaning": "Nos vemos mañana"
+  },
+  {
+    "id": "custom_c703115d2d4147ef82090695792e5d8a",
+    "text": "Que tengas buen día",
+    "meaning": "Que tengas buen día"
+  },
+  {
+    "id": "custom_ae12c01ba83a4a3d986a1cc31348829f",
+    "text": "Cuídate",
+    "meaning": "Cuídate"
+  }
+]

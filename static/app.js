@@ -1,7 +1,7 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let state,
-  language = ['lsm'].includes(
+  language = ['lsm', 'lsm_frases'].includes(
     localStorage.getItem('sena-profile'),
   )
     ? localStorage.getItem('sena-profile')
@@ -45,7 +45,7 @@ function notice(message, error = false) {
   $('notice').hidden = !message;
 }
 // Envía JSON a la API con el CSRF actual y convierte errores HTTP en mensajes utilizables.
-async function api(path, body) {
+async function api(path, body, preparingRetries = 8) {
   const options =
     body === undefined
       ? {}
@@ -76,6 +76,12 @@ async function api(path, body) {
       throw new Error(
         'El servidor activo es una versión anterior sin administración. Detén web_app.py con Ctrl+C, vuelve a ejecutarlo y recarga la página.',
       );
+    }
+    // El servidor rechaza sin procesar mientras carga el modelo: reintentar es seguro.
+    if (response.status === 503 && data?.code === 'model_preparing' && preparingRetries > 0) {
+      if (typeof notice === 'function') notice('Cargando el modelo… la detección empezará en unos segundos.');
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      return api(path, body, preparingRetries - 1);
     }
     const error = new Error(data?.error || `El servidor no pudo completar la solicitud (HTTP ${response.status}).`);
     error.status = response.status;
@@ -308,6 +314,7 @@ function render() {
     }
   }
   renderAlphabet();
+  if (typeof renderVocabulary === 'function') renderVocabulary();
   renderJob();
   if (typeof renderStudio === 'function') renderStudio();
   if (typeof renderTeam === 'function') renderTeam();
@@ -316,6 +323,8 @@ function render() {
 function renderAlphabet() {
   const p = profile(),
     alphabet = p.alphabet;
+  // El perfil de frases no tiene abecedario.
+  $('alphabet-panel').hidden = !alphabet && !!p.catalog;
   if (!alphabet) return;
   $('alphabet-title').textContent = `${alphabet.title} · ${p.code}`;
   $('alphabet-note').textContent = alphabet.note;
@@ -352,6 +361,7 @@ function renderAlphabet() {
         selectedLetter = entry.symbol;
         if (selectedDraft) $('sign-name').value = entry.symbol;
         renderAlphabet();
+        if (typeof renderVocabulary === 'function') renderVocabulary();
         if (selectedDraft) {
           $('name-capture').scrollIntoView({ behavior: 'smooth', block: 'center' });
           $('sign-name').focus({ preventScroll: true });
@@ -363,7 +373,7 @@ function renderAlphabet() {
   buildGrid('alphabet-grid', alphabet.symbols);
   buildGrid('alphabet-extra-grid', alphabet.extras);
   $('alphabet-selection').textContent = selectedLetter
-    ? `Letra seleccionada: ${selectedLetter} · ${p.code}. Al terminar la captura, confirma ese nombre y guarda el ejemplo.`
+    ? `Seleccionada: ${selectedLetter} · ${p.code}. Al terminar la captura, confirma ese nombre y guarda el ejemplo.`
     : 'Selecciona una letra para preparar su nombre al terminar la grabación.';
   $('clear-alphabet-selection').hidden = !selectedLetter;
   $('alphabet-source').hidden = !alphabet.source;
@@ -952,8 +962,11 @@ function showPrediction(result) {
     if (typeof animateUI === 'function') animateUI($('result-word'), 400);
     lastSpoken = result.confirmed.text;
     $('speak').disabled = !('speechSynthesis' in window);
-    if ('speechSynthesis' in window) speak();
-    if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(result.confirmed.text, result.confirmed_confidence ?? result.confidence);
+    // En conversación continua la voz lee la frase completa al cerrarla (configurable).
+    const speakEachSign = typeof transcriptSpeaksEachSign !== 'function' || transcriptSpeaksEachSign();
+    if ('speechSynthesis' in window && speakEachSign) speak();
+    if (typeof transcriptAddSign === 'function') transcriptAddSign(result.confirmed, result.confirmed_confidence ?? result.confidence);
+    else if (typeof publishRecognizedSign === 'function') void publishRecognizedSign(result.confirmed.text, result.confirmed_confidence ?? result.confidence);
     renderHistory();
   }
 }
@@ -1009,7 +1022,9 @@ async function recordExample(automatic = false, serial = null) {
     if (mark !== generation || (automatic && !batch.active)) return;
     recording = true;
     $('record').textContent = 'Grabando…';
-    $('capture-instruction').textContent = 'Haz la seña completa ahora.';
+    $('capture-instruction').textContent = (profile()?.frame_stride || 1) > 1
+      ? 'Haz la frase completa ahora (≈6 s) y vuelve a bajar las manos.'
+      : 'Haz la seña completa ahora.';
   } catch (error) {
     notice(error.message, true);
     if (automatic) await stopCamera();
@@ -1223,6 +1238,7 @@ $('add-alphabet-extras').addEventListener('click', () => addAlphabet('language',
 $('clear-alphabet-selection').addEventListener('click', () => {
   selectedLetter = null;
   renderAlphabet();
+  if (typeof renderVocabulary === 'function') renderVocabulary();
 });
 $('name-capture').addEventListener('submit', saveNamedCapture);
 $('discard-capture').addEventListener('click', discardCapture);

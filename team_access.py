@@ -6,7 +6,7 @@ from http.cookies import SimpleCookie, CookieError
 from accounts import COOKIE, digest
 from web_dataset import draft_dir, sequence_metadata, validate_identifier
 
-STUDIO_ROUTES = {'/api/train', '/api/alphabet', '/api/capture',
+STUDIO_ROUTES = {'/api/train', '/api/alphabet', '/api/vocabulary/category', '/api/capture',
                  '/api/capture/save', '/api/capture/discard', '/api/admin/delete-recordings'}
 CAMERA_ROUTES = {'/api/snapshot', '/api/close', '/api/reset', '/api/capture', '/api/frame'}
 

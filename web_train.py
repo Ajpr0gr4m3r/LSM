@@ -100,6 +100,9 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         import tensorflow as tf
         from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
         from model import build_web_model
+        import keras_portability
+        # Guarda rutas internas con «/» para que el modelo cargue en Windows, macOS y Linux.
+        keras_portability.install()
 
         tf.keras.utils.set_random_seed(42)
         if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
@@ -151,7 +154,12 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
         fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory', 'torso') else augment_articulation)(view_points, view_targets)
-        X_fit = np.stack([prepare_sequence(sequence, preprocessing) for sequence in fit_points])
+        # Reservar el arreglo una vez (float32) evita duplicar varios GB en memoria
+        # con una lista intermedia; con 8 GB de RAM el entrenamiento se cerraba.
+        X_fit = np.empty((len(fit_points),) + X.shape[1:], dtype=np.float32)
+        for row, sequence in enumerate(fit_points):
+            X_fit[row] = prepare_sequence(sequence, preprocessing)
+        del fit_points
 
         from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
         contrastive_history = []

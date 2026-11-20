@@ -31,7 +31,8 @@ except ImportError as error:
     command = 'py -3.11 iniciar.py' if os.name == 'nt' else 'python3.11 iniciar.py'
     raise SystemExit(f'No se pudo cargar NumPy: {error}. Abre Seña con {command}.') from None
 from config import BASE_DIR, FEATURE_DIM, SEQUENCE_LENGTH, CONFIDENCE_THRESHOLD, STABILITY_FRAMES, COOLDOWN_SECONDS
-from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec
+STABILITY_TOLERATED_MISSES = int(os.environ.get('SENA_TOLERATED_MISSES', '1'))
+from sign_languages import LANGUAGES, WEB_DATA, MIN_SAMPLES, RECOMMENDED_SAMPLES, CAPTURE_FPS, language_info, labels_for, validate_label, model_dir, pipeline_spec, frame_stride
 from recognition_features import prepare_sequence, feature_dimension, hand_guard_accept, temporal_guard_accept, augment_viewpoints
 from web_dataset import inventory, stored_sample_counts, read_dataset, save_draft, pending_drafts, commit_draft, discard_draft, archive_label
 from admin_auth import AdminGuard, TEAM_CONFIG
@@ -43,9 +44,10 @@ from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
-from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model
+from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model, _metadata_summary as metadata_summary
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
+from vocabulary_catalog import catalog_status, add_category, phrasebook
 
 
 QUICK_TUNNEL_URL = re.compile(r'https://[a-z0-9-]+\.trycloudflare\.com', re.IGNORECASE)
@@ -108,7 +110,7 @@ def public_model_metadata(path, modified, size):
     return summary
 
 
-def model_metadata(language, *, public=False):
+def model_metadata(language, *, public=False, summary=False):
     directory = model_dir(language)
     manifest = directory / 'current.json'
     if not manifest.exists():
@@ -124,6 +126,9 @@ def model_metadata(language, *, public=False):
     if public:
         stat = metadata_path.stat()
         meta = public_model_metadata(metadata_path, stat.st_mtime_ns, stat.st_size)
+    elif summary:
+        # Sin guardas pesadas y en caché: /api/state no relee decenas de MB cada vez.
+        meta = dict(metadata_summary(metadata_path))
     else:
         meta = json.loads(metadata_path.read_text(encoding='utf-8'))
     if meta['language'] != language or meta['pipeline'] != pipeline_spec():
@@ -161,10 +166,13 @@ class Session:
 
     # Vacía la secuencia y sus votos de reconocimiento sin cerrar la cámara ni borrar tomas guardadas.
     def reset(self):
-        self.frames = deque(maxlen=SEQUENCE_LENGTH + SEQUENCE_LENGTH//2)
+        # Las frases guardan 1 de cada «stride» fotogramas: el buffer cubre el mismo tiempo.
+        self.stride = frame_stride(self.language)
+        self.frames = deque(maxlen=(SEQUENCE_LENGTH + SEQUENCE_LENGTH//2) * self.stride)
         self.probabilities = deque(maxlen=5)
         self.stable_label = None
         self.stable_count = 0
+        self.stable_misses = 0
         self.last_confirmed = None
         self.cooldown = 0
         self.no_hands = 0
@@ -512,7 +520,7 @@ class Runtime:
             metadata = None
             error = None
             try:
-                result = model_metadata(info['id'], public=not include_studio)
+                result = model_metadata(info['id'], public=not include_studio, summary=include_studio)
                 metadata = {k: v for k, v in result[1].items() if k not in ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')} if result else None
                 if not result:
                     manifest = model_dir(info['id']) / 'current.json'
@@ -522,7 +530,9 @@ class Runtime:
                             error = selection.get('reason', 'Reentrena el modelo tras borrar ejemplos.')
             except (ValueError, KeyError, OSError) as exc:
                 error = str(exc)
-            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']) if include_studio else [], 'alphabet': alphabet_status(info['id'], rows, metadata) if include_studio else None})
+            profiles.append({**info, 'labels': rows, 'model': metadata, 'model_error': error, 'drafts': pending_drafts(info['id']) if include_studio else [], 'alphabet': alphabet_status(info['id'], rows, metadata) if include_studio else None,
+                             'catalog': catalog_status(info['id'], rows, metadata) if include_studio else None,
+                             'phrasebook': phrasebook(info['id'])})
         old_model = ROOT / 'models' / 'lsm_model.h5'
         return {'profiles': profiles, 'minimum_samples': MIN_SAMPLES, 'recommended_samples': RECOMMENDED_SAMPLES, 'sequence_length': SEQUENCE_LENGTH,
                 'target_fps': CAPTURE_FPS, 'token': TOKEN, 'job': self.job() if include_studio else None,
@@ -948,7 +958,7 @@ class Runtime:
         results, recovered = self.recover_hand_tracking(session, mirrored, results, now)
         points = extract_keypoints(results)
         hands = hands_detected(results)
-        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': min(len(session.frames), SEQUENCE_LENGTH), 'captured': 0, 'draft_id': None,
+        output = {'hands': hands, 'tracking_recovered': recovered, 'buffer': min(len(session.frames) // session.stride, SEQUENCE_LENGTH), 'captured': 0, 'draft_id': None,
                   'candidate': None, 'confirmed': None, 'confidence': 0, 'stability': 0,
                   'stability_required': STABILITY_FRAMES, 'rejection_reason': None, 'rejection_code': None}
         if payload.get('show_hand_rig') is True:
@@ -981,8 +991,13 @@ class Runtime:
                     session.capture = None
                     raise ValueError('No se pudo iniciar una toma válida. Revisa la luz y el encuadre y vuelve a grabar.')
                 return output
-            capture['quality_bad'] = capture.get('quality_bad', 0) + int(not quality['usable'])
             output['phase'] = 'capturing'
+            capture['seen'] = capture.get('seen', 0) + 1
+            if (capture['seen'] - 1) % session.stride:
+                # Perfil de frases: este fotograma solo marca el paso del tiempo.
+                output['captured'] = len(capture['points'])
+                return output
+            capture['quality_bad'] = capture.get('quality_bad', 0) + int(not quality['usable'])
             capture['points'].append(points)
             capture['hands'] += int(hands)
             output['captured'] = len(capture['points'])
@@ -999,18 +1014,23 @@ class Runtime:
             return output
         if payload.get('mode') != 'test':
             return output
+        return self.recognize(session, points, hands, quality, output, now, payload)
+
+    # Reconoce a partir de los puntos de un fotograma: buffer, modelo, filtros y estabilidad.
+    # Separado de la cámara para poder reproducir tomas grabadas y medir la confirmación.
+    def recognize(self, session, points, hands, quality, output, now, payload):
         usable = hands and (quality['usable'] or not session.quality_gate)
         tracking_phase = session.update_recognition_tracking(hands, usable, now)
         if not usable:
-            output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
+            output['buffer'] = min(len(session.frames) // session.stride, SEQUENCE_LENGTH)
             output['phase'] = tracking_phase
             output['rejection_code'] = 'capture_quality'
             output['rejection_reason'] = quality['message']
             return output
         session.frames.append(points)
-        output['buffer'] = min(len(session.frames), SEQUENCE_LENGTH)
+        output['buffer'] = min(len(session.frames) // session.stride, SEQUENCE_LENGTH)
         bundle = self.load_model(session.language)
-        if not bundle or len(session.frames) < SEQUENCE_LENGTH:
+        if not bundle or len(session.frames) < SEQUENCE_LENGTH * session.stride:
             return output
         model, metadata = bundle
         stability_frames = max(1, int(metadata.get('stability_frames', STABILITY_FRAMES)))
@@ -1030,7 +1050,9 @@ class Runtime:
             output['inference_skipped'] = True
             return output
         session.last_inference = now
-        raw_sequence = np.stack(session.frames)[-SEQUENCE_LENGTH:]
+        # Mismo muestreo que la captura, terminando en el fotograma más reciente.
+        history = np.stack(session.frames)[::-1][::session.stride][::-1]
+        raw_sequence = history[-SEQUENCE_LENGTH:]
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
         probs = model(sequence[None, ...], training=False).numpy()[0]
         probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
@@ -1058,7 +1080,7 @@ class Runtime:
             if retry is not None and int(np.argmax(retry[0])) == original_index:
                 probs, details = retry
         if not details['accepted']:
-            retry = self.retry_longer_motion(np.stack(session.frames), model, metadata, strict)
+            retry = self.retry_longer_motion(history, model, metadata, strict)
             if retry is not None:
                 probs, details = retry
                 output['temporal_window'] = 'extended'
@@ -1081,11 +1103,16 @@ class Runtime:
             if not output['rejection_reason']:
                 output['rejection_reason'] = 'Seña ambigua. Mantén el gesto o vuelve a empezar.'
             output['phase'] = 'uncertain'
-            session.stable_label, session.stable_count = None, 0
+            # Una sola ventana dudosa (parpadeo del seguimiento) no borra el avance:
+            # se reinicia solo tras dos rechazos seguidos o si cambia la propuesta.
+            session.stable_misses += 1
+            if session.stable_misses >= STABILITY_TOLERATED_MISSES + 1 or session.stable_label != label['id']:
+                session.stable_label, session.stable_count, session.stable_misses = None, 0, 0
         elif session.stable_label == label['id']:
             session.stable_count += 1
+            session.stable_misses = 0
         else:
-            session.stable_label, session.stable_count = label['id'], 1
+            session.stable_label, session.stable_count, session.stable_misses = label['id'], 1, 0
         immediate_test = payload.get('mode') == 'test' and confidence >= .90 - 1e-7 and decision
         switching = session.gesture_confirmed and label['id'] != session.last_confirmed
         # A new sign can follow the previous one without a no-hands gap.
@@ -1239,6 +1266,9 @@ class Handler(BaseHTTPRequestHandler):
                  '/static/conversation.js': ('conversation.js', 'text/javascript; charset=utf-8'),
                  '/static/phone.js': ('phone.js', 'text/javascript; charset=utf-8'),
                  '/static/studio.js': ('studio.js', 'text/javascript; charset=utf-8'),
+                 '/static/phrases.js': ('phrases.js', 'text/javascript; charset=utf-8'),
+                 '/static/vocabulary.js': ('vocabulary.js', 'text/javascript; charset=utf-8'),
+                 '/static/transcript.js': ('transcript.js', 'text/javascript; charset=utf-8'),
                  '/static/continuous.js': ('continuous.js', 'text/javascript; charset=utf-8'),
                  '/static/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/static/styles.css': ('styles.css', 'text/css; charset=utf-8')}
@@ -1298,7 +1328,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200, team_access.auth_post(self, route, payload, ACCOUNTS, RUNTIME, auth))
             if (route not in ('/api/admin/unlock', '/api/admin/lock', '/api/close')
                     and not RUNTIME.startup_models_ready.wait(timeout=10)):
-                return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.'})
+                return self.send_data(503, {'error': 'El modelo aún se está preparando. Inténtalo en unos segundos.',
+                                            'code': 'model_preparing'})
             if route == '/api/session' and payload.get('shared_consent') is True:
                 check_camera_dependencies()
             with RUNTIME.lock:
@@ -1345,6 +1376,10 @@ class Handler(BaseHTTPRequestHandler):
                     result = {'reset': True}
                 elif route == '/api/capture':
                     result = RUNTIME.start_capture(payload.get('session'), payload.get('consecutive', False), payload.get('batch_id'))
+                elif route == '/api/vocabulary/category':
+                    if RUNTIME.training():
+                        raise ValueError('Espera a que termine el entrenamiento para añadir vocabulario.')
+                    result = add_category(payload.get('language'), payload.get('category'))
                 elif route == '/api/alphabet':
                     if RUNTIME.training():
                         raise ValueError('Espera a que termine el entrenamiento para añadir letras.')

@@ -19,17 +19,92 @@ def current_selection(root):
         return {}
 
 
-def compatible_metadata(language):
-    """Lee una versión a la vez y descarta pipelines incompatibles."""
-    for path in model_dir(language).glob('*/metadata.json'):
+# Campos enormes que no hacen falta para listar versiones ni elegir la activa.
+HEAVY_METADATA_KEYS = ('posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups')
+# Campos mínimos para decidir qué versión activar al arrancar.
+INDEX_KEYS = ('language', 'pipeline', 'preprocessing', 'created_at', 'auto_activate')
+INDEX_NAME = '.metadata_index.json'
+_SUMMARY_CACHE = {}
+
+
+def _stamp(path):
+    stat = path.stat()
+    return [stat.st_size, stat.st_mtime_ns]
+
+
+def _metadata_summary(path):
+    """Lee un metadata.json una sola vez por cambio de archivo y quita los campos pesados."""
+    stamp = _stamp(path)
+    cached = _SUMMARY_CACHE.get(str(path))
+    if cached and cached[0] == stamp:
+        return cached[1]
+    meta = json.loads(path.read_text(encoding='utf-8'))
+    summary = {key: value for key, value in meta.items() if key not in HEAVY_METADATA_KEYS}
+    _SUMMARY_CACHE[str(path)] = (stamp, summary)
+    return summary
+
+
+def _light_index(language):
+    """Índice pequeño en disco: evita leer cientos de MB de metadatos en cada arranque."""
+    root = model_dir(language)
+    index_path = root / INDEX_NAME
+    try:
+        stored = json.loads(index_path.read_text(encoding='utf-8'))
+        stored = stored if isinstance(stored, dict) else {}
+    except (OSError, ValueError):
+        stored = {}
+    index, changed = {}, False
+    for path in root.glob('*/metadata.json'):
+        version = path.parent.name
+        try:
+            validate_identifier(version)
+            stamp = _stamp(path)
+        except (ValueError, OSError):
+            continue
+        entry = stored.get(version)
+        if not isinstance(entry, dict) or entry.get('stamp') != stamp:
+            try:
+                meta = _metadata_summary(path)
+            except (ValueError, OSError):
+                continue
+            entry = {key: meta.get(key) for key in INDEX_KEYS}
+            entry.update(stamp=stamp, label_count=len(meta.get('labels') or []))
+            changed = True
+        index[version] = entry
+    if changed or set(index) != set(stored):
+        try:
+            temporary = root / (INDEX_NAME + '.tmp')
+            temporary.write_text(json.dumps(index), encoding='utf-8')
+            os.replace(temporary, index_path)
+        except OSError:
+            pass  # El índice es solo una caché; sin él todo sigue funcionando.
+    return index
+
+
+def compatible_metadata(language, light=False):
+    """Lee una versión a la vez y descarta pipelines incompatibles.
+
+    Con ``light=True`` devuelve solo los campos del índice (rápido, para el arranque)."""
+    root = model_dir(language)
+    if light:
+        for version, meta in _light_index(language).items():
+            try:
+                if meta['language'] != language or meta['pipeline'] != pipeline_spec():
+                    continue
+                feature_dimension(meta.get('preprocessing'))
+                yield version, meta, meta['stamp'][1] / 1e9
+            except (ValueError, KeyError, TypeError):
+                continue
+        return
+    for path in root.glob('*/metadata.json'):
         try:
             version = path.parent.name
             validate_identifier(version)
-            meta = json.loads(path.read_text(encoding='utf-8'))
+            meta = _metadata_summary(path)
             if meta['language'] != language or meta['pipeline'] != pipeline_spec():
                 continue
             feature_dimension(meta.get('preprocessing'))
-            yield version, meta, path.stat().st_mtime
+            yield version, dict(meta), path.stat().st_mtime
         except (ValueError, KeyError, OSError):
             continue
 
@@ -42,9 +117,7 @@ def versions(language):
         if meta.get('confusion_matrix') and not meta.get('test_evaluation'):
             from recognition_analysis import confusion_analysis
             meta['legacy_confusions'] = confusion_analysis(meta['confusion_matrix'], meta['labels'])
-        summary = {k: v for k, v in meta.items() if k not in (
-            'posture_vote', 'hand_guard', 'temporal_guard', 'split_hashes', 'split_groups'
-        )}
+        summary = {k: v for k, v in meta.items() if k not in HEAVY_METADATA_KEYS}
         active = selected.get('version') == version and not selected.get('requires_retraining')
         result.append((modified, dict(summary, version=version, active=active)))
     return [row for _, row in sorted(result, key=lambda item: item[0], reverse=True)]
@@ -54,7 +127,10 @@ def load_inference_model(path):
     """Carga todos los pesos del modelo y da un diagnóstico de compatibilidad."""
     from importlib.metadata import version
     import tensorflow as tf
+    import keras_portability
 
+    # Los modelos entrenados en Mac/Linux guardan rutas con «/»; Windows las busca con «\\».
+    keras_portability.install()
     try:
         return tf.keras.models.load_model(path, compile=False, safe_mode=True)
     except ValueError as error:
@@ -101,8 +177,8 @@ def activate_latest_version(language):
     selection = current_selection(root)
     candidates = [
         (meta.get('created_at') or '', modified, version)
-        for version, meta, modified in compatible_metadata(language)
-        if meta.get('auto_activate') is not False and len(meta.get('labels', [])) >= 2
+        for version, meta, modified in compatible_metadata(language, light=True)
+        if meta.get('auto_activate') is not False and meta.get('label_count', 0) >= 2
         and (root / version / 'model.keras').is_file()
     ]
     for _, _, version in sorted(candidates, reverse=True):
