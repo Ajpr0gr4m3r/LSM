@@ -176,7 +176,7 @@ def draft_owner(language, identifier):
 
 # Comprueba roles, consentimiento y propiedad de cámara o toma antes de una operación.
 def authorize(runtime, user, route, payload):
-    if (route in STUDIO_ROUTES or route.startswith(('/api/dataset/', '/api/models/'))) and not user.get('studio_admin'):
+    if (route in STUDIO_ROUTES or route.startswith(('/api/dataset/', '/api/models/', '/api/synthetic/'))) and not user.get('studio_admin'):
         raise PermissionError('Abre el modo administrador para usar esta opción.')
     if route in CAMERA_ROUTES:
         item = runtime.session(payload.get('session'))

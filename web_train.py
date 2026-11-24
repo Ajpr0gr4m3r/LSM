@@ -86,8 +86,34 @@ def write_json(path, payload):
     os.replace(temp, path)
 
 
+def BatchesFromArrays(x, y, batch_size, class_weights, seed=42):
+    """Lotes barajados por época con pesos de clase, sin copiar todo el arreglo."""
+    import numpy as np
+    import tensorflow as tf
+
+    class Batches(tf.keras.utils.Sequence):
+        def __init__(self):
+            self.rng = np.random.default_rng(seed)
+            self.order = self.rng.permutation(len(x))
+            self.weights = np.array([class_weights[i] for i in range(y.shape[1])], np.float32)
+
+        def __len__(self):
+            return int(np.ceil(len(x) / batch_size))
+
+        def __getitem__(self, index):
+            rows = np.sort(self.order[index * batch_size:(index + 1) * batch_size])
+            targets = y[rows]
+            return x[rows], targets, self.weights[np.argmax(targets, axis=1)]
+
+        def on_epoch_end(self):
+            self.order = self.rng.permutation(len(x))
+
+    return Batches()
+
+
 # Ejecuta separación, aumentos, entrenamiento, calibración, evaluación y posible activación de una versión.
-def train_language(language, epochs, job_id, label_ids=None, strategy="baseline", activate=True):
+def train_language(language, epochs, job_id, label_ids=None, strategy="baseline", activate=True,
+                   synthetic_mode="real", synthetic_ratio=1.):
     language_info(language)
     if len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
         raise ValueError('Identificador de entrenamiento inválido.')
@@ -153,13 +179,52 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
-        fit_points, y_fit = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory', 'torso') else augment_articulation)(view_points, view_targets)
-        # Reservar el arreglo una vez (float32) evita duplicar varios GB en memoria
-        # con una lista intermedia; con 8 GB de RAM el entrenamiento se cerraba.
-        X_fit = np.empty((len(fit_points),) + X.shape[1:], dtype=np.float32)
-        for row, sequence in enumerate(fit_points):
-            X_fit[row] = prepare_sequence(sequence, preprocessing)
-        del fit_points
+        augment = (augment_robust if strategy == 'robust' else augment_timing if strategy in ('baseline', 'trajectory', 'torso') else augment_articulation)
+        # Aumentar y preparar por partes: nunca coexisten todas las variantes crudas
+        # y sus características (con 4,000 tomas eso pasaba de 6 GB y se cerraba).
+        parts_x, parts_y = [], []
+        for start in range(0, len(view_points), 400):
+            chunk_points, chunk_y = augment(view_points[start:start + 400], view_targets[start:start + 400])
+            chunk_x = np.empty((len(chunk_points),) + X.shape[1:], dtype=np.float32)
+            for row, sequence in enumerate(chunk_points):
+                chunk_x[row] = prepare_sequence(sequence, preprocessing)
+            parts_x.append(chunk_x)
+            parts_y.append(np.asarray(chunk_y, dtype=np.float32))
+            del chunk_points
+        X_fit = np.concatenate(parts_x) if len(parts_x) > 1 else parts_x[0]
+        y_fit = np.concatenate(parts_y) if len(parts_y) > 1 else parts_y[0]
+        del parts_x, parts_y
+
+        # Datos sintéticos: SOLO en el ajuste de pesos y solo si su origen es una toma
+        # de entrenamiento (o una foto/video ajena a validación y prueba). La
+        # selección del checkpoint, la calibración y la prueba usan solo tomas reales.
+        from synthetic_dataset import select_for_training
+        fingerprints = [hashlib.sha256(p.tobytes()).hexdigest() for p in raw]
+        synthetic_points, synthetic_y, synthetic_summary = select_for_training(
+            language, [label['id'] for label in labels],
+            train_digests={fingerprints[i] for i in train},
+            eval_digests={fingerprints[i] for i in np.concatenate([validation, test])},
+            real_train_counts=counts, mode=synthetic_mode, ratio=float(synthetic_ratio))
+        if synthetic_mode != 'real':
+            if not len(synthetic_points):
+                raise ValueError('No hay muestras sintéticas utilizables para las señas elegidas. '
+                                 'Genéralas en «Generador sintético» o entrena solo con datos reales.')
+            X_synthetic = np.stack([prepare_sequence(sequence, preprocessing) for sequence in synthetic_points]).astype(np.float32)
+            y_synthetic = tf.keras.utils.to_categorical(synthetic_y, len(labels))
+            if synthetic_mode == 'synthetic':
+                # Experimental: los pesos se ajustan solo con sintéticas; la evaluación sigue siendo real.
+                missing = [label['text'] for i, label in enumerate(labels) if not np.any(synthetic_y == i)]
+                if missing:
+                    raise ValueError('Faltan sintéticas para: ' + ', '.join(missing))
+                X_fit, y_fit = X_synthetic, y_synthetic
+            else:
+                X_fit = np.concatenate([X_fit, X_synthetic])
+                y_fit = np.concatenate([y_fit, y_synthetic])
+            del X_synthetic, synthetic_points
+            status['message'] = (f'Entrenando con {synthetic_summary["total"]} muestras sintéticas '
+                                 f'({"solo sintéticas" if synthetic_mode == "synthetic" else "mezcladas con reales"}).')
+            status['synthetic'] = synthetic_summary
+            write_json(progress_path, status)
 
         from discriminative_learning import HardExampleSequence, MineHardExamples, contrastive_warmup
         contrastive_history = []
@@ -197,13 +262,18 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
                 write_json(progress_path, status)
 
         weights = {i: float(len(train) / (len(labels) * n)) for i, n in enumerate(counts)}
+        if synthetic_mode != 'real':
+            fit_counts = np.maximum(np.bincount(np.argmax(y_fit, axis=1), minlength=len(labels)), 1)
+            weights = {i: float(len(y_fit) / (len(labels) * n)) for i, n in enumerate(fit_counts)}
         callbacks = [BalancedValidation(),
             tf.keras.callbacks.ModelCheckpoint(str(checkpoint), monitor='val_balanced_score', mode='max', save_best_only=True),
             tf.keras.callbacks.EarlyStopping(monitor='val_balanced_score', mode='max', min_delta=1e-6, patience=16, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', patience=5, factor=.5)]
         initial_weights = model.get_weights()
         if strategy in ('baseline', 'trajectory', 'robust', 'torso'):
-            fit_args = dict(x=X_fit, y=y_fit, batch_size=min(16,len(train)), class_weight=weights)
+            # Lotes desde el arreglo: Keras no hace otra copia completa en memoria.
+            fit_args = dict(x=BatchesFromArrays(X_fit, y_fit, min(16, len(train)), weights), workers=1,
+                            use_multiprocessing=False)
             fit_callbacks = callbacks+[Progress()]
         else:
             fit_data=HardExampleSequence(X_fit,y_fit,min(16,len(train)))
@@ -337,7 +407,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'samples': len(y), 'split': {'train': len(train), 'validation': len(validation), 'test': len(test)},
             'test_accuracy': float(np.mean(pred == y[test])), 'report': report,
             'preprocessing': preprocessing, 'architecture': 'compact-bilstm-articulation-v6',
-            'training_recovery':recovery, 'strategy': strategy, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
+            'training_recovery':recovery, 'strategy': strategy, 'synthetic': synthetic_summary, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
             'decision_input': 'single-window-v1', 'validation_protocol': protocol,
             'recognition_diagnostics': {
                 'validation': rejection_report(val_probs, y[validation], labels, policy, val_scores),
@@ -390,7 +460,12 @@ if __name__ == '__main__':
     parser.add_argument('--labels', nargs='+', help='IDs de las señas seleccionadas; cada una requiere el mínimo real.')
     parser.add_argument('--strategy', choices=['baseline','discriminative','contrastive','trajectory','robust','torso'], default='baseline')
     parser.add_argument('--no-activate', action='store_true', help='Guardar evaluación sin cambiar el modelo activo.')
+    parser.add_argument('--synthetic-mode', choices=['real', 'mixed', 'synthetic'], default='real',
+                        help='real: solo tomas reales · mixed: reales + sintéticas · synthetic: solo sintéticas (experimental).')
+    parser.add_argument('--synthetic-ratio', type=float, default=1.,
+                        help='En modo mixed, sintéticas por cada toma real de entrenamiento (0.1–5).')
     args = parser.parse_args()
     if not 5 <= args.epochs <= 200:
         parser.error('Las épocas deben estar entre 5 y 200.')
-    train_language(args.language, args.epochs, args.job_id, args.labels, args.strategy, not args.no_activate)
+    train_language(args.language, args.epochs, args.job_id, args.labels, args.strategy, not args.no_activate,
+                   args.synthetic_mode, min(max(args.synthetic_ratio, 0.), 5.))
