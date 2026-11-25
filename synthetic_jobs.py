@@ -44,15 +44,28 @@ class SyntheticStudio:
         self.jobs = {}
 
     # ── Fuentes ─────────────────────────────────────────────────────────────
-    def add_source(self, language, name, content_type, encoded, mirror=True):
+    def add_source(self, language, name, content_type, encoded, mirror=True, frames=None):
         language_info(language)
-        if not isinstance(encoded, str) or not encoded:
-            raise ValueError('El archivo está vacío.')
-        kind = media.kind_for(name, content_type or '')
-        try:
-            data = base64.b64decode(encoded, validate=True)
-        except (ValueError, TypeError) as exc:
-            raise ValueError('El archivo no se pudo leer.') from exc
+        if frames is not None:
+            # Grabación con la cámara de Seña: lista de fotogramas JPEG a 10 fps.
+            if not isinstance(frames, list) or not frames or not all(isinstance(f, str) for f in frames):
+                raise ValueError('La grabación está vacía.')
+            if len(frames) > media.MAX_CAMERA_FRAMES:
+                raise ValueError(f'La grabación dura más de {media.MAX_VIDEO_SECONDS} s.')
+            try:
+                data = [base64.b64decode(f, validate=True) for f in frames]
+            except (ValueError, TypeError) as exc:
+                raise ValueError('La grabación no se pudo leer.') from exc
+            kind = 'camera'
+            name = name or time.strftime('Grabación %H:%M:%S')
+        else:
+            if not isinstance(encoded, str) or not encoded:
+                raise ValueError('El archivo está vacío.')
+            kind = media.kind_for(name, content_type or '')
+            try:
+                data = base64.b64decode(encoded, validate=True)
+            except (ValueError, TypeError) as exc:
+                raise ValueError('El archivo no se pudo leer.') from exc
         with self.lock:
             if len([s for s in self.sources.values() if s['language'] == language]) >= MAX_SOURCES:
                 raise ValueError(f'Máximo {MAX_SOURCES} archivos a la vez. Guarda o descarta los anteriores.')
@@ -68,6 +81,10 @@ class SyntheticStudio:
         try:
             if source['kind'] == 'image':
                 result = media.image_source(data, source['language'], mirror)
+            elif source['kind'] == 'camera':
+                def progress(index, total):
+                    source['progress'] = min(.99, index / total) if total else 0.
+                result = media.camera_source(data, source['language'], progress, cancelled=lambda: source['cancel'])
             else:
                 suffix = '.' + source['name'].rsplit('.', 1)[-1].lower() if '.' in source['name'] else '.mp4'
                 def progress(index, total):
@@ -249,11 +266,13 @@ class SyntheticStudio:
         participant = str(participant or '').strip()[:60]
         for source_id in job['sources']:
             source = self.sources.get(source_id)
-            # Solo un VIDEO aporta una toma real; una foto repetida 30 veces no lo es.
-            if save_real and source and source['kind'] == 'video' and not source.get('saved_real'):
+            # Un video o una grabación aportan una toma real; una foto repetida 30 veces no lo es.
+            if save_real and source and source['kind'] in ('video', 'camera') and not source.get('saved_real'):
+                camera = source['kind'] == 'camera'
                 save_sequence(job['language'], label['id'], source['sequence'], metadata={
-                    'origin': 'video-import', 'file': source['name'], 'participant': participant,
-                    'session_id': f'import-{source_id[:12]}', 'camera': 'archivo'})
+                    'origin': 'generator-camera' if camera else 'video-import', 'file': source['name'],
+                    'participant': participant, 'session_id': f'import-{source_id[:12]}',
+                    'camera': 'navegador' if camera else 'archivo'})
                 source['saved_real'] = True
                 real_saved += 1
         for item in chosen:

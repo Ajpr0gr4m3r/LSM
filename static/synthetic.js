@@ -99,11 +99,12 @@ function syntheticOpen() {
 }
 
 function sourceDescription(source) {
-  if (source.state === 'processing') return source.kind === 'video'
+  if (source.state === 'processing') return source.kind !== 'image'
     ? `Procesando video… ${Math.round((source.progress || 0) * 100)} %` : 'Detectando manos…';
   if (source.state === 'error') return source.error;
   const hands = (source.hands || []).map((h, i) => (h ? (i ? 'derecha' : 'izquierda') : null)).filter(Boolean);
-  const kind = source.static ? 'Foto · seña estática' : `Video · ${source.frames_with_hands}/${source.frames_read} fotogramas con manos`;
+  const kind = source.static ? 'Foto · seña estática'
+    : `${source.kind === 'camera' ? 'Grabación' : 'Video'} · ${source.frames_with_hands}/${source.frames_read} fotogramas con manos`;
   return `${kind} · mano ${hands.join(' y ') || '—'}`;
 }
 
@@ -326,3 +327,121 @@ $('synthetic-to-training').addEventListener('click', () => {
 $('training-data-mode').addEventListener('change', () => {
   $('training-ratio-wrap').hidden = $('training-data-mode').value !== 'mixed';
 });
+
+// ── Grabar con la cámara ────────────────────────────────────────────────────
+// Captura fotogramas JPEG de 640×480 a 10 fps, sin espejo: lo mismo que recibe
+// /api/frame al reconocer. Reutiliza la cámara de Seña si ya está abierta.
+const recorder = { stream: null, own: false, recording: false, stop: false, takes: 0 };
+
+function recorderStatus(text) {
+  $('synthetic-recorder-status').textContent = text;
+}
+
+async function openRecorder() {
+  $('synthetic-recorder').hidden = false;
+  $('synthetic-open-recorder').hidden = true;
+  $('synthetic-recorder-seconds').value = (profile()?.frame_stride || 1) > 1 ? '6' : '3';
+  try {
+    if (typeof stream !== 'undefined' && stream?.active) {
+      recorder.stream = stream;
+      recorder.own = false;
+    } else {
+      if (!navigator.mediaDevices?.getUserMedia)
+        throw new Error('La cámara necesita HTTPS o localhost. Abre la dirección segura de Seña.');
+      const deviceId = $('camera-device')?.value;
+      recorder.stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' }) },
+        audio: false,
+      });
+      recorder.own = true;
+    }
+    $('synthetic-recorder-video').srcObject = recorder.stream;
+    await $('synthetic-recorder-video').play().catch(() => {});
+    recorderStatus('Encuadra hombros y manos. Empieza con las manos abajo y bájalas al terminar.');
+  } catch (error) {
+    recorderStatus(error.name === 'NotAllowedError'
+      ? 'El navegador no dio permiso para usar la cámara. Permítelo en la barra de direcciones.'
+      : error.name === 'NotReadableError'
+        ? 'Otra aplicación está usando la cámara. Ciérrala e intenta de nuevo.'
+        : error.message);
+  }
+}
+
+function closeRecorder() {
+  recorder.stop = true;
+  if (recorder.own) recorder.stream?.getTracks().forEach((track) => track.stop());
+  recorder.stream = null;
+  recorder.own = false;
+  $('synthetic-recorder-video').srcObject = null;
+  $('synthetic-recorder').hidden = true;
+  $('synthetic-open-recorder').hidden = false;
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function recordTake() {
+  const video = $('synthetic-recorder-video');
+  if (!recorder.stream || recorder.recording) return;
+  if (!video.videoWidth) return recorderStatus('La cámara todavía no entrega video. Espera un momento.');
+  recorder.recording = true;
+  recorder.stop = false;
+  $('synthetic-record').hidden = true;
+  $('synthetic-record-stop').hidden = false;
+  $('synthetic-recorder-seconds').disabled = $('synthetic-recorder-countdown').disabled = true;
+  const seconds = Number($('synthetic-recorder-seconds').value) || 3;
+  const total = seconds * 10;
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(640 / video.videoWidth, 480 / video.videoHeight, 1);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  const context = canvas.getContext('2d');
+  const frames = [];
+  try {
+    for (let n = Number($('synthetic-recorder-countdown').value); n > 0 && !recorder.stop; n--) {
+      $('synthetic-recorder-count').textContent = n;
+      recorderStatus('Prepárate: manos abajo.');
+      await wait(1000);
+    }
+    $('synthetic-recorder-count').textContent = '';
+    if (recorder.stop) return recorderStatus('Grabación cancelada.');
+    $('synthetic-recorder-live').hidden = false;
+    recorderStatus('Grabando… haz la seña completa.');
+    const start = performance.now();
+    while (frames.length < total && !recorder.stop) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      frames.push(canvas.toDataURL('image/jpeg', 0.82).split(',')[1]);
+      $('synthetic-recorder-progress').style.width = `${(frames.length / total) * 100}%`;
+      // Mantener 10 fps reales aunque un fotograma tarde más en codificarse.
+      await wait(Math.max(0, start + frames.length * 100 - performance.now()));
+    }
+    $('synthetic-recorder-live').hidden = true;
+    if (frames.length < 15) return recorderStatus('La grabación fue demasiado corta (mínimo 1.5 s). Inténtalo de nuevo.');
+    recorder.takes += 1;
+    recorderStatus(`Enviando ${frames.length} fotogramas (${(frames.length / 10).toFixed(1)} s)…`);
+    await syntheticRequest('/api/synthetic/source', {
+      name: `Grabación ${recorder.takes} · ${(frames.length / 10).toFixed(1)} s`, frames });
+    recorderStatus('Listo: la grabación aparece en la lista. Puedes grabar otra toma.');
+    syntheticRefresh();
+  } catch (error) {
+    recorderStatus(error.message);
+  } finally {
+    $('synthetic-recorder-live').hidden = true;
+    $('synthetic-recorder-count').textContent = '';
+    $('synthetic-recorder-progress').style.width = '0';
+    $('synthetic-record').hidden = false;
+    $('synthetic-record').textContent = 'Grabar otra toma';
+    $('synthetic-record-stop').hidden = true;
+    $('synthetic-recorder-seconds').disabled = $('synthetic-recorder-countdown').disabled = false;
+    recorder.recording = false;
+  }
+}
+
+$('synthetic-open-recorder').addEventListener('click', openRecorder);
+$('synthetic-recorder-close').addEventListener('click', closeRecorder);
+$('synthetic-record').addEventListener('click', recordTake);
+$('synthetic-record-stop').addEventListener('click', () => { recorder.stop = true; });
+// Al salir del Generador se libera la cámara que abrió el grabador.
+new MutationObserver(() => {
+  if ($('view-synthetic').hidden && !$('synthetic-recorder').hidden && !recorder.recording) closeRecorder();
+}).observe($('view-synthetic'), { attributes: true, attributeFilter: ['hidden'] });

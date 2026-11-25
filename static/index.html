@@ -815,6 +815,40 @@
                     <span>o pulsa para elegirlos · JPG, PNG, WEBP, MP4, MOV, WEBM · hasta 35 MB</span>
                   </div>
                   <input id="synthetic-files" type="file" accept="image/*,video/*" multiple hidden />
+                  <button id="synthetic-open-recorder" class="secondary synthetic-record-open" type="button">
+                    ● Grabar con la cámara
+                  </button>
+                  <div id="synthetic-recorder" class="synthetic-recorder" hidden>
+                    <div class="synthetic-recorder-view">
+                      <video id="synthetic-recorder-video" autoplay playsinline muted></video>
+                      <span id="synthetic-recorder-count" class="synthetic-recorder-count" aria-live="assertive"></span>
+                      <span id="synthetic-recorder-live" class="synthetic-recorder-live" hidden>● REC</span>
+                    </div>
+                    <div class="synthetic-bar"><span id="synthetic-recorder-progress"></span></div>
+                    <p id="synthetic-recorder-status" class="help" aria-live="polite">
+                      Encuadra hombros y manos. Empieza con las manos abajo y bájalas al terminar.
+                    </p>
+                    <div class="synthetic-row">
+                      <label>Duración
+                        <select id="synthetic-recorder-seconds">
+                          <option value="3">3 s · letra o palabra</option>
+                          <option value="4">4 s</option>
+                          <option value="6">6 s · frase</option>
+                          <option value="10">10 s</option>
+                        </select></label>
+                      <label>Cuenta regresiva
+                        <select id="synthetic-recorder-countdown">
+                          <option value="3" selected>3 s</option>
+                          <option value="5">5 s</option>
+                          <option value="0">Sin cuenta</option>
+                        </select></label>
+                    </div>
+                    <div class="input-row">
+                      <button id="synthetic-record" class="primary" type="button">Grabar</button>
+                      <button id="synthetic-record-stop" class="secondary" type="button" hidden>Detener</button>
+                      <button id="synthetic-recorder-close" class="text-button" type="button">Cerrar cámara</button>
+                    </div>
+                  </div>
                   <label class="check-row"><input id="synthetic-mirror" type="checkbox" checked />
                     Reflejar como la cámara de Seña (desmárcalo si el archivo ya está en espejo)</label>
                   <p class="help">Fotos: solo señas estáticas (A, B, C…). Videos: señas con movimiento o
@@ -872,7 +906,7 @@
                   <label class="check-row"><input id="synthetic-include-pending" type="checkbox" checked />
                     Guardar también las no revisadas (las rechazadas nunca se guardan)</label>
                   <label class="check-row"><input id="synthetic-save-real" type="checkbox" checked />
-                    Guardar cada video original como toma real del dataset</label>
+                    Guardar cada video o grabación original como toma real del dataset</label>
                   <label for="synthetic-participant">Participante (código, opcional)</label>
                   <input id="synthetic-participant" maxlength="60" placeholder="persona-01" />
                   <div class="input-row">

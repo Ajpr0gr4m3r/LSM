@@ -248,6 +248,40 @@ class MediaTests(unittest.TestCase):
                 media.video_source(path.read_bytes(), 'lsm', suffix='.avi')
         shutil.rmtree(path.parent)
 
+    def test_camera_recording_is_processed_like_a_live_take(self):
+        jpeg = cv2.imencode('.jpg', np.full((480, 640, 3), 90, np.uint8))[1].tobytes()
+        plan = [False] * 2 + [True] * 26 + [False] * 2  # 3 s a 10 fps
+        with patch.object(media, 'Detector', self.fake_detector(plan)):
+            result = media.camera_source([jpeg] * 30, 'lsm')
+        self.assertEqual(result['kind'], 'camera')
+        self.assertFalse(result['static'])
+        self.assertEqual(result['sequence'].shape, (SEQUENCE_LENGTH, FEATURE_DIM))
+        # Perfil de frases: 6 s a 10 fps → 1 de cada 2 fotogramas.
+        with patch.object(media, 'Detector', self.fake_detector([True] * 60)):
+            phrase = media.camera_source([jpeg] * 60, 'lsm_frases')
+        self.assertEqual(phrase['sequence'].shape, (SEQUENCE_LENGTH, FEATURE_DIM))
+        with self.assertRaises(media.MediaError):
+            media.camera_source([], 'lsm')
+        with self.assertRaises(media.MediaError):
+            media.camera_source([jpeg] * (media.MAX_CAMERA_FRAMES + 1), 'lsm')
+
+    def test_studio_accepts_recordings_and_rejects_bad_payloads(self):
+        import synthetic_jobs
+        studio = synthetic_jobs.SyntheticStudio()
+        jpeg = base64.b64encode(cv2.imencode('.jpg', np.zeros((48, 64, 3), np.uint8))[1].tobytes()).decode()
+        with patch.object(media, 'Detector', self.fake_detector([True] * 30)):
+            source = studio.add_source('lsm', None, None, None, frames=[jpeg] * 30)
+            for _ in range(100):
+                if studio.sources[source['id']]['state'] != 'processing':
+                    break
+                time.sleep(.05)
+        stored = studio.sources[source['id']]
+        self.assertEqual((stored['kind'], stored['state']), ('camera', 'ready'))
+        self.assertTrue(stored['name'].startswith('Grabación'))
+        for bad in ([], ['%%%'], 'texto'):
+            with self.assertRaises(ValueError):
+                studio.add_source('lsm', 'x', None, None, frames=bad)
+
     def test_real_mediapipe_runs_on_images(self):
         """MediaPipe real: una imagen sin personas no produce manos (no inventa detecciones)."""
         image = cv2.imencode('.jpg', np.full((240, 320, 3), 127, np.uint8))[1].tobytes()
