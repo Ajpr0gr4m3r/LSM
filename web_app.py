@@ -1185,7 +1185,7 @@ def synthetic_route(route, payload):
         return result
     if route == '/api/synthetic/source':
         return STUDIO.add_source(language, payload.get('name'), payload.get('type'), payload.get('data'),
-                                 payload.get('mirror', True))
+                                 payload.get('mirror', True), payload.get('frames'))
     if route == '/api/synthetic/remove-source':
         return STUDIO.remove_source(payload.get('source'))
     if route == '/api/synthetic/generate':

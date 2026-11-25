@@ -166,12 +166,43 @@ def video_source(data, language, suffix='.mp4', mirror=True, progress=None, canc
     return sequence_from_frames(frames, rigs, hands_seen, stride)
 
 
+MAX_CAMERA_FRAMES = MAX_VIDEO_SECONDS * CAPTURE_FPS
+
+
+def camera_source(images, language, progress=None, cancelled=None):
+    """Grabación desde la cámara del navegador: fotogramas JPEG a 10 fps, sin espejo.
+
+    Es exactamente lo que recibe /api/frame al reconocer, así que se refleja
+    igual que la cámara y se trata como un video real."""
+    if not images:
+        raise MediaError('La grabación no tiene fotogramas.')
+    if len(images) > MAX_CAMERA_FRAMES:
+        raise MediaError(f'La grabación dura más de {MAX_VIDEO_SECONDS} s.')
+    detector = Detector(language, static=False)
+    frames, rigs, hands_seen = [], [], []
+    try:
+        for index, data in enumerate(images):
+            if cancelled and cancelled():
+                raise MediaError('Importación cancelada.')
+            found = detector(decode_image(data), mirror=True)
+            frames.append(found['points'])
+            rigs.append(found['rig'])
+            hands_seen.append(found['hands'])
+            if progress:
+                progress(index, len(images))
+    finally:
+        detector.close()
+    result = sequence_from_frames(np.stack(frames), rigs, hands_seen, frame_stride(language))
+    result['kind'] = 'camera'
+    return result
+
+
 def sequence_from_frames(frames, rigs, hands_seen, stride=1):
     """Recorta al tramo con manos y lo lleva a 30 fotogramas guardados."""
     present = np.array([any(h) for h in hands_seen])
     warnings = []
     if not present.any():
-        raise MediaError('No se detectaron manos en el video.')
+        raise MediaError('No se detectaron manos. Encuadra hombros y manos con buena luz de frente.')
     first, last = np.flatnonzero(present)[[0, -1]]
     # Conservar un poco de reposo antes y después, como en la grabación en vivo.
     first, last = max(0, first - 2 * stride), min(len(frames) - 1, last + 2 * stride)
