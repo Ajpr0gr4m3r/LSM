@@ -308,7 +308,7 @@ async function syntheticGenerate() {
   const label = $('synthetic-label').value.trim();
   if (!label) return notice('Escribe o elige el nombre de la seña.', true);
   const count = syntheticCount();
-  if (!Number.isInteger(count) || count < 1 || count > 1000) return notice('Elige entre 1 y 1000 muestras.', true);
+  if (!Number.isInteger(count) || count < 1 || count > 10000) return notice('Elige entre 1 y 10000 muestras.', true);
   synthetic.busy = true;
   synthetic.start = 0;
   try {

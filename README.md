@@ -163,7 +163,7 @@ La vista **Generador** (solo Admin) crea variaciones de una seña a partir de fo
 
 1. Escribe o elige la seña.
 2. Arrastra **fotos** (solo señas estáticas: A, B, C…) o **videos** de 1–6 s (señas con movimiento o frases), o pulsa **Grabar con la cámara**: cuenta regresiva, grabación de 3–10 s a 10 fps y envío automático; cada toma aparece en la lista y puedes grabar varias seguidas. La grabación usa la misma cámara y formato que el reconocimiento en vivo. Seña los procesa con la misma detección de MediaPipe que la cámara y en la misma vista en espejo; desmarca «Reflejar» si el archivo ya viene en espejo.
-3. Elige nivel (**Conservador**, **Equilibrado**, **Avanzado**), cantidad (50–1000) y semilla. La misma semilla produce las mismas muestras.
+3. Elige nivel (**Conservador**, **Equilibrado**, **Avanzado**), cantidad (hasta 10 000 por generación, con cantidad personalizada desde 1) y semilla. La misma semilla produce las mismas muestras.
 4. Revisa las muestras animadas: aprueba ✓, rechaza ✕ o regenera ↻. Las rechazadas nunca se guardan.
 5. Guarda. Las sintéticas van a `web_data/synthetic/<perfil>/<seña>/` con su origen y transformación; si el archivo era un video, su toma original también se guarda como ejemplo real.
 6. En **Entrenamiento → Datos para entrenar** elige *Solo reales*, *Reales + sintéticas* (con proporción ajustable) o *Solo sintéticas · experimental*.

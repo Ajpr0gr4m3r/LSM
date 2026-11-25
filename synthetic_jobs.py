@@ -20,7 +20,7 @@ from sign_languages import language_info, labels_for, register_label
 
 MAX_SOURCES = 20
 PREVIEW_LIMIT = 24
-COUNTS = (50, 100, 250, 500, 1000)
+COUNTS = (50, 100, 250, 500, 1000, 2500, 5000, 10000)
 
 
 def _compact_frames(sequence, stride=3):
@@ -175,8 +175,8 @@ class SyntheticStudio:
         label_text = str(label_text or '').strip()
         if not label_text:
             raise ValueError('Elige o escribe el nombre de la seña.')
-        if not isinstance(count, int) or not 1 <= count <= 1000:
-            raise ValueError('Elige entre 1 y 1000 muestras.')
+        if type(count) is not int or not 1 <= count <= 10000:
+            raise ValueError('Elige entre 1 y 10000 muestras.')
         if level not in generator.LEVELS:
             raise ValueError('Nivel desconocido.')
         seed = int(seed) if str(seed).lstrip('-').isdigit() else 0

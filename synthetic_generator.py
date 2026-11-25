@@ -372,6 +372,45 @@ def hand_vector(sequence):
     return np.concatenate([local, image * 2])
 
 
+class DuplicateIndex:
+    """Filtra candidatos con una cota inferior y comprueba la distancia original exacta."""
+
+    def __init__(self, original, threshold):
+        self.threshold = threshold
+        self.vectors = []
+        self.projections = []
+        self.tree = None
+        self.indexed = 0
+        self.size = original.size
+        self.block = (self.size + 23) // 24
+        self.add(original)
+
+    def project(self, vector):
+        # Jensen: la norma de estas medias ponderadas no supera el RMS original.
+        padded = np.pad(vector.astype(np.float64), (0, 24 * self.block - self.size))
+        return padded.reshape(24, self.block).mean(axis=1) * np.sqrt(self.block / self.size)
+
+    def add(self, vector):
+        self.vectors.append(vector)
+        self.projections.append(self.project(vector))
+        if len(self.vectors) % 128 == 0:
+            from scipy.spatial import cKDTree
+            self.tree = cKDTree(np.asarray(self.projections))
+            self.indexed = len(self.vectors)
+
+    def contains(self, vector):
+        projection = self.project(vector)
+        # El margen evita excluir vecinos por redondeo de coma flotante.
+        radius = self.threshold + 1e-9
+        indices = self.tree.query_ball_point(projection, radius) if self.tree is not None else []
+        tail = np.asarray(self.projections[self.indexed:])
+        if len(tail):
+            indices += (np.flatnonzero(np.linalg.norm(tail - projection, axis=1) <= radius)
+                        + self.indexed).tolist()
+        return any(float(np.sqrt(np.mean((vector - self.vectors[index]) ** 2))) < self.threshold
+                   for index in indices)
+
+
 @dataclass
 class Result:
     samples: list
@@ -400,7 +439,8 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
     confusable = label_is_confusable(label_text)
     validator = Validator(config, confusable)
     rng = np.random.default_rng(seed)
-    accepted, params_out, vectors = [], [], [hand_vector(source)]
+    accepted, params_out = [], []
+    duplicates = DuplicateIndex(hand_vector(source), validator.min_distance)
     rejected = Counter()
     attempts = 0
     limit = max(count * max_attempts_factor, 20)
@@ -409,6 +449,8 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
             return Result(accepted, params_out, rejected, attempts, cancelled=True)
         pending = []
         for _ in range(min(batch, count - len(accepted), limit - attempts) or 1):
+            if cancelled and cancelled():
+                return Result(accepted, params_out, rejected, attempts, cancelled=True)
             attempts += 1
             params = (scenario_params(config, rng, static, confusable, (int(seed) % len(SCENARIOS)) + attempts - 1)
                       if scenarios else sample_params(config, rng, static, confusable))
@@ -420,7 +462,7 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
                 continue
             vector = hand_vector(sample)
             # Copia casi idéntica: diferencia media menor al 0.8 % del tamaño de la palma.
-            if min(float(np.sqrt(np.mean((vector - v) ** 2))) for v in vectors) < validator.min_distance:
+            if duplicates.contains(vector):
                 rejected['duplicado'] += 1
                 continue
             pending.append((sample, params, vector))
@@ -438,7 +480,7 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
                 break
             accepted.append(sample)
             params_out.append(params)
-            vectors.append(vector)
+            duplicates.add(vector)
         if progress:
             progress(len(accepted), attempts, dict(rejected))
     return Result(accepted, params_out, rejected, attempts)
