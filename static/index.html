@@ -922,9 +922,12 @@
                   <label for="synthetic-participant">Participante (código, opcional)</label>
                   <input id="synthetic-participant" maxlength="60" placeholder="persona-01" />
                   <div class="input-row">
-                    <button id="synthetic-save" class="primary" type="button" disabled>Guardar en el dataset sintético</button>
+                    <button id="synthetic-save-all" class="primary" type="button" disabled>Guardar todas las generaciones</button>
+                    <button id="synthetic-save" class="secondary" type="button" disabled>Guardar según selección</button>
                     <button id="synthetic-to-training" class="secondary" type="button">Ir a Entrenamiento ↗</button>
                   </div>
+                  <p id="synthetic-save-status" class="help" role="status" aria-live="polite"></p>
+                  <p class="help">Guardar todas incluye las aprobadas y las no revisadas de todas las páginas. Las rechazadas se excluyen.</p>
                   <p id="synthetic-stored" class="help"></p>
                   <p class="help">Las sintéticas se guardan aparte de las tomas reales y solo se usan para
                     ajustar el modelo. La validación y la prueba siempre usan tomas reales, así que la

@@ -1,6 +1,6 @@
 'use strict';
 // Generador de Dataset Sintético: subir fotos/videos, generar, revisar y guardar.
-const synthetic = { sources: [], job: null, start: 0, poll: null, animations: new Map(), busy: false };
+const synthetic = { saving: false, sources: [], job: null, start: 0, poll: null, animations: new Map(), busy: false };
 const SYNTHETIC_MAX_BYTES = 35 * 1024 * 1024;
 const HAND_BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11],
   [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]];
@@ -181,7 +181,9 @@ function renderSources() {
     remove.type = 'button';
     remove.className = 'text-button';
     remove.textContent = 'Quitar';
+    remove.disabled = synthetic.saving;
     remove.addEventListener('click', async () => {
+      if (synthetic.saving) return;
       await syntheticRequest('/api/synthetic/remove-source', { source: source.id });
       syntheticRefresh();
     });
@@ -209,8 +211,13 @@ function renderJob() {
   $('synthetic-cancel').hidden = !running;
   $('synthetic-progress-wrap').hidden = !job;
   const ready = synthetic.sources.filter((s) => s.state === 'ready');
-  $('synthetic-generate').disabled = running || !ready.length || synthetic.busy;
-  $('synthetic-save').disabled = !job || running || job.state === 'saved' || !job.done;
+  $('synthetic-generate').disabled = running || !ready.length || synthetic.busy || synthetic.saving;
+  const cannotSave = !job || running || job.state === 'saved' || !job.done || synthetic.saving;
+  $('synthetic-save').disabled = cannotSave;
+  $('synthetic-save-all').disabled = cannotSave;
+  const saveCount = (job?.review.approved || 0) + (job?.review.pending || 0);
+  $('synthetic-save-all').textContent = synthetic.saving ? 'Guardando generaciones…'
+    : saveCount ? `Guardar todas las generaciones (${saveCount})` : 'Guardar todas las generaciones';
   if (!job) {
     $('synthetic-review-title').textContent = 'Sin muestras todavía';
     $('synthetic-stats').textContent = 'Sube un archivo y genera variaciones para revisarlas aquí.';
@@ -251,6 +258,7 @@ function renderJob() {
       button.textContent = label;
       button.title = title;
       button.setAttribute('aria-label', `${title} muestra ${preview.index + 1}`);
+      button.disabled = synthetic.saving || job.state === 'saved';
       button.addEventListener('click', () => syntheticReview(preview.index, action));
       actions.append(button);
     }
@@ -305,6 +313,7 @@ function syntheticCount() {
 }
 
 async function syntheticGenerate() {
+  if (synthetic.saving) return;
   const label = $('synthetic-label').value.trim();
   if (!label) return notice('Escribe o elige el nombre de la seña.', true);
   const count = syntheticCount();
@@ -325,6 +334,7 @@ async function syntheticGenerate() {
 }
 
 async function syntheticReview(index, action) {
+  if (synthetic.saving) return;
   try {
     await syntheticRequest('/api/synthetic/review', { job: synthetic.job.id, index, action });
     syntheticRefresh();
@@ -333,18 +343,30 @@ async function syntheticReview(index, action) {
   }
 }
 
-async function syntheticSave() {
+async function syntheticSave(all = false) {
+  if (synthetic.saving || !synthetic.job || synthetic.job.state === 'saved') return;
+  synthetic.saving = true;
+  $('synthetic-save-status').textContent = 'Guardando las tomas en el dataset sintético…';
+  renderJob();
   try {
     const result = await syntheticRequest('/api/synthetic/save', {
-      job: synthetic.job.id, include_pending: $('synthetic-include-pending').checked,
+      job: synthetic.job.id, include_pending: all || $('synthetic-include-pending').checked,
       save_real: $('synthetic-save-real').checked, participant: $('synthetic-participant').value });
-    notice(`${result.saved} muestras sintéticas guardadas para «${result.label.text}»` +
+    const message = `${result.saved} muestras sintéticas guardadas para «${result.label.text}»` +
       (result.real_saved ? ` y ${result.real_saved} toma(s) real(es) del video.` : '.') +
-      ' En Entrenamiento elige «Reales + sintéticas».');
+      ' En Entrenamiento elige «Reales + sintéticas».';
+    // Impide reenviar el guardado aunque falle la posterior consulta de estado.
+    synthetic.job.state = 'saved';
+    $('synthetic-save-status').textContent = message;
+    notice(message);
     await refresh();
     await syntheticRefresh();
   } catch (error) {
+    $('synthetic-save-status').textContent = error.message;
     notice(error.message, true);
+  } finally {
+    synthetic.saving = false;
+    renderJob();
   }
 }
 
@@ -373,7 +395,8 @@ $('synthetic-cancel').addEventListener('click', async () => {
   await syntheticRequest('/api/synthetic/cancel', { job: synthetic.job?.id });
   syntheticRefresh();
 });
-$('synthetic-save').addEventListener('click', syntheticSave);
+$('synthetic-save').addEventListener('click', () => syntheticSave(false));
+$('synthetic-save-all').addEventListener('click', () => syntheticSave(true));
 $('synthetic-prev').addEventListener('click', () => { synthetic.start = Math.max(0, synthetic.start - 24); syntheticRefresh(); });
 $('synthetic-next').addEventListener('click', () => { synthetic.start += 24; syntheticRefresh(); });
 $('synthetic-to-training').addEventListener('click', () => {
