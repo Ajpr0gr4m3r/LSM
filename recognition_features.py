@@ -12,6 +12,51 @@ CHEST_CHANNELS = 13
 
 
 # Devuelve el número de canales esperado por cada versión y rechaza versiones desconocidas.
+
+# ── Memoria de cálculos repetidos ──────────────────────────────────────────
+# En cada fotograma la MISMA ventana pasa por la red, las guardas y los
+# reintentos, y cada uno recalculaba suavizado, normalización y ángulos. Estas
+# funciones son puras: se guarda el resultado por contenido exacto de la
+# entrada (huella de los bytes) y se devuelve una copia. El resultado es
+# idéntico bit a bit; solo se evita repetir trabajo.
+import hashlib as _hashlib
+import threading as _threading
+from collections import OrderedDict as _OrderedDict
+from functools import wraps as _wraps
+
+_MEMO_LOCK = _threading.Lock()
+# El entrenamiento prepara miles de secuencias distintas: ahí la huella no ahorra
+# nada y web_train la desactiva. En reconocimiento en vivo queda activa.
+MEMO_ENABLED = True
+
+
+def _memo_by_content(maxsize=24):
+    def decorate(function):
+        cache = _OrderedDict()
+
+        @_wraps(function)
+        def wrapper(points, *args, **kwargs):
+            if not MEMO_ENABLED:
+                return function(points, *args, **kwargs)
+            array = np.ascontiguousarray(points)
+            if not MEMO_ENABLED or args or kwargs or array.ndim != 2 or array.dtype != np.float32:
+                return function(points, *args, **kwargs)
+            key = (array.shape, _hashlib.blake2b(array.view(np.uint8), digest_size=16).digest())
+            with _MEMO_LOCK:
+                hit = cache.get(key)
+                if hit is not None:
+                    cache.move_to_end(key)
+                    return hit.copy()
+            result = function(array)
+            with _MEMO_LOCK:
+                cache[key] = result.copy()
+                if len(cache) > maxsize:
+                    cache.popitem(last=False)
+            return result
+        wrapper.cache_clear = cache.clear
+        return wrapper
+    return decorate
+
 def feature_dimension(preprocessing):
     if preprocessing == CHEST_PREPROCESSING:
         return feature_dimension(DISCRIMINATIVE_PREPROCESSING) + CHEST_CHANNELS
@@ -27,6 +72,7 @@ def feature_dimension(preprocessing):
 
 
 # Expresa la forma de cada mano respecto a muñeca y palma sin intercambiar lados ni eliminar orientación.
+@_memo_by_content()
 def local_hands(points):
     """Forma relativa a la muñeca, escalada por la palma, sin reflejar ni rotar."""
     local, visible = [], []
@@ -67,6 +113,7 @@ def prepare_sequence(points, preprocessing=HAND_PREPROCESSING):
     return body
 
 
+@_memo_by_content()
 def chest_location(points):
     """Posiciones 2D de muñecas y palmas en un marco basado en hombros.
 
@@ -184,6 +231,7 @@ def regions(points):
 
 
 # Centra y escala con hombros visibles conservando movimiento y puntos ausentes.
+@_memo_by_content()
 def normalize_sequence(points):
     """Ancla XY al torso y escala por hombros; conserva movimiento y ausencias."""
     result = np.asarray(points, dtype=np.float32).copy()
@@ -278,6 +326,7 @@ def validation_threshold(probabilities, targets):
 
 
 # Filtra de forma causal los puntos visibles sin rellenar manos ausentes ni mezclar tomas.
+@_memo_by_content()
 def smooth_landmarks(points):
     """Filtro causal leve: sin interpolar manos ausentes ni mezclar tomas."""
     result = np.asarray(points, dtype=np.float32).copy()
@@ -409,6 +458,7 @@ def calibrate_decision(probabilities, targets, allowed=None):
 
 
 # Mide extensión de dedos y separación de puntas en unidades de palma.
+@_memo_by_content()
 def finger_geometry(points):
     """30 scalars: extension of each finger and pairwise fingertip separation.
 
@@ -436,6 +486,7 @@ def finger_geometry(points):
 
 
 # Extrae ángulos, orientación, velocidades y relaciones entre manos preservando su lateralidad.
+@_memo_by_content()
 def articulation_motion(points):
     """86 channels. Retain orientation and handedness; never align/reflect palms.
 

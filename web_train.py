@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -86,6 +87,10 @@ def write_json(path, payload):
     os.replace(temp, path)
 
 
+# Tamaño de lote para estrategias de lotes simples (configurable para medir).
+BATCH_SIZE = int(os.environ.get('SENA_BATCH_SIZE', '16'))
+
+
 def BatchesFromArrays(x, y, batch_size, class_weights, seed=42):
     """Lotes barajados por época con pesos de clase, sin copiar todo el arreglo."""
     import numpy as np
@@ -114,6 +119,9 @@ def BatchesFromArrays(x, y, batch_size, class_weights, seed=42):
 # Ejecuta separación, aumentos, entrenamiento, calibración, evaluación y posible activación de una versión.
 def train_language(language, epochs, job_id, label_ids=None, strategy="baseline", activate=True,
                    synthetic_mode="real", synthetic_ratio=1.):
+    training_started = time.time()
+    import recognition_features
+    recognition_features.MEMO_ENABLED = False  # cada secuencia es distinta: no hay nada que reutilizar
     language_info(language)
     if len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
         raise ValueError('Identificador de entrenamiento inválido.')
@@ -121,6 +129,16 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
     status = {'id': job_id, 'language': language, 'state': 'running', 'epoch': 0,
               'epochs': epochs, 'pid': os.getpid(), 'message': 'Cargando ejemplos completos…'}
     write_json(progress_path, status)
+    timings, stage_started = {}, [time.time()]
+
+    def stage(name, message):
+        """Cierra la etapa anterior (para medir) y muestra qué está haciendo ahora."""
+        now = time.time()
+        timings[name] = round(now - stage_started[0], 1)
+        stage_started[0] = now
+        status['message'] = message
+        status['timings'] = timings
+        write_json(progress_path, status)
     try:
         import numpy as np
         import tensorflow as tf
@@ -130,7 +148,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         # Guarda rutas internas con «/» para que el modelo cargue en Windows, macOS y Linux.
         keras_portability.install()
 
-        tf.keras.utils.set_random_seed(42)
+        tf.keras.utils.set_random_seed(int(os.environ.get('SENA_SEED', '42')))
         if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
             raise ValueError('Estrategia de entrenamiento desconocida.')
         label_ids = retained_label_ids(language, label_ids)
@@ -160,6 +178,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'baseline': FINGER_PREPROCESSING,
             'torso': CHEST_PREPROCESSING,
         }.get(strategy, DISCRIMINATIVE_PREPROCESSING)
+        stage('cargar', f'Calculando características de {len(raw)} tomas reales…')
         X = np.stack([prepare_sequence(sequence, preprocessing) for sequence in raw])
         onehot = tf.keras.utils.to_categorical(y, len(labels))
         directory = model_dir(language) / job_id
@@ -176,6 +195,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         model.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=5e-4, clipnorm=1.0),
                       loss='categorical_crossentropy', metrics=['accuracy'])
         # Separar primero: ninguna variante puede filtrarse a validación/prueba.
+        stage('caracteristicas', f'Creando variantes de {len(train)} tomas de entrenamiento…')
         view_points, view_targets = augment_viewpoints(raw[train], onehot[train])
         # Derive every feature from the SAME augmented landmarks. Never perturb
         # normalized coordinates independently of finger geometry.
@@ -191,6 +211,10 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             parts_x.append(chunk_x)
             parts_y.append(np.asarray(chunk_y, dtype=np.float32))
             del chunk_points
+            done = min(start + 400, len(view_points))
+            status['message'] = (f'Preparando variantes de entrenamiento: {round(done / len(view_points) * 100)} % '
+                                 f'({sum(len(p) for p in parts_x):,} listas).')
+            write_json(progress_path, status)
         X_fit = np.concatenate(parts_x) if len(parts_x) > 1 else parts_x[0]
         y_fit = np.concatenate(parts_y) if len(parts_y) > 1 else parts_y[0]
         del parts_x, parts_y
@@ -272,7 +296,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         initial_weights = model.get_weights()
         if strategy in ('baseline', 'trajectory', 'robust', 'torso'):
             # Lotes desde el arreglo: Keras no hace otra copia completa en memoria.
-            fit_args = dict(x=BatchesFromArrays(X_fit, y_fit, min(16, len(train)), weights), workers=1,
+            fit_args = dict(x=BatchesFromArrays(X_fit, y_fit, min(BATCH_SIZE, len(train)), weights), workers=1,
                             use_multiprocessing=False)
             fit_callbacks = callbacks+[Progress()]
         else:
@@ -281,6 +305,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             fit_callbacks = callbacks+[MineHardExamples(fit_data),Progress()]
         common = dict(validation_data=(X[selection],onehot[selection]),epochs=epochs,
                       verbose=2,callbacks=fit_callbacks)
+        stage('variantes', f'Entrenando con {len(y_fit):,} ejemplos por época…')
         recovery = None
         try:
             model.fit(**fit_args, **common)
@@ -307,6 +332,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             model.compile(optimizer=optimizer,loss='categorical_crossentropy',
                           metrics=['accuracy'],run_eagerly=True)
             model.fit(**fit_args, **common, initial_epoch=start_epoch)
+        stage('entrenar', 'Calibrando filtros de forma, movimiento y confianza con la validación…')
         model = load_inference_model(checkpoint)
         val_probs = model(X[validation], training=False).numpy()
         cal_probs = model(X[calibration_indices], training=False).numpy()
@@ -400,6 +426,7 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
         }
         # El estudio usa la versión más reciente; las métricas se conservan para revisión.
         activated = bool(activate)
+        stage('calibrar_y_evaluar', 'Guardando la versión…')
         metadata = {
             'language': language, 'pipeline': pipeline_spec(), 'labels': labels,
             'created_at': datetime.now(timezone.utc).isoformat(),
@@ -407,7 +434,8 @@ def train_language(language, epochs, job_id, label_ids=None, strategy="baseline"
             'samples': len(y), 'split': {'train': len(train), 'validation': len(validation), 'test': len(test)},
             'test_accuracy': float(np.mean(pred == y[test])), 'report': report,
             'preprocessing': preprocessing, 'architecture': 'compact-bilstm-articulation-v6',
-            'training_recovery':recovery, 'strategy': strategy, 'synthetic': synthetic_summary, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
+            'training_recovery':recovery, 'strategy': strategy, 'synthetic': synthetic_summary,
+            'training_seconds': round(time.time() - training_started), 'timings': timings, 'posture_vote':vote, 'temperature':temperature, 'decision_policy':policy,
             'decision_input': 'single-window-v1', 'validation_protocol': protocol,
             'recognition_diagnostics': {
                 'validation': rejection_report(val_probs, y[validation], labels, policy, val_scores),

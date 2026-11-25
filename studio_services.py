@@ -1,5 +1,6 @@
 """Operaciones locales del estudio, con aislamiento por lengua y controles administrativos."""
 import json
+import numpy as np
 import os
 from pathlib import Path
 import uuid
@@ -132,7 +133,7 @@ def load_inference_model(path):
     # Los modelos entrenados en Mac/Linux guardan rutas con «/»; Windows las busca con «\\».
     keras_portability.install()
     try:
-        return tf.keras.models.load_model(path, compile=False, safe_mode=True)
+        model = tf.keras.models.load_model(path, compile=False, safe_mode=True)
     except ValueError as error:
         message = str(error)
         if 'expected ' not in message or 'received 0 variables' not in message:
@@ -145,6 +146,21 @@ def load_inference_model(path):
             'y reinicia Seña. Si ya usas esas versiones, verifica que el archivo model.keras '
             'coincida con el del repositorio.'
         ) from error
+    # Grafo compilado una sola vez: misma operación que model(x), pero sin los
+    # ~5 ms de sobrecarga de Keras en cada fotograma.
+    try:
+        spec = tf.TensorSpec([None] + list(model.input_shape[1:]), tf.float32)
+        model.sena_predict = tf.function(lambda batch: model(batch, training=False), input_signature=[spec])
+    except (AttributeError, TypeError, ValueError):
+        pass  # sin grafo compilado se usa model(x), con el mismo resultado
+    return model
+
+
+def predict(model, batch):
+    """Probabilidades del modelo para un lote (usa el grafo compilado si existe)."""
+    batch = np.asarray(batch, dtype=np.float32)
+    fast = getattr(model, 'sena_predict', None)
+    return (fast(batch) if fast is not None else model(batch, training=False)).numpy()
 
 
 # Valida vocabulario, archivos y dimensiones antes de cambiar atómicamente la versión activa.
@@ -175,9 +191,17 @@ def activate_latest_version(language):
     """Selecciona el último modelo completo y compatible por fecha de entrenamiento."""
     root = model_dir(language)
     selection = current_selection(root)
+    compatible = list(compatible_metadata(language, light=True))
+    chosen = selection.get('version')
+    # Respetar la versión elegida (al entrenar o a mano en Entrenamiento) mientras
+    # siga completa y compatible. Antes, el arranque activaba siempre la más
+    # reciente y deshacía cualquier activación manual de una versión anterior.
+    if (chosen and not selection.get('requires_retraining') and (root / chosen / 'model.keras').is_file()
+            and any(version == chosen and meta.get('label_count', 0) >= 2 for version, meta, _ in compatible)):
+        return chosen
     candidates = [
         (meta.get('created_at') or '', modified, version)
-        for version, meta, modified in compatible_metadata(language, light=True)
+        for version, meta, modified in compatible
         if meta.get('auto_activate') is not False and meta.get('label_count', 0) >= 2
         and (root / version / 'model.keras').is_file()
     ]

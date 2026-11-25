@@ -780,7 +780,14 @@ function renderVersions() {
         'span',
         `Cobertura ${test.coverage === undefined ? '—' : (test.coverage * 100).toFixed(1) + ' %'}`,
       ),
+      node('span', `Prueba real ${version.test_accuracy === undefined ? '—' : (version.test_accuracy * 100).toFixed(1) + ' %'}`),
     );
+    const synthetic = version.synthetic;
+    const data = !synthetic || synthetic.mode === 'real' ? 'Solo tomas reales'
+      : synthetic.mode === 'synthetic' ? `Solo sintéticas (${synthetic.total}) · experimental`
+        : `Reales + ${synthetic.total} sintéticas`;
+    const minutes = version.training_seconds ? ` · entrenado en ${Math.max(1, Math.round(version.training_seconds / 60))} min` : '';
+    card.append(node('p', `${data}${minutes}`, 'help'));
     card.append(
       metrics,
       node('p', version.provenance?.note || 'Histórico: sin agrupación documentada.'),

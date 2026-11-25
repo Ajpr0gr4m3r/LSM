@@ -44,6 +44,7 @@ from posture_vote import apply_vote
 from recognition_analysis import temperature_probabilities
 from recognition_decision import decision_details
 from capture_quality import landmark_quality, image_quality, sequence_quality, hand_image_quality
+from studio_services import predict as model_predict
 from studio_services import versions, activate_latest_version, recent_activity, dataset_operation, load_inference_model, _metadata_summary as metadata_summary
 
 from alphabets import alphabet_status, add_alphabet, add_all_alphabets
@@ -829,7 +830,7 @@ class Runtime:
         if not windows:
             return None
         prepared = np.stack([prepare_sequence(w, metadata.get('preprocessing')) for w in windows])
-        probabilities = model(prepared, training=False).numpy()
+        probabilities = model_predict(model, prepared)
         probabilities = temperature_probabilities(probabilities, metadata.get('temperature', 1.))
         probabilities = apply_vote(prepared, probabilities, metadata.get('posture_vote'))
         winners = probabilities.argmax(axis=1)
@@ -853,7 +854,7 @@ class Runtime:
             return None
         views, _ = augment_viewpoints(points[None], np.array([0]))
         prepared = np.stack([prepare_sequence(view, metadata.get('preprocessing')) for view in views[1:]])
-        variants = model(prepared, training=False).numpy()
+        variants = model_predict(model, prepared)
         variants = temperature_probabilities(variants, metadata.get('temperature', 1.))
         variants = apply_vote(prepared, variants, metadata.get('posture_vote'))
         consensus = (probabilities + variants.sum(axis=0)) / 3
@@ -895,7 +896,7 @@ class Runtime:
             return None
 
         prepared = prepare_sequence(reflected,metadata.get('preprocessing'))
-        probabilities = model(prepared[None,...],training=False).numpy()[0]
+        probabilities = model_predict(model, prepared[None,...])[0]
         probabilities = temperature_probabilities(probabilities,metadata.get('temperature',1.))
         probabilities = apply_vote(prepared,probabilities,metadata.get('posture_vote'))
         if probabilities.argmax() != index or probabilities[index] < (.95 if strict else .90):
@@ -1057,7 +1058,7 @@ class Runtime:
         history = np.stack(session.frames)[::-1][::session.stride][::-1]
         raw_sequence = history[-SEQUENCE_LENGTH:]
         sequence = prepare_sequence(raw_sequence, metadata.get('preprocessing'))
-        probs = model(sequence[None, ...], training=False).numpy()[0]
+        probs = model_predict(model, sequence[None, ...])[0]
         probs = temperature_probabilities(probs, metadata.get('temperature', 1.))
         probs = apply_vote(sequence, probs, metadata.get('posture_vote'))
         if metadata.get('decision_input') == 'single-window-v1':

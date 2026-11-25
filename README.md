@@ -185,6 +185,13 @@ python tools/generate_from_dataset.py --per-sample 1 --level equilibrado   # sin
 python web_train.py --language lsm --job-id <32 hex> --synthetic-mode mixed --synthetic-ratio 1 --no-activate
 ```
 
+### Rendimiento y elección del modelo
+
+- La red se llama mediante un grafo compilado de TensorFlow y la misma ventana ya no se recalcula para el modelo, los filtros y los reintentos. El resultado es idéntico (verificado en 3,650 fotogramas) y la parte de reconocimiento del servidor baja ~20 % en promedio y ~25 % en los peores casos.
+- Al arrancar, Seña respeta la versión activa elegida en Entrenamiento. Solo si falta o quedó inválida, usa la más reciente.
+- Cada versión muestra su exactitud en prueba real, si usó sintéticas y cuánto tardó en entrenar. El entrenamiento informa su etapa (características, variantes con %, entrenamiento, calibración).
+- Probado y descartado: lotes de 64 (entrena ~2× más rápido pero pierde 8.7 puntos de exactitud) y ejecutar varios pasos por llamada (sin mejora medible).
+
 ### 5. Probar el modelo
 
 1. Ve a **Reconocimiento** y confirma que el perfil activo sea **LSM · Español**.
