@@ -166,7 +166,7 @@ La vista **Generador** (solo Admin) crea variaciones de una seña a partir de fo
 3. Elige nivel (**Conservador**, **Equilibrado**, **Avanzado**), cantidad (hasta 10 000 por generación, con cantidad personalizada desde 1) y semilla. La misma semilla produce las mismas muestras.
 4. Revisa las muestras animadas: aprueba ✓, rechaza ✕ o regenera ↻. Las rechazadas nunca se guardan.
 5. Guarda. Las sintéticas van a `web_data/synthetic/<perfil>/<seña>/` con su origen y transformación; si el archivo era un video, su toma original también se guarda como ejemplo real.
-6. En **Entrenamiento → Datos para entrenar** elige *Solo reales*, *Reales + sintéticas* (con proporción ajustable) o *Solo sintéticas · experimental*.
+6. Al guardar, las tomas generadas aparecen en **Dataset** bajo su seña, con el desglose de reales, generadas y total. **Entrenamiento** selecciona automáticamente **Reales + sintéticas** y conserva esa preferencia. Puedes cambiarla para entrenar solo con reales. La proporción limita cuántas generadas se seleccionan para cada clase. Se mantienen los requisitos de tomas reales para evaluar el modelo.
 
 Activa **Distribuir varios escenarios de la misma seña** para repartir las variantes entre cerca/lejos, manos pequeñas/grandes, posiciones izquierda/derecha/arriba/abajo, cámara inclinada y perspectiva limitada. Cada tarjeta conserva el encuadre completo para comparar tamaño y posición. El nivel regula la amplitud y la validación descarta cambios de forma o anatomía excesivos.
 

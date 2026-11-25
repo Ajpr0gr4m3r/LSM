@@ -177,6 +177,24 @@ class StoreAndLeakTests(unittest.TestCase):
         self.assertEqual(meta['source_digest'], 'abc')
         self.assertFalse((self.tmp / 'datasets').exists(), 'el dataset real no se toca')
 
+    def test_dataset_view_includes_saved_generation_and_training_can_select_it(self):
+        synthetic_dataset.save_synthetic('lsm', 'hola', sequence(), {
+            'origin': 'dataset', 'source_digest': 'training-source'})
+        rows = synthetic_dataset.with_synthetic_counts('lsm', [
+            {'id': 'hola', 'text': 'Hola', 'samples': 30},
+            {'id': 'gracias', 'text': 'Gracias', 'samples': 40},
+        ])
+        self.assertEqual(rows[0]['synthetic_samples'], 1)
+        self.assertEqual(rows[0]['total_samples'], 31)
+        self.assertEqual(rows[0]['samples'], 30)
+        self.assertEqual(rows[1]['synthetic_samples'], 0)
+        points, targets, summary = synthetic_dataset.select_for_training(
+            'lsm', ['hola', 'gracias'], {'training-source'}, {'reserved-source'},
+            [20, 30], mode='mixed')
+        self.assertEqual(len(points), 1)
+        self.assertEqual(summary['used'], {'hola': 1, 'gracias': 0})
+        np.testing.assert_array_equal(targets, [0])
+
     def test_no_leak_between_training_and_evaluation(self):
         train_src, eval_src = sequence(), sequence(moving=True)
         dt, de = synthetic_dataset.digest(train_src), synthetic_dataset.digest(eval_src)

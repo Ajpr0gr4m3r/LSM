@@ -171,7 +171,9 @@ function render() {
     const label = document.createElement('span');
     label.textContent = item.text;
     const count = document.createElement('strong');
-    count.textContent = `${item.samples} / ${state.minimum_samples} mín. · recomendado 30–${state.recommended_samples}`;
+    count.textContent = item.synthetic_samples
+      ? `${item.samples} reales + ${item.synthetic_samples} generadas · ${item.total_samples} en total`
+      : `${item.samples} / ${state.minimum_samples} mín. · recomendado 30–${state.recommended_samples}`;
     if (item.samples > 0 && !p.model?.labels.some((x) => x.id === item.id)) {
       const status = document.createElement('small');
       status.className = 'pending-label';

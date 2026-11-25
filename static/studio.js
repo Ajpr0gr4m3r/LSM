@@ -401,8 +401,17 @@ function renderStudio() {
   filterVocabulary();
   const classes = $('train-classes');
   classes.replaceChildren();
+  const dataMode = $('training-data-mode');
+  if (dataMode.dataset.profile !== language) {
+    let preference;
+    try { preference = localStorage.getItem(`sena.training-data-mode.${language}`); } catch (_) {}
+    dataMode.value = ['real', 'mixed', 'synthetic'].includes(preference) ? preference
+      : p.labels.some(item => item.synthetic_samples > 0) ? 'mixed' : 'real';
+    dataMode.dataset.profile = language;
+  }
+  $('training-ratio-wrap').hidden = dataMode.value !== 'mixed';
   const chosen = trainingChoices.get(language);
-  for (const item of p.labels.filter((x) => x.samples > 0)) {
+  for (const item of p.labels.filter((x) => x.samples > 0 || x.synthetic_samples > 0)) {
     const row = node('div', undefined, 'train-class'),
       label = node('label'),
       checkbox = document.createElement('input');
@@ -418,7 +427,9 @@ function renderStudio() {
       render();
     });
     label.append(checkbox, node('span', item.text));
-    row.append(label, node('span', `${item.samples} / ${state.minimum_samples} mín.`));
+    row.append(label, node('span', item.synthetic_samples
+      ? `${item.samples} reales · ${item.synthetic_samples} generadas`
+      : `${item.samples} / ${state.minimum_samples} mín.`));
     classes.append(row);
   }
   const curve =

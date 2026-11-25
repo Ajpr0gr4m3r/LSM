@@ -69,6 +69,13 @@ def inventory(language):
     return dict(counts)
 
 
+def with_synthetic_counts(language, real_rows):
+    """Vista conjunta del dataset, conservando la procedencia de cada ejemplo."""
+    counts = inventory(language)
+    return [{**row, 'synthetic_samples': counts.get(row['id'], 0),
+             'total_samples': row['samples'] + counts.get(row['id'], 0)} for row in real_rows]
+
+
 def clear(language, label=None):
     root = synthetic_dir(language)
     target = root / label if label else root

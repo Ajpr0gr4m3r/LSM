@@ -517,6 +517,9 @@ class Runtime:
         profiles = []
         for info in LANGUAGES:
             rows = (inventory if include_studio else stored_sample_counts)(info['id'])
+            if include_studio:
+                from synthetic_dataset import with_synthetic_counts
+                rows = with_synthetic_counts(info['id'], rows)
             metadata = None
             error = None
             try:

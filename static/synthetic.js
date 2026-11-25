@@ -216,8 +216,8 @@ function renderJob() {
   $('synthetic-save').disabled = cannotSave;
   $('synthetic-save-all').disabled = cannotSave;
   const saveCount = (job?.review.approved || 0) + (job?.review.pending || 0);
-  $('synthetic-save-all').textContent = synthetic.saving ? 'Guardando generaciones…'
-    : saveCount ? `Guardar todas las generaciones (${saveCount})` : 'Guardar todas las generaciones';
+  $('synthetic-save-all').textContent = synthetic.saving ? 'Añadiendo al Dataset…'
+    : saveCount ? `Añadir todas al Dataset (${saveCount})` : 'Añadir todas al Dataset';
   if (!job) {
     $('synthetic-review-title').textContent = 'Sin muestras todavía';
     $('synthetic-stats').textContent = 'Sube un archivo y genera variaciones para revisarlas aquí.';
@@ -354,9 +354,13 @@ async function syntheticSave(all = false) {
       save_real: $('synthetic-save-real').checked, participant: $('synthetic-participant').value });
     const message = `${result.saved} muestras sintéticas guardadas para «${result.label.text}»` +
       (result.real_saved ? ` y ${result.real_saved} toma(s) real(es) del video.` : '.') +
-      ' En Entrenamiento elige «Reales + sintéticas».';
+      ' Entrenamiento quedó configurado con «Reales + sintéticas».';
     // Impide reenviar el guardado aunque falle la posterior consulta de estado.
     synthetic.job.state = 'saved';
+    $('training-data-mode').value = 'mixed';
+    $('training-data-mode').dataset.profile = syntheticLanguage();
+    $('training-ratio-wrap').hidden = false;
+    try { localStorage.setItem(`sena.training-data-mode.${syntheticLanguage()}`, 'mixed'); } catch (_) {}
     $('synthetic-save-status').textContent = message;
     notice(message);
     await refresh();
@@ -405,6 +409,7 @@ $('synthetic-to-training').addEventListener('click', () => {
   navigateStudio('training');
 });
 $('training-data-mode').addEventListener('change', () => {
+  try { localStorage.setItem(`sena.training-data-mode.${syntheticLanguage()}`, $('training-data-mode').value); } catch (_) {}
   $('training-ratio-wrap').hidden = $('training-data-mode').value !== 'mixed';
 });
 

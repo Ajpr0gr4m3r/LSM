@@ -11,12 +11,15 @@ test('save all includes pending on every page and prevents duplicate clicks', as
   const elements = {
     'synthetic-include-pending': {checked:false}, 'synthetic-save-real':{checked:false},
     'synthetic-participant':{value:'person-01'}, 'synthetic-save-status':{},
+    'training-data-mode':{value:'real', dataset:{}}, 'training-ratio-wrap':{hidden:true},
   };
   let resolveSave;
   const requests = [];
   const ctx = {
     $: id => elements[id], synthetic: {saving:false, job:{id:'large-job', state:'done'}, start:240},
     renderJob() {}, notice() {}, refresh:async()=>{}, syntheticRefresh:async()=>{},
+    syntheticLanguage:()=> 'lsm', localStorage:{setItem() {}},
+
     syntheticRequest: async (route, body) => {
       requests.push({route, body});
       return new Promise(resolve => {resolveSave = resolve;});
@@ -36,6 +39,8 @@ test('save all includes pending on every page and prevents duplicate clicks', as
   await first;
   assert.equal(ctx.synthetic.job.state, 'saved');
   assert.equal(ctx.synthetic.saving, false);
+  assert.equal(elements['training-data-mode'].value, 'mixed');
+  assert.equal(elements['training-ratio-wrap'].hidden, false);
   assert.match(elements['synthetic-save-status'].textContent, /10000/);
   await ctx.syntheticSave(true);
   assert.equal(requests.length, 1);
