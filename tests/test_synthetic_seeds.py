@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from synthetic_dataset import digest
-from synthetic_seeds import seed_options, select_seed, seed_accepts
+from synthetic_seeds import seed_options, select_seed
 
 
 class SeedTests(unittest.TestCase):
@@ -20,14 +20,13 @@ class SeedTests(unittest.TestCase):
             'decision_policy': {'classes': {'0': {'supported': True}, '1': {'supported': True}}},
         }
 
-    def test_requires_measured_validation_support(self):
+    def test_orders_by_validation_without_minimum_support_or_confidence(self):
         metadata = self.metadata()
-        self.assertEqual([row['id'] for row in seed_options(metadata)], ['A'])
+        metadata['validation_by_class'][0].update(accepted_precision=.01, accepted=0)
         metadata['decision_policy']['classes']['0']['supported'] = False
-        self.assertEqual(seed_options(metadata), [])
-        metadata['decision_policy']['classes']['0']['supported'] = True
-        metadata['validation_by_class'][0]['accepted'] = 2
-        self.assertEqual(seed_options(metadata), [])
+        self.assertEqual([row['id'] for row in seed_options(metadata)], ['B', 'A'])
+        metadata['validation_by_class'][1]['accepted_precision'] = None
+        self.assertEqual([row['id'] for row in seed_options(metadata)], ['A', 'B'])
 
     def test_selects_only_training_sources_even_if_reserved_is_more_confident(self):
         metadata = self.metadata()
@@ -44,25 +43,16 @@ class SeedTests(unittest.TestCase):
             seen = []
             def predictions(model, meta, sequences):
                 seen.extend(sequences)
-                return np.tile([.96, .04], (len(sequences), 1))
+                return np.tile([.12, .88], (len(sequences), 1))
             with patch('synthetic_seeds.dataset_dir', return_value=root), \
                  patch('synthetic_seeds.load_sequence', side_effect=lambda path: train if path.name == 'train.npz' else reserved), \
-                 patch('synthetic_seeds.sequence_quality', return_value={'usable_ratio': 1.}), \
-                 patch('synthetic_seeds.seed_probabilities', side_effect=predictions), \
-                 patch('synthetic_seeds.decision_details', return_value={'accepted': True}):
+                 patch('synthetic_seeds.seed_probabilities', side_effect=predictions):
                 confidence, path, points = select_seed('lsm', 'A', (None, metadata))
                 self.assertEqual(path.name, 'train.npz')
                 self.assertEqual(len(seen), 1)
-                self.assertEqual(confidence, .96)
+                self.assertEqual(confidence, .12)
                 np.testing.assert_array_equal(points, train)
 
-    def test_high_confidence_still_requires_filters_and_correct_class(self):
-        with patch('synthetic_seeds.decision_details', return_value={'accepted': False}):
-            self.assertFalse(seed_accepts(None, np.array([.99, .01]), {}, 0))
-        with patch('synthetic_seeds.decision_details', return_value={'accepted': True}):
-            self.assertFalse(seed_accepts(None, np.array([.89, .11]), {}, 0))
-            self.assertFalse(seed_accepts(None, np.array([.01, .99]), {}, 0))
-            self.assertTrue(seed_accepts(None, np.array([.96, .04]), {}, 0))
 
 
 if __name__ == '__main__':

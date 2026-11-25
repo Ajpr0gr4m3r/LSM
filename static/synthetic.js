@@ -110,11 +110,11 @@ async function syntheticLoadDatasetOptions() {
     const data = await syntheticRequest('/api/synthetic/dataset-options');
     if (selectedLanguage !== syntheticLanguage()) return;
     syntheticDatasetOptions = data.options;
-    select.replaceChildren(makeOption('', 'Elige una seña validada'),
+    select.replaceChildren(makeOption('', 'Elige una seña · mayor validación primero'),
       ...data.options.map(row => makeOption(row.id, row.text)));
     $('synthetic-dataset-info').textContent = data.options.length
       ? 'Elige una seña para ver sus resultados de validación.'
-      : 'El modelo activo todavía no tiene clases que cumplan estos criterios. Revisa la evaluación en Entrenamiento.';
+      : 'No hay un modelo activo con señas disponibles. Entrena un modelo primero.';
   } catch (error) {
     select.replaceChildren(makeOption('', 'No se pudieron consultar las señas'));
     $('synthetic-dataset-info').textContent = error.message;
@@ -124,7 +124,7 @@ $('synthetic-dataset-label').addEventListener('change', () => {
   const row = syntheticDatasetOptions.find(item => item.id === $('synthetic-dataset-label').value);
   $('synthetic-dataset-add').disabled = !row;
   $('synthetic-dataset-info').textContent = row
-    ? `${Math.round(row.precision * 100)} % de precisión entre aceptadas · ${row.accepted} aceptadas · ${row.support} ejemplos de validación.`
+    ? `${row.precision == null ? "Sin dato" : Math.round(row.precision * 100) + " %"} de precisión de validación · ${row.accepted} aceptadas · ${row.support} ejemplos de validación.`
     : 'Elige una seña para ver sus resultados de validación.';
 });
 $('synthetic-dataset-add').addEventListener('click', async () => {
@@ -146,9 +146,9 @@ $('synthetic-dataset-add').addEventListener('click', async () => {
 
 function sourceDescription(source) {
   if (source.kind === 'dataset') {
-    if (source.state === 'processing') return 'Buscando una toma de entrenamiento con confirmación alta…';
+    if (source.state === 'processing') return 'Buscando la toma con mayor puntuación…';
     if (source.state === 'error') return source.error;
-    return `Dataset real · confianza ${Math.round(source.confidence * 100)} % · filtros aprobados`;
+    return `Dataset real · mejor puntuación disponible ${Math.round(source.confidence * 100)} %`;
   }
   if (source.state === 'processing') return source.kind !== 'image'
     ? `Procesando video… ${Math.round((source.progress || 0) * 100)} %` : 'Detectando manos…';

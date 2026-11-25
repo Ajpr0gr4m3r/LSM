@@ -1186,8 +1186,7 @@ def synthetic_route(route, payload):
     if route == '/api/synthetic/dataset-options':
         from synthetic_seeds import seed_options
         bundle = model_metadata(language)
-        return {'options': seed_options(bundle[1]) if bundle else [],
-                'minimum_precision': .95, 'minimum_confidence': .90}
+        return {'options': seed_options(bundle[1]) if bundle else []}
     if route == '/api/synthetic/dataset-source':
         if RUNTIME.training():
             raise ValueError('Espera a que termine el entrenamiento.')

@@ -809,11 +809,11 @@
                 </div>
                 <div class="training-card">
                   <span class="small-label">02 · FOTOS Y VIDEOS</span>
-                  <label for="synthetic-dataset-label">Usar una toma del dataset validada por el modelo</label>
+                  <label for="synthetic-dataset-label">Usar la mejor toma de una seña del dataset</label>
                   <select id="synthetic-dataset-label"><option value="">Cargando señas…</option></select>
                   <p id="synthetic-dataset-info" class="help" role="status"></p>
                   <button id="synthetic-dataset-add" class="secondary" type="button" disabled>Usar como original</button>
-                  <p class="help">Se buscan tomas reales de entrenamiento con al menos 90 % de confianza y todos los filtros de reconocimiento aprobados. La clase necesita al menos 95 % de precisión entre las aceptadas en validación y 3 aciertos aceptados. Puedes subir archivos o grabar abajo.</p>
+                  <p class="help">Señas ordenadas de mayor a menor resultado de validación. Se usa la toma de entrenamiento con mayor puntuación para la seña elegida, sin porcentaje mínimo. Puedes subir archivos o grabar abajo.</p>
                   <div id="synthetic-drop" class="synthetic-drop" tabindex="0" role="button"
                        aria-label="Arrastra fotos o videos, o pulsa para elegirlos">
                     <strong>Arrastra fotos o videos aquí</strong>
