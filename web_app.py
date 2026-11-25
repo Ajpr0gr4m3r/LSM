@@ -1183,6 +1183,18 @@ def synthetic_route(route, payload):
         result = STUDIO.state(language, payload.get('job'), int(payload.get('start') or 0))
         result['stored'] = synthetic_dataset.inventory(language)
         return result
+    if route == '/api/synthetic/dataset-options':
+        from synthetic_seeds import seed_options
+        bundle = model_metadata(language)
+        return {'options': seed_options(bundle[1]) if bundle else [],
+                'minimum_precision': .95, 'minimum_confidence': .90}
+    if route == '/api/synthetic/dataset-source':
+        if RUNTIME.training():
+            raise ValueError('Espera a que termine el entrenamiento.')
+        bundle = RUNTIME.load_model(language)
+        if not bundle:
+            raise ValueError('Entrena y activa un modelo antes de elegir una toma validada.')
+        return STUDIO.add_dataset_source(language, payload.get('label_id'), bundle)
     if route == '/api/synthetic/source':
         return STUDIO.add_source(language, payload.get('name'), payload.get('type'), payload.get('data'),
                                  payload.get('mirror', True), payload.get('frames'))

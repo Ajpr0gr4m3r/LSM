@@ -76,6 +76,39 @@ class SyntheticStudio:
         threading.Thread(target=self._process_source, args=(source_id, data, bool(mirror)), daemon=True).start()
         return self.public_source(self.sources[source_id])
 
+    def add_dataset_source(self, language, label_id, bundle):
+        from synthetic_seeds import seed_options
+        language_info(language)
+        if label_id not in {row['id'] for row in seed_options(bundle[1])}:
+            raise ValueError('Elige una seña de la lista con validación suficiente.')
+        label = next(row for row in bundle[1]['labels'] if row['id'] == label_id)
+        with self.lock:
+            if sum(s['language'] == language for s in self.sources.values()) >= MAX_SOURCES:
+                raise ValueError('Quita un original antes de añadir otra toma.')
+            source_id = uuid.uuid4().hex
+            source = {'id': source_id, 'language': language, 'name': label['text'],
+                      'kind': 'dataset', 'label_id': label_id, 'label_text': label['text'],
+                      'state': 'processing', 'progress': 0., 'warnings': [], 'error': None, 'cancel': False}
+            self.sources[source_id] = source
+        threading.Thread(target=self._dataset_source, args=(source, bundle), daemon=True).start()
+        return self.public_source(source)
+
+    def _dataset_source(self, source, bundle):
+        from synthetic_seeds import select_seed
+        try:
+            confidence, path, sequence = select_seed(source['language'], source['label_id'], bundle)
+            if source['cancel']:
+                return
+            hands_present = [np.any(sequence[:, region] != 0, axis=1) for region in generator.HANDS]
+            source.update(state='ready', sequence=sequence, digest=digest(sequence),
+                          static=False, confidence=confidence, name=source['label_text'] + ' · toma validada',
+                          frames_read=len(sequence), frames_with_hands=int(np.logical_or(*hands_present).sum()),
+                          hands=[bool(np.any(sequence[:, region])) for region in generator.HANDS],
+                          preview=_compact_frames(sequence), motion=generator.motion_extent(sequence),
+                          file=path.name, progress=1.)
+        except Exception as error:
+            source.update(state='error', error=str(error))
+
     def _process_source(self, source_id, data, mirror):
         source = self.sources[source_id]
         try:
@@ -107,7 +140,7 @@ class SyntheticStudio:
     @staticmethod
     def public_source(source):
         keys = ('id', 'name', 'kind', 'state', 'progress', 'warnings', 'error', 'static', 'hands',
-                'frames_read', 'frames_with_hands', 'preview', 'motion')
+                'frames_read', 'frames_with_hands', 'preview', 'motion', 'confidence', 'label_text')
         return {k: source.get(k) for k in keys}
 
     def remove_source(self, source_id):
@@ -130,6 +163,10 @@ class SyntheticStudio:
         seed = int(seed) if str(seed).lstrip('-').isdigit() else 0
         sources = [self.sources.get(i) for i in source_ids or []]
         sources = [s for s in sources if s and s['language'] == language and s['state'] == 'ready']
+        if any(s.get('kind') == 'dataset' and s.get('label_text') != label_text for s in sources):
+            raise ValueError('La toma validada debe conservar el nombre de su seña. Quita los originales de otras señas.')
+        if any(s.get('kind') == 'dataset' for s in sources) and not semantic_bundle:
+            raise ValueError('Mantén activa la comprobación del modelo para generar desde el dataset.')
         if not sources:
             raise ValueError('Sube al menos una foto o un video con manos detectadas.')
         if any(j['state'] == 'running' for j in self.jobs.values()):
@@ -143,7 +180,7 @@ class SyntheticStudio:
         job = {'id': job_id, 'language': language, 'label': label_text, 'level': level, 'seed': seed,
                'count': count, 'state': 'running', 'done': 0, 'attempts': 0, 'rejected': Counter(),
                'samples': [], 'cancel': False, 'error': None, 'started': time.time(),
-               'sources': [s['id'] for s in sources], 'semantic': None}
+               'sources': [s['id'] for s in sources], 'semantic': None, 'bundle': semantic_bundle}
         self.jobs = {job_id: job}  # un trabajo activo; el anterior sin guardar se descarta
         threading.Thread(target=self._run, args=(job, sources, semantic_bundle), daemon=True).start()
         return self.public_job(job)
@@ -167,7 +204,7 @@ class SyntheticStudio:
             extents.append(generator.motion_extent(sequence) / max(palm, 1e-3))
         return bool(extents) and float(np.median(extents)) > .8
 
-    def _semantic_check(self, bundle, label_text, source_sequence):
+    def _semantic_check(self, bundle, label_text, source_sequence, *, validated_dataset=False):
         """Comprueba con el modelo activo que las variaciones siguen siendo la misma seña."""
         if not bundle:
             return None, 'sin modelo activo'
@@ -177,6 +214,15 @@ class SyntheticStudio:
             return None, 'la seña no está en el modelo activo'
         from recognition_features import prepare_sequence
         preprocessing = metadata.get('preprocessing')
+
+        if validated_dataset:
+            from synthetic_seeds import seed_probabilities, seed_accepts
+            def checked(batch):
+                predictions = seed_probabilities(model, metadata, batch)
+                return [seed_accepts(x, p, metadata, index) for x, p in zip(batch, predictions)]
+            if not checked([source_sequence])[0]:
+                raise ValueError('El modelo activo ya no confirma esta toma. Vuelve a elegir un original.')
+            return checked, 'activa'
 
         def predict(batch):
             features = np.stack([prepare_sequence(x, preprocessing) for x in batch])
@@ -193,7 +239,8 @@ class SyntheticStudio:
             for position, (source, amount) in enumerate(zip(sources, per_source)):
                 if not amount:
                     continue
-                check, semantic = self._semantic_check(bundle, job['label'], source['sequence'])
+                check, semantic = self._semantic_check(bundle, job['label'], source['sequence'],
+                                                       validated_dataset=source['kind'] == 'dataset')
                 job['semantic'] = semantic
                 base_done = job['done']
 
@@ -241,9 +288,11 @@ class SyntheticStudio:
             source = self.sources.get(item['source'])
             if not source:
                 raise ValueError('El archivo original ya no está disponible.')
+            check, _ = self._semantic_check(job.get('bundle'), job['label'], source['sequence'],
+                                              validated_dataset=source['kind'] == 'dataset')
             result = generator.generate(source['sequence'], 1, job['level'],
                                         seed=int(time.time() * 1000) % (2**31), static=source['static'],
-                                        label_text=job['label'])
+                                        label_text=job['label'], semantic_check=check)
             if not result.samples:
                 raise ValueError('No se obtuvo una variación válida; prueba de nuevo.')
             item.update(points=result.samples[0], params=result.params[0], status='pending')

@@ -95,10 +95,61 @@ async function syntheticRefresh() {
 function syntheticOpen() {
   const labels = (profile()?.labels || []).filter((l) => l.id !== 'espacio');
   $('synthetic-labels').replaceChildren(...labels.map((l) => makeOption(l.text, l.text)));
+  syntheticLoadDatasetOptions();
   syntheticRefresh();
 }
 
+let syntheticDatasetOptions = [];
+async function syntheticLoadDatasetOptions() {
+  const select = $('synthetic-dataset-label');
+  const button = $('synthetic-dataset-add');
+  const selectedLanguage = syntheticLanguage();
+  button.disabled = true;
+  select.replaceChildren(makeOption('', 'Cargando señas…'));
+  try {
+    const data = await syntheticRequest('/api/synthetic/dataset-options');
+    if (selectedLanguage !== syntheticLanguage()) return;
+    syntheticDatasetOptions = data.options;
+    select.replaceChildren(makeOption('', 'Elige una seña validada'),
+      ...data.options.map(row => makeOption(row.id, row.text)));
+    $('synthetic-dataset-info').textContent = data.options.length
+      ? 'Elige una seña para ver sus resultados de validación.'
+      : 'El modelo activo todavía no tiene clases que cumplan estos criterios. Revisa la evaluación en Entrenamiento.';
+  } catch (error) {
+    select.replaceChildren(makeOption('', 'No se pudieron consultar las señas'));
+    $('synthetic-dataset-info').textContent = error.message;
+  }
+}
+$('synthetic-dataset-label').addEventListener('change', () => {
+  const row = syntheticDatasetOptions.find(item => item.id === $('synthetic-dataset-label').value);
+  $('synthetic-dataset-add').disabled = !row;
+  $('synthetic-dataset-info').textContent = row
+    ? `${Math.round(row.precision * 100)} % de precisión entre aceptadas · ${row.accepted} aceptadas · ${row.support} ejemplos de validación.`
+    : 'Elige una seña para ver sus resultados de validación.';
+});
+$('synthetic-dataset-add').addEventListener('click', async () => {
+  const row = syntheticDatasetOptions.find(item => item.id === $('synthetic-dataset-label').value);
+  if (!row) return;
+  const button = $('synthetic-dataset-add');
+  button.disabled = true;
+  try {
+    await syntheticRequest('/api/synthetic/dataset-source', {label_id: row.id});
+    $('synthetic-label').value = row.text;
+    $('synthetic-semantic').checked = true;
+    await syntheticRefresh();
+  } catch (error) {
+    notice(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function sourceDescription(source) {
+  if (source.kind === 'dataset') {
+    if (source.state === 'processing') return 'Buscando una toma de entrenamiento con confirmación alta…';
+    if (source.state === 'error') return source.error;
+    return `Dataset real · confianza ${Math.round(source.confidence * 100)} % · filtros aprobados`;
+  }
   if (source.state === 'processing') return source.kind !== 'image'
     ? `Procesando video… ${Math.round((source.progress || 0) * 100)} %` : 'Detectando manos…';
   if (source.state === 'error') return source.error;
