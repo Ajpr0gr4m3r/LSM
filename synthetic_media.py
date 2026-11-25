@@ -91,9 +91,29 @@ def decode_image(data):
     return _fit(image)
 
 
-def image_source(data, language, mirror=True):
+LIGHTING_PROFILES = ('luz_baja', 'luz_intensa', 'sombra_lateral')
+
+
+def change_lighting(image, profile=None):
+    """Modifica píxeles BGR antes de MediaPipe, sin añadir puntos artificiales."""
+    if profile is None:
+        return image
+    pixels = image.astype(np.float32)
+    if profile == 'luz_baja':
+        pixels = pixels * .65
+    elif profile == 'luz_intensa':
+        pixels = pixels * 1.15 + 20
+    elif profile == 'sombra_lateral':
+        gradient = np.linspace(.55, 1., image.shape[1], dtype=np.float32)
+        pixels *= gradient[None, :, None]
+    else:
+        raise MediaError('Escenario de iluminación desconocido.')
+    return np.clip(pixels, 0, 255).astype(np.uint8)
+
+
+def image_source(data, language, mirror=True, lighting=None):
     """Foto → postura estática (30 fotogramas iguales) con su esqueleto detectado."""
-    image = decode_image(data)
+    image = change_lighting(decode_image(data), lighting)
     detector = Detector(language, static=True)
     try:
         found = detector(image, mirror)
@@ -112,7 +132,7 @@ def image_source(data, language, mirror=True):
             'preview': [found['rig']], 'size': list(image.shape[1::-1])}
 
 
-def _sample_video(path, stride, progress=None, cancelled=None, mirror=True, language='lsm'):
+def _sample_video(path, stride, progress=None, cancelled=None, mirror=True, language='lsm', lighting=None):
     import cv2
     capture = cv2.VideoCapture(path)
     if not capture.isOpened():
@@ -135,7 +155,7 @@ def _sample_video(path, stride, progress=None, cancelled=None, mirror=True, lang
                 break
             if index + 1e-6 >= next_time:
                 next_time += step
-                found = detector(_fit(image), mirror)
+                found = detector(change_lighting(_fit(image), lighting), mirror)
                 frames.append(found['points'])
                 rigs.append(found['rig'])
                 hands_seen.append(found['hands'])
@@ -150,14 +170,14 @@ def _sample_video(path, stride, progress=None, cancelled=None, mirror=True, lang
     return np.stack(frames), rigs, hands_seen, fps
 
 
-def video_source(data, language, suffix='.mp4', mirror=True, progress=None, cancelled=None):
+def video_source(data, language, suffix='.mp4', mirror=True, progress=None, cancelled=None, lighting=None):
     """Video → secuencia real de 30 fotogramas al ritmo de la cámara."""
     stride = frame_stride(language)
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
         handle.write(data)
         path = handle.name
     try:
-        frames, rigs, hands_seen, fps = _sample_video(path, stride, progress, cancelled, mirror, language)
+        frames, rigs, hands_seen, fps = _sample_video(path, stride, progress, cancelled, mirror, language, lighting)
     finally:
         try:
             os.unlink(path)
@@ -169,7 +189,7 @@ def video_source(data, language, suffix='.mp4', mirror=True, progress=None, canc
 MAX_CAMERA_FRAMES = MAX_VIDEO_SECONDS * CAPTURE_FPS
 
 
-def camera_source(images, language, progress=None, cancelled=None):
+def camera_source(images, language, progress=None, cancelled=None, lighting=None):
     """Grabación desde la cámara del navegador: fotogramas JPEG a 10 fps, sin espejo.
 
     Es exactamente lo que recibe /api/frame al reconocer, así que se refleja
@@ -184,7 +204,7 @@ def camera_source(images, language, progress=None, cancelled=None):
         for index, data in enumerate(images):
             if cancelled and cancelled():
                 raise MediaError('Importación cancelada.')
-            found = detector(decode_image(data), mirror=True)
+            found = detector(change_lighting(decode_image(data), lighting), mirror=True)
             frames.append(found['points'])
             rigs.append(found['rig'])
             hands_seen.append(found['hands'])

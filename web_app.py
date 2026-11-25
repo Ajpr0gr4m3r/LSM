@@ -1196,7 +1196,7 @@ def synthetic_route(route, payload):
         return STUDIO.add_dataset_source(language, payload.get('label_id'), bundle)
     if route == '/api/synthetic/source':
         return STUDIO.add_source(language, payload.get('name'), payload.get('type'), payload.get('data'),
-                                 payload.get('mirror', True), payload.get('frames'))
+                                 payload.get('mirror', True), payload.get('frames'), payload.get('lighting', False))
     if route == '/api/synthetic/remove-source':
         return STUDIO.remove_source(payload.get('source'))
     if route == '/api/synthetic/generate':
@@ -1204,7 +1204,7 @@ def synthetic_route(route, payload):
             raise ValueError('Espera a que termine el entrenamiento.')
         bundle = RUNTIME.load_model(language) if payload.get('semantic_check', True) else None
         return STUDIO.start(language, payload.get('label'), payload.get('sources'), payload.get('count'),
-                            payload.get('level', 'equilibrado'), payload.get('seed', 0), bundle)
+                            payload.get('level', 'equilibrado'), payload.get('seed', 0), bundle, payload.get('scenarios', False))
     if route == '/api/synthetic/cancel':
         return STUDIO.cancel(payload.get('job'))
     if route == '/api/synthetic/review':

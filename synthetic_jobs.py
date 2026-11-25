@@ -44,7 +44,7 @@ class SyntheticStudio:
         self.jobs = {}
 
     # ── Fuentes ─────────────────────────────────────────────────────────────
-    def add_source(self, language, name, content_type, encoded, mirror=True, frames=None):
+    def add_source(self, language, name, content_type, encoded, mirror=True, frames=None, lighting=False):
         language_info(language)
         if frames is not None:
             # Grabación con la cámara de Seña: lista de fotogramas JPEG a 10 fps.
@@ -72,7 +72,7 @@ class SyntheticStudio:
             source_id = uuid.uuid4().hex
             self.sources[source_id] = {'id': source_id, 'language': language, 'name': str(name)[:120],
                                        'kind': kind, 'state': 'processing', 'progress': 0., 'warnings': [],
-                                       'error': None, 'cancel': False}
+                                       'error': None, 'cancel': False, 'lighting_requested': bool(lighting)}
         threading.Thread(target=self._process_source, args=(source_id, data, bool(mirror)), daemon=True).start()
         return self.public_source(self.sources[source_id])
 
@@ -112,18 +112,37 @@ class SyntheticStudio:
     def _process_source(self, source_id, data, mirror):
         source = self.sources[source_id]
         try:
-            if source['kind'] == 'image':
-                result = media.image_source(data, source['language'], mirror)
-            elif source['kind'] == 'camera':
+            def extract(lighting=None):
+                if source['kind'] == 'image':
+                    return media.image_source(data, source['language'], mirror, lighting=lighting)
                 def progress(index, total):
                     source['progress'] = min(.99, index / total) if total else 0.
-                result = media.camera_source(data, source['language'], progress, cancelled=lambda: source['cancel'])
-            else:
+                if source['kind'] == 'camera':
+                    return media.camera_source(data, source['language'], progress,
+                        cancelled=lambda: source['cancel'], lighting=lighting)
                 suffix = '.' + source['name'].rsplit('.', 1)[-1].lower() if '.' in source['name'] else '.mp4'
-                def progress(index, total):
-                    source['progress'] = min(.99, index / total) if total else 0.
-                result = media.video_source(data, source['language'], suffix, mirror, progress,
-                                            cancelled=lambda: source['cancel'])
+                return media.video_source(data, source['language'], suffix, mirror, progress,
+                                          cancelled=lambda: source['cancel'], lighting=lighting)
+            result = extract()
+            source['lighting_sequences'] = []
+            if source.get('lighting_requested'):
+                for profile in media.LIGHTING_PROFILES:
+                    if source['cancel']:
+                        return
+                    try:
+                        variant = extract(profile)
+                        # Conserva la configuración de los dedos tras volver a detectar.
+                        reference = generator.time_warp(result['sequence'], 1., 0)
+                        reason = generator.Validator(generator.LEVELS['equilibrado']).check(
+                            reference, variant['sequence'])
+                        if reason:
+                            result['warnings'].append(f'Iluminación {profile}: descartada ({reason}).')
+                            continue
+                        source['lighting_sequences'].append({
+                            'illumination': profile, 'sequence': variant['sequence']})
+                    except media.MediaError as error:
+                        result['warnings'].append(f'Iluminación {profile}: {error}')
+            source['lighting_profiles'] = [row['illumination'] for row in source['lighting_sequences']]
             source.update(state='ready', progress=1., static=result['static'], sequence=result['sequence'],
                           digest=digest(result['sequence']), warnings=result['warnings'],
                           hands=result['hands'], frames_read=result['frames_read'],
@@ -140,7 +159,7 @@ class SyntheticStudio:
     @staticmethod
     def public_source(source):
         keys = ('id', 'name', 'kind', 'state', 'progress', 'warnings', 'error', 'static', 'hands',
-                'frames_read', 'frames_with_hands', 'preview', 'motion', 'confidence', 'label_text')
+                'frames_read', 'frames_with_hands', 'preview', 'motion', 'confidence', 'label_text', 'lighting_profiles')
         return {k: source.get(k) for k in keys}
 
     def remove_source(self, source_id):
@@ -151,7 +170,7 @@ class SyntheticStudio:
         return {'removed': bool(source)}
 
     # ── Generación ──────────────────────────────────────────────────────────
-    def start(self, language, label_text, source_ids, count, level, seed, semantic_bundle=None):
+    def start(self, language, label_text, source_ids, count, level, seed, semantic_bundle=None, scenarios=False):
         language_info(language)
         label_text = str(label_text or '').strip()
         if not label_text:
@@ -178,7 +197,7 @@ class SyntheticStudio:
         job = {'id': job_id, 'language': language, 'label': label_text, 'level': level, 'seed': seed,
                'count': count, 'state': 'running', 'done': 0, 'attempts': 0, 'rejected': Counter(),
                'samples': [], 'cancel': False, 'error': None, 'started': time.time(),
-               'sources': [s['id'] for s in sources], 'semantic': None, 'bundle': semantic_bundle}
+               'sources': [s['id'] for s in sources], 'semantic': None, 'bundle': semantic_bundle, 'scenarios': bool(scenarios)}
         self.jobs = {job_id: job}  # un trabajo activo; el anterior sin guardar se descarta
         threading.Thread(target=self._run, args=(job, sources, semantic_bundle), daemon=True).start()
         return self.public_job(job)
@@ -223,12 +242,17 @@ class SyntheticStudio:
 
     def _run(self, job, sources, bundle):
         try:
-            per_source = [job['count'] // len(sources) + (1 if i < job['count'] % len(sources) else 0)
-                          for i in range(len(sources))]
-            for position, (source, amount) in enumerate(zip(sources, per_source)):
+            views = []
+            for source in sources:
+                views.append((source, 'original', source['sequence']))
+                for variant in source.get('lighting_sequences', []):
+                    views.append((source, variant['illumination'], variant['sequence']))
+            per_source = [job['count'] // len(views) + (1 if i < job['count'] % len(views) else 0)
+                          for i in range(len(views))]
+            for position, ((source, illumination, original), amount) in enumerate(zip(views, per_source)):
                 if not amount:
                     continue
-                check, semantic = self._semantic_check(bundle, job['label'], source['sequence'])
+                check, semantic = self._semantic_check(bundle, job['label'], original)
                 job['semantic'] = semantic
                 base_done = job['done']
 
@@ -236,12 +260,13 @@ class SyntheticStudio:
                     job['done'] = base_done + done
 
                 result = generator.generate(
-                    source['sequence'], amount, job['level'], seed=job['seed'] + position * 9973,
+                    original, amount, job['level'], seed=job['seed'] + position * 9973,
                     static=source['static'], label_text=job['label'], semantic_check=check,
-                    progress=progress, cancelled=lambda: job['cancel'])
+                    progress=progress, cancelled=lambda: job['cancel'], scenarios=job.get('scenarios', False))
                 job['attempts'] += result.attempts
                 job['rejected'].update(result.rejected)
                 for sample, params in zip(result.samples, result.params):
+                    params.illumination = illumination
                     job['samples'].append({'points': sample, 'params': params, 'status': 'pending',
                                            'source': source['id']})
                 job['done'] = len(job['samples'])
@@ -279,7 +304,7 @@ class SyntheticStudio:
             check, _ = self._semantic_check(job.get('bundle'), job['label'], source['sequence'])
             result = generator.generate(source['sequence'], 1, job['level'],
                                         seed=int(time.time() * 1000) % (2**31), static=source['static'],
-                                        label_text=job['label'], semantic_check=check)
+                                        label_text=job['label'], semantic_check=check, scenarios=job.get('scenarios', False))
             if not result.samples:
                 raise ValueError('No se obtuvo una variación válida; prueba de nuevo.')
             item.update(points=result.samples[0], params=result.params[0], status='pending')
@@ -317,6 +342,7 @@ class SyntheticStudio:
             save_synthetic(job['language'], label['id'], item['points'], {
                 'origin': source.get('kind', 'desconocido'), 'file': source.get('name'),
                 'source_digest': source.get('digest'), 'source_id': item['source'],
+                'illumination': params.illumination, 'scenario': params.scenario,
                 'level': job['level'], 'seed': params.seed, 'transform': params.summary(),
                 'label_text': label['text'], 'participant': participant,
                 'review': item['status'], 'created_at': time.time()},

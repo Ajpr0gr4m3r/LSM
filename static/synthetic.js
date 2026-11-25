@@ -54,9 +54,9 @@ function drawSkeleton(canvas, frame, bounds) {
   });
 }
 
-function animate(canvas, frames) {
+function animate(canvas, frames, framing = null) {
   if (!frames?.length) return;
-  const bounds = frameBounds(frames);
+  const bounds = framing || frameBounds(frames);
   let index = 0;
   drawSkeleton(canvas, frames[0], bounds);
   if (frames.length < 2) return;
@@ -156,7 +156,8 @@ function sourceDescription(source) {
   const hands = (source.hands || []).map((h, i) => (h ? (i ? 'derecha' : 'izquierda') : null)).filter(Boolean);
   const kind = source.static ? 'Foto · seña estática'
     : `${source.kind === 'camera' ? 'Grabación' : 'Video'} · ${source.frames_with_hands}/${source.frames_read} fotogramas con manos`;
-  return `${kind} · mano ${hands.join(' y ') || '—'}`;
+  return `${kind} · mano ${hands.join(' y ') || '—'}` +
+    (source.lighting_profiles?.length ? ` · ${source.lighting_profiles.length} escenarios de iluminación` : '');
 }
 
 function renderSources() {
@@ -193,8 +194,13 @@ function renderSources() {
 function transformText(params) {
   const hand = params.hands?.find(Boolean) || {};
   const pct = (v) => `${v >= 1 ? '+' : ''}${Math.round((v - 1) * 100)} %`;
-  return [`mano ${pct(hand.scale ?? 1)}`, `distancia ${pct(params.body_scale ?? 1)}`,
-    `giro ${Math.round(hand.roll ?? 0)}°`, `velocidad ${pct(params.speed ?? 1)}`].join(' · ');
+  const scenarios = {cerca:'Cerca', lejos:'Lejos', mano_pequena:'Mano pequeña', mano_grande:'Mano grande',
+    izquierda:'A la izquierda', derecha:'A la derecha', arriba:'Arriba', abajo:'Abajo',
+    camara_inclinada_izquierda:'Cámara inclinada', camara_inclinada_derecha:'Cámara inclinada',
+    perspectiva_izquierda:'Perspectiva izquierda', perspectiva_derecha:'Perspectiva derecha', combinado:'Combinado'};
+  const lighting = {luz_baja:'Luz baja', luz_intensa:'Luz intensa', sombra_lateral:'Sombra lateral'};
+  return [scenarios[params.scenario], lighting[params.illumination], `mano ${pct(hand.scale ?? 1)}`, `distancia ${pct(params.body_scale ?? 1)}`,
+    `giro ${Math.round(hand.roll ?? 0)}°`, `velocidad ${pct(params.speed ?? 1)}`].filter(Boolean).join(' · ');
 }
 
 function renderJob() {
@@ -249,7 +255,7 @@ function renderJob() {
       actions.append(button);
     }
     card.append(canvas, info, actions);
-    animate(canvas, preview.frames);
+    animate(canvas, preview.frames, {x: 0, y: 0, size: 1});
     return card;
   }));
   const pages = Math.ceil(job.done / 24);
@@ -286,7 +292,7 @@ async function syntheticUpload(files) {
     });
     try {
       await syntheticRequest('/api/synthetic/source', { name: file.name, type: file.type, data,
-        mirror: $('synthetic-mirror').checked });
+        mirror: $('synthetic-mirror').checked, lighting: $('synthetic-lighting').checked });
     } catch (error) {
       notice(`${file.name}: ${error.message}`, true);
     }
@@ -309,7 +315,7 @@ async function syntheticGenerate() {
     synthetic.job = await syntheticRequest('/api/synthetic/generate', {
       label, count, level: $('synthetic-level').value, seed: Number($('synthetic-seed').value) || 0,
       sources: synthetic.sources.filter((s) => s.state === 'ready').map((s) => s.id),
-      semantic_check: $('synthetic-semantic').checked });
+      semantic_check: $('synthetic-semantic').checked, scenarios: $('synthetic-scenarios').checked });
   } catch (error) {
     notice(error.message, true);
   } finally {
@@ -471,7 +477,7 @@ async function recordTake() {
     recorder.takes += 1;
     recorderStatus(`Enviando ${frames.length} fotogramas (${(frames.length / 10).toFixed(1)} s)…`);
     await syntheticRequest('/api/synthetic/source', {
-      name: `Grabación ${recorder.takes} · ${(frames.length / 10).toFixed(1)} s`, frames });
+      name: `Grabación ${recorder.takes} · ${(frames.length / 10).toFixed(1)} s`, frames, lighting: $('synthetic-lighting').checked });
     recorderStatus('Listo: la grabación aparece en la lista. Puedes grabar otra toma.');
     syntheticRefresh();
   } catch (error) {

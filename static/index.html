@@ -854,6 +854,9 @@
                       <button id="synthetic-recorder-close" class="text-button" type="button">Cerrar cámara</button>
                     </div>
                   </div>
+                  <label class="check-row"><input id="synthetic-lighting" type="checkbox" checked />
+                    Probar luz baja, intensa y sombra lateral al importar fotos o videos (tarda más)</label>
+                  <p class="help">La iluminación se modifica sobre las imágenes y se vuelven a detectar los puntos. Las tomas del dataset solo contienen puntos; sus variantes cambian tamaño, posición y distancia.</p>
                   <label class="check-row"><input id="synthetic-mirror" type="checkbox" checked />
                     Reflejar como la cámara de Seña (desmárcalo si el archivo ya está en espejo)</label>
                   <p class="help">Fotos: solo señas estáticas (A, B, C…). Videos: señas con movimiento o
@@ -862,6 +865,9 @@
                 </div>
                 <div class="training-card">
                   <span class="small-label">03 · GENERACIÓN</span>
+                  <label class="check-row"><input id="synthetic-scenarios" type="checkbox" checked />
+                    Distribuir varios escenarios de la misma seña</label>
+                  <p class="help">Cerca y lejos, manos más pequeñas y grandes, posición en el encuadre, inclinación y perspectiva limitada. El nivel controla la amplitud; se conserva el orden del movimiento.</p>
                   <label for="synthetic-level">Nivel de variación</label>
                   <select id="synthetic-level">
                     <option value="conservador">Conservador · variaciones pequeñas (señas parecidas entre sí)</option>

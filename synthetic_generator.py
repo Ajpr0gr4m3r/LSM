@@ -60,8 +60,8 @@ class Level:
 
 LEVELS = {
     'conservador': Level('conservador', .04, .025, 0, .04, .03, .03, 0, 3, 0, .010, .05, 1, .06),
-    'equilibrado': Level('equilibrado', .10, .06, 3, .10, .06, .06, 3, 7, 6, .018, .15, 2, .10),
-    'avanzado':    Level('avanzado',    .18, .10, 5, .15, .09, .09, 5, 12, 12, .025, .25, 3, .14),
+    'equilibrado': Level('equilibrado', .20, .09, 3, .14, .06, .06, 3, 7, 6, .018, .15, 2, .10),
+    'avanzado':    Level('avanzado',    .30, .14, 5, .20, .09, .09, 5, 12, 12, .025, .25, 3, .14),
 }
 DEFAULT_LEVEL = 'equilibrado'
 
@@ -112,6 +112,8 @@ class Params:
     offset: int = 0
     noise: float = 0.
     seed: int = 0
+    scenario: str = 'variacion'
+    illumination: str = 'original'
 
     def summary(self):
         data = asdict(self)
@@ -138,6 +140,41 @@ def sample_params(level: Level, rng: np.random.Generator, static: bool, confusab
                   speed=1. if static else 1 + u(level.speed),
                   offset=0 if static else int(rng.integers(-level.offset, level.offset + 1)),
                   noise=level.noise, seed=int(rng.integers(0, 2**31 - 1)))
+
+
+SCENARIOS = (
+    'cerca', 'lejos', 'mano_pequena', 'mano_grande',
+    'izquierda', 'derecha', 'arriba', 'abajo',
+    'camara_inclinada_izquierda', 'camara_inclinada_derecha',
+    'perspectiva_izquierda', 'perspectiva_derecha', 'combinado',
+)
+
+
+def scenario_params(level, rng, static, confusable, index):
+    """Distribuye escenarios; cada transformación se mantiene durante toda la toma."""
+    params = sample_params(level, rng, static, confusable)
+    params.scenario = SCENARIOS[index % len(SCENARIOS)]
+    name = params.scenario
+    amount = float(rng.uniform(.65, 1.))
+    if name in ('cerca', 'lejos'):
+        direction = 1 if name == 'cerca' else -1
+        params.body_scale = 1 + direction * level.body_scale * amount
+    elif name in ('mano_pequena', 'mano_grande'):
+        direction = 1 if name == 'mano_grande' else -1
+        for hand in params.hands:
+            hand['scale'] = 1 + direction * level.hand_scale * amount
+    elif name in ('izquierda', 'derecha', 'arriba', 'abajo'):
+        axis = 0 if name in ('izquierda', 'derecha') else 1
+        direction = -1 if name in ('izquierda', 'arriba') else 1
+        shift = list(params.shift)
+        shift[axis] = direction * level.shift * amount
+        params.shift = tuple(shift)
+    elif name.startswith('camara_inclinada'):
+        params.roll_deg = (-1 if name.endswith('izquierda') else 1) * level.roll_deg * amount
+    elif name.startswith('perspectiva'):
+        for hand in params.hands:
+            hand['yaw'] = (-1 if name.endswith('izquierda') else 1) * level.yaw_deg * amount
+    return params
 
 
 def rebuild_hand(hand, scale, palm, fingers, spread):
@@ -215,12 +252,12 @@ def apply(sequence, params: Params):
             block = frame[region].reshape(-1, width)
             if not np.any(block[:, :3] != 0):
                 continue
-            xy = block[:, :2]
+            present = np.any(block[:, :3] != 0, axis=1)
+            xy = block[present, :2]
             xy = center + (xy - center) * params.body_scale
             xy = _rot2(xy, center, params.roll_deg)
-            block[:, :2] = xy + np.asarray(params.shift, np.float32)
-            if width == 3:
-                block[:, 2] *= params.body_scale
+            block[present, :2] = xy + np.asarray(params.shift, np.float32)
+            block[present, 2] *= params.body_scale
             frame[region] = block.reshape(-1)
     return out.astype(np.float32)
 
@@ -293,7 +330,7 @@ class Validator:
                 continue
             # Mediana a lo largo del tiempo: robusta al ruido de un fotograma aislado.
             with np.errstate(all='ignore'):
-                ratio = np.nanmedian(np.array(ratios), axis=0) if np.isfinite(ratios).any() else np.array([])
+                ratio = np.array([np.median(column[np.isfinite(column)]) for column in np.array(ratios).T if np.isfinite(column).any()])
             ratio = ratio[np.isfinite(ratio)]
             if ratio.size and (ratio.min() < 1 / limit_scale or ratio.max() > limit_scale):
                 return 'proporciones'
@@ -301,7 +338,7 @@ class Validator:
             if rel.size and (rel.min() < .75 or rel.max() > 1.33):
                 return 'deformacion'
             with np.errstate(all='ignore'):
-                angle = np.nanmedian(np.array(angles), axis=0) if np.isfinite(angles).any() else np.array([])
+                angle = np.array([np.median(column[np.isfinite(column)]) for column in np.array(angles).T if np.isfinite(column).any()])
             angle = angle[np.isfinite(angle)]
             if angle.size and angle.max() > angle_limit:
                 return 'angulos'
@@ -329,7 +366,10 @@ class Validator:
 def hand_vector(sequence):
     """Vector compacto (manos relativas a su muñeca) para detectar copias."""
     from recognition_features import local_hands
-    return local_hands(sequence)[:, :126].reshape(-1)
+    local = local_hands(sequence)[:, :126].reshape(-1)
+    # La posición y escala de imagen también distinguen escenarios de cámara.
+    image = np.concatenate([sequence[:, region].reshape(-1) for region in HANDS])
+    return np.concatenate([local, image * 2])
 
 
 @dataclass
@@ -342,7 +382,7 @@ class Result:
 
 
 def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_text=None,
-             semantic_check=None, progress=None, cancelled=None, max_attempts_factor=6, batch=25):
+             semantic_check=None, progress=None, cancelled=None, max_attempts_factor=6, batch=25, scenarios=False):
     """Genera ``count`` variaciones válidas de ``source`` (30, 492).
 
     ``semantic_check(batch) -> list[bool]`` (opcional) confirma que el modelo
@@ -370,7 +410,8 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
         pending = []
         for _ in range(min(batch, count - len(accepted), limit - attempts) or 1):
             attempts += 1
-            params = sample_params(config, rng, static, confusable)
+            params = (scenario_params(config, rng, static, confusable, (int(seed) % len(SCENARIOS)) + attempts - 1)
+                      if scenarios else sample_params(config, rng, static, confusable))
             sample = apply(source, params)
             reference = time_warp(source, params.speed, params.offset) if (params.speed != 1 or params.offset) else source
             reason = validator.check(source, sample, reference)
@@ -404,5 +445,5 @@ def generate(source, count, level=DEFAULT_LEVEL, seed=0, static=False, label_tex
 
 
 def sample_id(source_digest, params: Params, level):
-    raw = json.dumps({'source': source_digest, 'seed': params.seed, 'level': level}, sort_keys=True)
+    raw = json.dumps({'source': source_digest, 'params': params.summary(), 'level': level}, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
