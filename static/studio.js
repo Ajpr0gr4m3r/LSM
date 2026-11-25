@@ -54,7 +54,7 @@ function animateHomeOverview() {
   update(performance.now());
 }
 const trainingChoices = new Map();
-const ADMIN_VIEWS = new Set(['dataset', 'training', 'deletreo']);
+const ADMIN_VIEWS = new Set(['dataset', 'training', 'deletreo', 'synthetic']);
 const headings = {
   home: ['ESTUDIO', 'Resumen del estudio', 'Estado del modelo activo.'],
   recognition: ['CÁMARA', 'Probar modelo', 'Realiza una seña del vocabulario entrenado.'],
@@ -62,6 +62,7 @@ const headings = {
   deletreo: ['EXPERIMENTAL', 'Deletreo', 'Combina letras confirmadas para escribir palabras en español.'],
   dataset: ['EJEMPLOS', 'Dataset', 'Graba, nombra y revisa las tomas de cada seña.'],
   training: ['MODELO', 'Entrenamiento', 'Configura una versión y consulta su evaluación.'],
+  synthetic: ['DATOS', 'Generador de Dataset Sintético', 'Crea variaciones de una seña a partir de fotos o videos.'],
   settings: ['PREFERENCIAS', 'Configuración', 'Ajustes de cámara, apariencia y reconocimiento.'],
 };
 const labelsByView = {
@@ -71,6 +72,7 @@ const labelsByView = {
   deletreo: 'Deletreo',
   dataset: 'Dataset',
   training: 'Entrenamiento',
+  synthetic: 'Generador sintético',
   settings: 'Configuración',
 };
 // Crea un elemento de interfaz con texto seguro y clase opcional.
@@ -164,6 +166,7 @@ async function navigateStudio(view) {
   notice('');
   if (state) render();
   if (view === 'training' && state) await loadVersions();
+  if (view === 'synthetic' && typeof syntheticOpen === 'function') syntheticOpen();
 }
 const spellingWords = [
   'HOLA', 'ADIÓS', 'GRACIAS', 'SÍ', 'NO', 'BIEN', 'AGUA', 'COMIDA', 'AYUDA',

@@ -1135,8 +1135,14 @@ class Runtime:
         return output
 
     # Valida clases, épocas y estado y lanza el entrenamiento en un proceso separado.
-    def start_training(self, language, epochs, label_ids=None, strategy="baseline"):
+    def start_training(self, language, epochs, label_ids=None, strategy="baseline", synthetic_mode='real', synthetic_ratio=1.):
         language_info(language)
+        if synthetic_mode not in ('real', 'mixed', 'synthetic'):
+            raise ValueError('Modo de datos desconocido.')
+        try:
+            synthetic_ratio = min(max(float(synthetic_ratio), .1), 5.)
+        except (TypeError, ValueError):
+            raise ValueError('La proporción de sintéticas debe ser un número entre 0.1 y 5.')
         if self.training():
             raise ValueError('Ya hay un entrenamiento en curso.')
         if strategy not in ('baseline', 'discriminative', 'contrastive', 'trajectory', 'robust', 'torso'):
@@ -1159,12 +1165,47 @@ class Runtime:
         selection_args = ['--labels', *label_ids] if label_ids is not None else []
         with (logs / f'{self.job_id}.log').open('w') as output:
             self.process = subprocess.Popen([sys.executable, '-u', str(ROOT / 'web_train.py'),
-                                             '--language', language, '--epochs', str(epochs), '--job-id', self.job_id, '--strategy', strategy, *selection_args],
+                                             '--language', language, '--epochs', str(epochs), '--job-id', self.job_id, '--strategy', strategy, *selection_args,
+                                             '--synthetic-mode', synthetic_mode, '--synthetic-ratio', str(synthetic_ratio)],
                                             cwd=ROOT, env=env, stdout=output, stderr=subprocess.STDOUT)
         return {'job_id': self.job_id}
 
 
 RUNTIME = Runtime()
+
+
+def synthetic_route(route, payload):
+    """Generador de Dataset Sintético: las tareas pesadas corren en hilos propios."""
+    from synthetic_jobs import STUDIO
+    import synthetic_dataset
+    language = payload.get('language')
+    if route == '/api/synthetic/state':
+        result = STUDIO.state(language, payload.get('job'), int(payload.get('start') or 0))
+        result['stored'] = synthetic_dataset.inventory(language)
+        return result
+    if route == '/api/synthetic/source':
+        return STUDIO.add_source(language, payload.get('name'), payload.get('type'), payload.get('data'),
+                                 payload.get('mirror', True))
+    if route == '/api/synthetic/remove-source':
+        return STUDIO.remove_source(payload.get('source'))
+    if route == '/api/synthetic/generate':
+        if RUNTIME.training():
+            raise ValueError('Espera a que termine el entrenamiento.')
+        bundle = RUNTIME.load_model(language) if payload.get('semantic_check', True) else None
+        return STUDIO.start(language, payload.get('label'), payload.get('sources'), payload.get('count'),
+                            payload.get('level', 'equilibrado'), payload.get('seed', 0), bundle)
+    if route == '/api/synthetic/cancel':
+        return STUDIO.cancel(payload.get('job'))
+    if route == '/api/synthetic/review':
+        return STUDIO.review(payload.get('job'), payload.get('index'), payload.get('action'))
+    if route == '/api/synthetic/save':
+        return STUDIO.save(payload.get('job'), payload.get('include_pending', True), payload.get('save_real', True),
+                           payload.get('participant', ''))
+    if route == '/api/synthetic/clear':
+        if RUNTIME.training():
+            raise ValueError('Espera a que termine el entrenamiento.')
+        return {'removed': synthetic_dataset.clear(language, payload.get('label') or None)}
+    raise ValueError('Ruta no encontrada.')
 
 
 def check_camera_dependencies():
@@ -1269,6 +1310,7 @@ class Handler(BaseHTTPRequestHandler):
                  '/static/phrases.js': ('phrases.js', 'text/javascript; charset=utf-8'),
                  '/static/vocabulary.js': ('vocabulary.js', 'text/javascript; charset=utf-8'),
                  '/static/transcript.js': ('transcript.js', 'text/javascript; charset=utf-8'),
+                 '/static/synthetic.js': ('synthetic.js', 'text/javascript; charset=utf-8'),
                  '/static/continuous.js': ('continuous.js', 'text/javascript; charset=utf-8'),
                  '/static/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/static/styles.css': ('styles.css', 'text/css; charset=utf-8')}
@@ -1317,7 +1359,7 @@ class Handler(BaseHTTPRequestHandler):
                                            'El acceso de esta pestaña cambió. Recarga la página e inténtalo de nuevo.')
         try:
             length = int(self.headers.get('Content-Length', '0'))
-            max_length = 48 * 1024 * 1024 if urlsplit(self.path).path == '/api/dataset/import' else 2000000
+            max_length = 48 * 1024 * 1024 if urlsplit(self.path).path in ('/api/dataset/import', '/api/synthetic/source') else 2000000
             if length <= 0 or length > max_length:
                 raise ValueError('Solicitud vacía o demasiado grande.')
             payload = json.loads(self.rfile.read(length))
@@ -1405,7 +1447,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif route == '/api/models/list':
                     result = {'versions': versions(payload.get('language'))}
                 elif route == '/api/train':
-                    result = RUNTIME.start_training(payload.get('language'), payload.get('epochs', 40), payload.get('labels'), payload.get('strategy', 'baseline'))
+                    result = RUNTIME.start_training(payload.get('language'), payload.get('epochs', 40), payload.get('labels'), payload.get('strategy', 'baseline'),
+                                                    payload.get('synthetic_mode', 'real'), payload.get('synthetic_ratio', 1.))
+                elif route.startswith('/api/synthetic/'):
+                    result = synthetic_route(route, payload)
                 else:
                     return self.send_data(404, {'error': 'Ruta no encontrada.'})
             self.send_data(200, result)

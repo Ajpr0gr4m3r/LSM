@@ -1177,6 +1177,8 @@ async function trainModel() {
       epochs,
       labels: selectedTrainingClasses(profile()).map((x) => x.id),
       strategy: $('training-strategy').value,
+      synthetic_mode: $('training-data-mode').value,
+      synthetic_ratio: Number($('training-synthetic-ratio').value) || 1,
     });
     notice(
       'Entrenamiento iniciado. El progreso aparecerá debajo; puedes dejar esta página abierta.',

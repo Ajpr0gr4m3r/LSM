@@ -157,6 +157,30 @@ En **Dataset → Palabras y frases** hay 186 entradas en 13 categorías (saludos
 
 El reparto de ejemplos procura mantener sesiones y participantes completos en un solo conjunto. La validación ajusta la decisión del modelo; la prueba reservada sirve para evaluar y no debe usarse para escoger épocas o umbrales. Si los datos no tienen procedencia suficiente, la interfaz debe advertir que la evaluación es exploratoria.
 
+### 4b. Generador de Dataset Sintético
+
+La vista **Generador** (solo Admin) crea variaciones de una seña a partir de fotos o videos, para necesitar menos grabaciones manuales. No sustituye la grabación en vivo.
+
+1. Escribe o elige la seña.
+2. Arrastra **fotos** (solo señas estáticas: A, B, C…) o **videos** de 1–6 s (señas con movimiento o frases). Seña los procesa con la misma detección de MediaPipe que la cámara y en la misma vista en espejo; desmarca «Reflejar» si el archivo ya viene en espejo.
+3. Elige nivel (**Conservador**, **Equilibrado**, **Avanzado**), cantidad (50–1000) y semilla. La misma semilla produce las mismas muestras.
+4. Revisa las muestras animadas: aprueba ✓, rechaza ✕ o regenera ↻. Las rechazadas nunca se guardan.
+5. Guarda. Las sintéticas van a `web_data/synthetic/<perfil>/<seña>/` con su origen y transformación; si el archivo era un video, su toma original también se guarda como ejemplo real.
+6. En **Entrenamiento → Datos para entrenar** elige *Solo reales*, *Reales + sintéticas* (con proporción ajustable) o *Solo sintéticas · experimental*.
+
+Qué cambia en cada variación (`synthetic_generator.py`): tamaño de la mano, proporción de palma y de cada dedo (reconstruyendo la mano hueso por hueso, sin cambiar la dirección de los huesos), distancia a la cámara, desplazamiento, giro leve de la mano y de la cámara, escorzo aproximado, ruido de detección y, solo en videos, velocidad y desfase. Nunca se refleja la seña ni se intercambia la mano dominante. Una foto solo recibe micro‑variaciones: no se inventa movimiento, y una seña cuyas tomas reales tienen movimiento (J, Ñ…) no acepta fotos.
+
+Cada muestra se valida antes de mostrarse: dimensiones, valores, regiones detectadas, proporciones de huesos, deformaciones, ángulos, geometría de los dedos (más estricta para B/E, G/H, M/N/Ñ, U/V/W/R, S/T/A y F/B), coherencia temporal, copias casi idénticas y, si la seña ya está en el modelo activo, que el modelo la siga reconociendo. Los descartes se cuentan por motivo.
+
+**Sin fugas:** las sintéticas solo entran al ajuste de pesos, nunca a validación ni prueba, y solo si su toma de origen quedó en entrenamiento (o es una foto/video ajeno al dataset real). La precisión que muestra Entrenamiento siempre se mide con tomas reales.
+
+Herramientas:
+
+```bash
+python tools/generate_from_dataset.py --per-sample 1 --level equilibrado   # sintéticas desde tomas reales de entrenamiento
+python web_train.py --language lsm --job-id <32 hex> --synthetic-mode mixed --synthetic-ratio 1 --no-activate
+```
+
 ### 5. Probar el modelo
 
 1. Ve a **Reconocimiento** y confirma que el perfil activo sea **LSM · Español**.

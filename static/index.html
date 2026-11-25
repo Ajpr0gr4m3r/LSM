@@ -14,6 +14,7 @@
     <script defer src="/static/studio.js"></script>
     <script defer src="/static/vocabulary.js"></script>
     <script defer src="/static/transcript.js"></script>
+    <script defer src="/static/synthetic.js"></script>
     <script defer src="/static/accounts.js"></script>
     <script defer src="/static/conversation.js"></script>
   </head>
@@ -57,6 +58,9 @@
             <svg class="icon" aria-hidden="true">
               <use href="/static/vendor/lucide.svg#activity"></use></svg
             ><span>Entrenamiento</span></button
+          ><button type="button" data-view="synthetic" data-admin-only hidden aria-label="Generador sintético" aria-current="false">
+            <svg class="icon" aria-hidden="true"><use href="/static/vendor/lucide.svg#layers"></use></svg
+            ><span>Generador</span></button
           ><button
             type="button"
             data-view="settings"
@@ -697,6 +701,17 @@
                       <option value="trajectory">Trayectoria y velocidad · experimental</option>
                       <option value="contrastive">Contrastivo · experimental</option>
                     </select>
+                    <label for="training-data-mode">Datos para entrenar</label>
+                    <select id="training-data-mode">
+                      <option value="real" selected>Solo tomas reales</option>
+                      <option value="mixed">Reales + sintéticas</option>
+                      <option value="synthetic">Solo sintéticas · experimental</option>
+                    </select>
+                    <div id="training-ratio-wrap" hidden>
+                      <label for="training-synthetic-ratio">Sintéticas por cada toma real de entrenamiento</label>
+                      <input id="training-synthetic-ratio" type="number" min="0.1" max="5" step="0.1" value="1" />
+                      <p class="help">1 = misma cantidad de sintéticas que de reales. Valores altos pueden hacer que el modelo dependa de datos artificiales. La evaluación siempre usa tomas reales.</p>
+                    </div>
                     <details class="training-notes"><summary>Preparación de los ejemplos</summary><p class="help">Para señas a la altura del pecho, encuadra ambos hombros y las manos. Usa la estrategia Torso y pecho. En las señas con movimiento, graba el recorrido completo desde la posición de partida y conserva brevemente la posición final. Una toma debe contener una sola seña.</p>
                     <p class="help">Cada versión guarda su evaluación. Se mantienen los ejemplos de las clases del modelo activo. Una versión sin evidencia suficiente se guarda para revisión.</p></details>
                     <button id="train-model" class="primary wide" disabled>
@@ -781,6 +796,96 @@
               </details>
             </article>
             <div id="legacy-note" class="legacy-note" hidden></div>
+          </section>
+          <section id="view-synthetic" class="view synthetic-view" hidden>
+            <div class="synthetic-grid">
+              <div class="synthetic-column">
+                <div class="training-card">
+                  <span class="small-label">01 · SEÑA</span>
+                  <label for="synthetic-label">Seña existente o nueva</label>
+                  <input id="synthetic-label" list="synthetic-labels" maxlength="80" placeholder="Ej. A, Hola, ¿Cómo estás?" />
+                  <datalist id="synthetic-labels"></datalist>
+                  <p id="synthetic-label-info" class="help"></p>
+                </div>
+                <div class="training-card">
+                  <span class="small-label">02 · FOTOS Y VIDEOS</span>
+                  <div id="synthetic-drop" class="synthetic-drop" tabindex="0" role="button"
+                       aria-label="Arrastra fotos o videos, o pulsa para elegirlos">
+                    <strong>Arrastra fotos o videos aquí</strong>
+                    <span>o pulsa para elegirlos · JPG, PNG, WEBP, MP4, MOV, WEBM · hasta 35 MB</span>
+                  </div>
+                  <input id="synthetic-files" type="file" accept="image/*,video/*" multiple hidden />
+                  <label class="check-row"><input id="synthetic-mirror" type="checkbox" checked />
+                    Reflejar como la cámara de Seña (desmárcalo si el archivo ya está en espejo)</label>
+                  <p class="help">Fotos: solo señas estáticas (A, B, C…). Videos: señas con movimiento o
+                    frases; graba una sola seña de 1–6 s, con hombros y manos en cuadro.</p>
+                  <ul id="synthetic-sources" class="synthetic-sources"></ul>
+                </div>
+                <div class="training-card">
+                  <span class="small-label">03 · GENERACIÓN</span>
+                  <label for="synthetic-level">Nivel de variación</label>
+                  <select id="synthetic-level">
+                    <option value="conservador">Conservador · variaciones pequeñas (señas parecidas entre sí)</option>
+                    <option value="equilibrado" selected>Equilibrado · tamaños, proporciones y posición</option>
+                    <option value="avanzado">Avanzado · más perspectiva y velocidad, validación estricta</option>
+                  </select>
+                  <div class="synthetic-row">
+                    <label>Cantidad
+                      <select id="synthetic-count">
+                        <option>50</option><option selected>100</option><option>250</option>
+                        <option>500</option><option>1000</option><option value="custom">Otra…</option>
+                      </select></label>
+                    <label id="synthetic-custom-wrap" hidden>Muestras
+                      <input id="synthetic-custom" type="number" min="1" max="1000" value="150" /></label>
+                    <label>Semilla <input id="synthetic-seed" type="number" value="42" /></label>
+                  </div>
+                  <label class="check-row"><input id="synthetic-semantic" type="checkbox" checked />
+                    Descartar variaciones que el modelo activo ya no reconozca como esta seña</label>
+                  <div class="input-row">
+                    <button id="synthetic-generate" class="primary" type="button" disabled>Generar muestras</button>
+                    <button id="synthetic-cancel" class="secondary" type="button" hidden>Cancelar</button>
+                  </div>
+                  <div class="synthetic-progress" hidden id="synthetic-progress-wrap">
+                    <div class="synthetic-bar"><span id="synthetic-progress"></span></div>
+                    <p id="synthetic-progress-text" class="help"></p>
+                  </div>
+                </div>
+              </div>
+              <div class="synthetic-column">
+                <div class="training-card">
+                  <span class="small-label">04 · REVISIÓN</span>
+                  <h3 id="synthetic-review-title">Sin muestras todavía</h3>
+                  <p id="synthetic-stats" class="help">Sube un archivo y genera variaciones para revisarlas aquí.</p>
+                  <div id="synthetic-original" class="synthetic-original" hidden>
+                    <span class="small-label">Original detectado</span>
+                    <canvas id="synthetic-original-canvas" width="260" height="260"></canvas>
+                  </div>
+                  <div id="synthetic-previews" class="synthetic-previews"></div>
+                  <div class="input-row" id="synthetic-pager" hidden>
+                    <button id="synthetic-prev" class="text-button" type="button">← Anteriores</button>
+                    <span id="synthetic-page" class="help"></span>
+                    <button id="synthetic-next" class="text-button" type="button">Siguientes →</button>
+                  </div>
+                </div>
+                <div class="training-card">
+                  <span class="small-label">05 · GUARDAR</span>
+                  <label class="check-row"><input id="synthetic-include-pending" type="checkbox" checked />
+                    Guardar también las no revisadas (las rechazadas nunca se guardan)</label>
+                  <label class="check-row"><input id="synthetic-save-real" type="checkbox" checked />
+                    Guardar cada video original como toma real del dataset</label>
+                  <label for="synthetic-participant">Participante (código, opcional)</label>
+                  <input id="synthetic-participant" maxlength="60" placeholder="persona-01" />
+                  <div class="input-row">
+                    <button id="synthetic-save" class="primary" type="button" disabled>Guardar en el dataset sintético</button>
+                    <button id="synthetic-to-training" class="secondary" type="button">Ir a Entrenamiento ↗</button>
+                  </div>
+                  <p id="synthetic-stored" class="help"></p>
+                  <p class="help">Las sintéticas se guardan aparte de las tomas reales y solo se usan para
+                    ajustar el modelo. La validación y la prueba siempre usan tomas reales, así que la
+                    precisión que verás en Entrenamiento corresponde a personas reales.</p>
+                </div>
+              </div>
+            </div>
           </section>
           <section id="view-settings" class="view" hidden>
             <article class="card" id="team-settings">

@@ -2726,3 +2726,32 @@ html[data-reduce-motion="true"] *::after { transition:none !important; }
 .transcript-settings select { width: 100%; margin-top: 4px; }
 .transcript-card .transcript-actions { flex-wrap: wrap; gap: 6px; }
 .transcript-card .transcript-actions button { flex: 0 1 auto; }
+
+/* Generador de Dataset Sintético */
+.synthetic-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; }
+.synthetic-column { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.synthetic-view input:not([type=checkbox]), .synthetic-view select { width: 100%; margin: 6px 0 10px; }
+.synthetic-drop { border: 1px dashed var(--line); padding: 26px 16px; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; transition: background .15s, border-color .15s; }
+.synthetic-drop span { font-size: 11px; color: var(--muted); }
+.synthetic-drop.dragging, .synthetic-drop:hover, .synthetic-drop:focus-visible { border-color: var(--accent); background: var(--wash); outline: none; }
+.synthetic-sources { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.synthetic-sources li { border: 1px solid var(--line); padding: 10px; display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; font-size: 12px; }
+.synthetic-sources li.error { border-color: var(--danger, #e07a5f); }
+.synthetic-sources canvas { width: 64px; height: 64px; background: var(--wash); }
+.synthetic-sources small { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.synthetic-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.synthetic-row label { font-size: 11px; }
+.synthetic-bar { height: 6px; background: var(--wash); margin-top: 14px; overflow: hidden; }
+.synthetic-bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.synthetic-original { margin: 10px 0 14px; }
+.synthetic-original canvas { width: 180px; height: 180px; background: var(--wash); display: block; margin-top: 6px; }
+.synthetic-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.synthetic-card { border: 1px solid var(--line); padding: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 10px; }
+.synthetic-card canvas { width: 100%; aspect-ratio: 1; background: var(--wash); }
+.synthetic-card.approved { border-color: #7fb069; }
+.synthetic-card.rejected { opacity: .45; }
+.synthetic-card .synthetic-actions { display: flex; gap: 4px; }
+.synthetic-card .synthetic-actions button { flex: 1; padding: 4px 0; font-size: 12px; }
+.synthetic-card small { color: var(--muted); line-height: 1.45; }
+@media (max-width: 900px) { .synthetic-grid { grid-template-columns: 1fr; } }
